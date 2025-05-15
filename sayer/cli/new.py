@@ -31,7 +31,9 @@ dependencies = ["sayer"]
 
 @command
 def new(name: str) -> None:
-    """Create a new Sayer CLI project in *NAME* directory. dasdasdasdasds"""
+    """
+    Create a new Sayer CLI project in *NAME* directory.
+    """
     base = Path(name)
     if base.exists():
         error(f"Directory '{name}' already exists.")

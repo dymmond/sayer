@@ -16,7 +16,7 @@ def command(func: Callable) -> click.Command:
     name = func.__name__.replace("_", "-")
     sig = inspect.signature(func)
 
-    @click.command(name=name)
+    @click.command(name=name, help=func.__doc__ or "")
     @click.pass_context
     def wrapper(ctx: click.Context, **kwargs):
         bound = {}

@@ -101,7 +101,7 @@ build = "mkdocs build"
 serve = "mkdocs serve --dev-addr localhost:8000"
 
 [tool.hatch.envs.test]
-dependencies = ["sayer[testing]"]
+features = ["testing"]
 
 [tool.hatch.envs.test.scripts]
 # needs docker services running

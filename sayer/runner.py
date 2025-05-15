@@ -1,12 +1,9 @@
+
 import click
 
 from sayer.core import get_commands, get_groups
 from sayer.help import render_help_for_command
-
-
-class RichGroup(click.Group):
-    def get_help(self, ctx):
-        render_help_for_command(ctx)
+from sayer.ui import RichGroup
 
 
 class RichCommand(click.Command):
@@ -17,7 +14,7 @@ class RichCommand(click.Command):
 @click.group(cls=RichGroup, add_help_option=True)
 def cli():
     """Sayer CLI Application"""
-    pass
+    ...
 
 
 def run():

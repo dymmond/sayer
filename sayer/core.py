@@ -6,6 +6,7 @@ import click
 
 from sayer.middleware import run_after, run_before
 from sayer.params import Param
+from sayer.ui import RichGroup
 
 COMMANDS: dict[str, click.Command] = {}
 _GROUPS: dict[str, click.Group] = {}
@@ -139,7 +140,7 @@ def get_groups() -> dict[str, click.Group]:
 
 def group(name: str) -> click.Group:
     if name not in _GROUPS:
-        _GROUPS[name] = click.Group(name=name)
+        _GROUPS[name] = RichGroup(name=name)
     return _GROUPS[name]
 
 

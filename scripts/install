@@ -31,6 +31,6 @@ else
 fi
 
 echo "Installing local dependencies..."
-$UV pip install -e ".[testing]"
+$UV pip install -e ".[testing,completion]"
 
 echo "Script finished."

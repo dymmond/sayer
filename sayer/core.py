@@ -138,9 +138,10 @@ def get_groups() -> dict[str, click.Group]:
     return _GROUPS
 
 
-def group(name: str) -> click.Group:
+def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
     if name not in _GROUPS:
-        _GROUPS[name] = RichGroup(name=name)
+        cls = group_cls or RichGroup
+        _GROUPS[name] = cls(name=name)
     return _GROUPS[name]
 
 

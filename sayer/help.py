@@ -1,3 +1,5 @@
+import inspect
+
 import click
 from rich.console import Console, Group
 from rich.markdown import Markdown
@@ -42,17 +44,27 @@ def render_help_for_command(ctx: click.Context):
     param_table.add_column("Parameter")
     param_table.add_column("Type")
     param_table.add_column("Required")
+    param_table.add_column("Default", justify="center")
     param_table.add_column("Description")
 
     for param in cmd.params:
         typestr = str(param.type).replace(" ", "")
         required = "Yes" if getattr(param, "required", False) else "No"
+        default = getattr(param, "default", None)
         description = getattr(param, "help", "") or getattr(param, "description", "")
 
+        # normalize default
+        if default in (None, inspect._empty):
+            default_str = ""
+        elif isinstance(default, bool):
+            default_str = "true" if default else "false"
+        else:
+            default_str = str(default)
+
         if isinstance(param, click.Option):
-            param_table.add_row(f"--{param.name}", typestr, required, description)
+            param_table.add_row(f"--{param.name}", typestr, required, default_str, description)
         elif isinstance(param, click.Argument):
-            param_table.add_row(f"<{param.name}>", typestr, "Yes", description)
+            param_table.add_row(f"<{param.name}>", typestr, "Yes", "", description)
 
     # Compose output
     content = Group(

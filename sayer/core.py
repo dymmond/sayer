@@ -5,7 +5,7 @@ from typing import Annotated, Any, Callable, get_args, get_origin
 import click
 
 from sayer.middleware import run_after, run_before
-from sayer.params import Param  # ✅ new
+from sayer.params import Param
 
 COMMANDS: dict[str, click.Command] = {}
 _GROUPS: dict[str, click.Group] = {}
@@ -44,9 +44,9 @@ def command(func: Callable) -> click.Command:
 
         param_type = raw_annotation
         meta: Param | None = None
-
-        # ✅ Handle Annotated[T, ...] with multiple metadata entries
         description = ""
+
+        # Handle Annotated[T, ...] with Param(...) and string description
         if get_origin(raw_annotation) is Annotated:
             args = get_args(raw_annotation)
             param_type = args[0]
@@ -56,25 +56,24 @@ def command(func: Callable) -> click.Command:
                 elif isinstance(arg, str):
                     description = arg
 
-        # ✅ Or fall back to Param() passed as default
+        # Fallback: use Param(...) as default
         if not meta:
             is_param_wrapper = isinstance(param.default, Param)
             meta = param.default if is_param_wrapper else None
 
-        # ✅ Resolve metadata fields
+        # Extract metadata
         if meta:
             has_default = meta.default is not ...
             default = meta.default if has_default else None
             required = meta.explicit_required if meta.explicit_required is not None else not has_default
-            description = meta.description or description  # 👈 preserve extracted string
+            description = meta.description or description
         else:
             has_default = param.default != inspect._empty
             default = param.default if has_default else None
             required = not has_default
-            # 👇 Only use string description if no help= anywhere else
             description = description or ""
 
-        # ✅ Manual override takes precedence
+        # Manual override (argument/option decorators)
         if param_name in overrides:
             mode, extra = overrides[param_name]
             if mode == "arg":
@@ -91,16 +90,15 @@ def command(func: Callable) -> click.Command:
                 )(wrapper)
             continue
 
-        # ✅ Auto wrapping: arguments vs options
+        # Auto wrapping: argument or option
         if required:
-            arg = click.argument(param_name, type=param_type)
-            wrapper = arg(wrapper)
-
-            # Inject description manually (Click doesn't support help= on argument)
-            if description:
-                for p in wrapper.params:
-                    if p.name == param_name:
+            wrapper = click.argument(param_name, type=param_type)(wrapper)
+            for p in wrapper.params:
+                if p.name == param_name:
+                    if description:
                         p.description = description
+                    if default is not None:
+                        p.default = default
         else:
             wrapper = click.option(
                 f"--{param_name.replace('_', '-')}",
@@ -110,6 +108,9 @@ def command(func: Callable) -> click.Command:
                 type=param_type,
                 help=description,
             )(wrapper)
+            for p in wrapper.params:
+                if p.name == param_name:
+                    p.default = default
 
     COMMANDS[name] = wrapper
 

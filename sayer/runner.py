@@ -1,27 +1,31 @@
 import click
 
-from sayer.core import get_commands,  get_groups
+from sayer.core import get_commands, get_groups
 from sayer.help import render_help_for_command
+
 
 class RichGroup(click.Group):
     def get_help(self, ctx):
         render_help_for_command(ctx)
 
+
 class RichCommand(click.Command):
     def get_help(self, ctx):
         render_help_for_command(ctx)
+
 
 @click.group(cls=RichGroup, add_help_option=True)
 def cli():
     """Sayer CLI Application"""
     pass
 
+
 def run():
-    for name, cmd in get_commands().items():
+    for _name, cmd in get_commands().items():
         cmd_cls = RichCommand(name=cmd.name, callback=cmd.callback, params=cmd.params, help=cmd.help)
         cli.add_command(cmd_cls)
 
-    for name, group_cmd in get_groups().items():
+    for _name, group_cmd in get_groups().items():
         group_cmd.cls = RichGroup
         cli.add_command(group_cmd)
     cli()

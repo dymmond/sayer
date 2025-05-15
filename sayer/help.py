@@ -1,10 +1,11 @@
-from rich.console import Console
-from rich.panel import Panel
-from rich.markdown import Markdown
-from rich.table import Table
 import click
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
 
 console = Console()
+
 
 def render_help_for_command(ctx: click.Context):
     cmd = ctx.command

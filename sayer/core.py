@@ -1,11 +1,13 @@
-import click
 import inspect
-from typing import Callable, Dict, Any
+from typing import Any, Callable, Dict
 
-from sayer.middleware import run_before, run_after
+import click
+
+from sayer.middleware import run_after, run_before
 
 COMMANDS: Dict[str, click.Command] = {}
 _GROUPS: Dict[str, click.Group] = {}
+
 
 def command(func: Callable) -> click.Command:
     """Register a Sayer command from a typed function."""
@@ -26,6 +28,7 @@ def command(func: Callable) -> click.Command:
         result = func(**bound)
         if inspect.iscoroutine(result):
             import asyncio
+
             result = asyncio.run(result)
         run_after(name, bound, result)
         return result
@@ -53,15 +56,18 @@ def command(func: Callable) -> click.Command:
 
     return wrapper
 
+
 def _convert(value: Any, to_type: type) -> Any:
-    if to_type == bool:
+    if to_type is bool:
         if isinstance(value, bool):
             return value
         return str(value).lower() in ("true", "1", "yes", "on")
     return to_type(value)
 
+
 def get_commands() -> Dict[str, click.Command]:
     return COMMANDS
+
 
 def group(name: str) -> click.Group:
     """Create or get a command group by name."""
@@ -69,12 +75,15 @@ def group(name: str) -> click.Group:
         _GROUPS[name] = click.Group(name=name)
     return _GROUPS[name]
 
+
 def get_groups() -> Dict[str, click.Group]:
     return _GROUPS
+
 
 # Allow: @group.command() to register Sayer-compatible functions
 def bind_command(group: click.Group, func: Callable) -> Callable:
     func.__sayer_group__ = group
     return command(func)
+
 
 click.Group.command = bind_command

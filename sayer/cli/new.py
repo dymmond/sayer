@@ -31,7 +31,7 @@ dependencies = ["sayer"]
 
 
 @command
-def new(name: str = Param(required=True, description="The name given for the new cli project")) -> None:
+def new(name: str = Param(required=False, description="The name given for the new cli project")) -> None:
     """
     Create a new Sayer CLI project in *NAME* directory.
     """

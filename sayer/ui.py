@@ -7,6 +7,14 @@ from rich.text import Text
 console = Console()
 
 class RichGroup(click.Group):
+    def command(self, *args, **kwargs):
+        from sayer.core import command
+
+        def decorator(func):
+            func.__sayer_group__ = self
+            return command(func)
+        return decorator
+
     def resolve_command(self, ctx, args):
         try:
             return super().resolve_command(ctx, args)

@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "sayer"
 description = "The click running on steroids"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dynamic = ['version']
 license = "MIT"
 authors = [
@@ -53,6 +53,7 @@ Source = "https://github.com/tarsil/sayer"
 path = "sayer/__init__.py"
 
 [tool.hatch.envs.default]
+installer = "uv"
 dependencies = [
     "mypy==1.9.0",
     "ruff>=0.3.0,<5.0.0",

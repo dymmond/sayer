@@ -8,6 +8,7 @@ from rich.text import Text
 
 console = Console()
 
+
 def _generate_signature(cmd: click.Command) -> str:
     parts = []
     for param in cmd.params:
@@ -21,6 +22,7 @@ def _generate_signature(cmd: click.Command) -> str:
                 opt = f"[{opt} <{param.name}>]"
             parts.append(opt)
     return " ".join(parts)
+
 
 def render_help_for_command(ctx: click.Context):
     cmd = ctx.command

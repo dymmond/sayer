@@ -1,6 +1,6 @@
 import inspect
 from collections import defaultdict
-from typing import Annotated, Any, Callable, dict, get_args, get_origin
+from typing import Annotated, Any, Callable, get_args, get_origin
 
 import click
 
@@ -10,6 +10,7 @@ from sayer.params import Param  # ✅ new
 COMMANDS: dict[str, click.Command] = {}
 _GROUPS: dict[str, click.Group] = {}
 _ARG_OVERRIDES = defaultdict(dict)
+
 
 def command(func: Callable) -> click.Command:
     """Register a Sayer command from a typed function."""
@@ -30,6 +31,7 @@ def command(func: Callable) -> click.Command:
         result = func(**bound)
         if inspect.iscoroutine(result):
             import asyncio
+
             result = asyncio.run(result)
         run_after(name, bound, result)
         return result
@@ -44,13 +46,15 @@ def command(func: Callable) -> click.Command:
         meta: Param | None = None
 
         # ✅ Handle Annotated[T, ...] with multiple metadata entries
+        description = ""
         if get_origin(raw_annotation) is Annotated:
             args = get_args(raw_annotation)
             param_type = args[0]
             for arg in args[1:]:
                 if isinstance(arg, Param):
                     meta = arg
-                    break
+                elif isinstance(arg, str):
+                    description = arg
 
         # ✅ Or fall back to Param() passed as default
         if not meta:
@@ -62,12 +66,13 @@ def command(func: Callable) -> click.Command:
             has_default = meta.default is not ...
             default = meta.default if has_default else None
             required = meta.explicit_required if meta.explicit_required is not None else not has_default
-            description = meta.description
+            description = meta.description or description  # 👈 preserve extracted string
         else:
             has_default = param.default != inspect._empty
             default = param.default if has_default else None
             required = not has_default
-            description = ""
+            # 👇 Only use string description if no help= anywhere else
+            description = description or ""
 
         # ✅ Manual override takes precedence
         if param_name in overrides:
@@ -114,12 +119,14 @@ def command(func: Callable) -> click.Command:
 
     return wrapper
 
+
 def _convert(value: Any, to_type: type) -> Any:
     if to_type is bool:
         if isinstance(value, bool):
             return value
         return str(value).lower() in ("true", "1", "yes", "on")
     return to_type(value)
+
 
 def get_commands() -> dict[str, click.Command]:
     return COMMANDS
@@ -128,25 +135,32 @@ def get_commands() -> dict[str, click.Command]:
 def get_groups() -> dict[str, click.Group]:
     return _GROUPS
 
+
 def group(name: str) -> click.Group:
     if name not in _GROUPS:
         _GROUPS[name] = click.Group(name=name)
     return _GROUPS[name]
 
+
 def argument(param_name: str, **kwargs):
     def wrapper(func):
         _ARG_OVERRIDES[func][param_name] = ("arg", kwargs)
         return func
+
     return wrapper
+
 
 def option(param_name: str, **kwargs):
     def wrapper(func):
         _ARG_OVERRIDES[func][param_name] = ("opt", kwargs)
         return func
+
     return wrapper
+
 
 def bind_command(group: click.Group, func: Callable) -> Callable:
     func.__sayer_group__ = group
     return command(func)
+
 
 click.Group.command = bind_command

@@ -8,6 +8,7 @@ class Param:
     Stores the default value, description, and an explicit required flag
     for a parameter.
     """
+
     def __init__(
         self,
         default: Any = ...,

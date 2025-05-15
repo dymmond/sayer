@@ -16,6 +16,7 @@ class SayerConfig:
     def all(self) -> dict[str, Any]:
         return {**os.environ, **self._config}
 
+
 @lru_cache(maxsize=1)
 def get_config() -> SayerConfig:
     return SayerConfig()

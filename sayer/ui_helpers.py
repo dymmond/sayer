@@ -17,7 +17,9 @@ def confirm(prompt: str = "Continue?", abort_message: str = "Aborted.") -> Calla
                 console.print(f"[red]{abort_message}[/]")
                 return
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -32,7 +34,9 @@ def progress(items: List[Any], description: str = "Processing") -> Callable:
                     results.append(func(item, *args, **kwargs))
                     p.update(task, advance=1)
             return results
+
         return wrapper
+
     return decorator
 
 

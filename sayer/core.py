@@ -1,4 +1,5 @@
 import inspect
+from collections import defaultdict
 from typing import Any, Callable, Dict
 
 import click
@@ -7,6 +8,7 @@ from sayer.middleware import run_after, run_before
 
 COMMANDS: Dict[str, click.Command] = {}
 _GROUPS: Dict[str, click.Group] = {}
+_ARG_OVERRIDES = defaultdict(dict)
 
 
 def command(func: Callable) -> click.Command:
@@ -33,18 +35,40 @@ def command(func: Callable) -> click.Command:
         run_after(name, bound, result)
         return result
 
-    for param in reversed(sig.parameters.values()):
-        param_type = param.annotation if param.annotation != inspect._empty else str
-        param_default = param.default if param.default != inspect._empty else None
-        is_required = param.default == inspect._empty
+    overrides = _ARG_OVERRIDES.get(func, {})
 
-        wrapper = click.option(
-            f"--{param.name.replace('_', '-')}",
-            required=is_required,
-            default=None if is_required else param_default,
-            type=param_type,
-            show_default=not is_required,
-        )(wrapper)
+    for param in reversed(sig.parameters.values()):
+        param_name = param.name
+        param_type = param.annotation if param.annotation != inspect._empty else str
+        has_default = param.default != inspect._empty
+        default = param.default if has_default else None
+
+        # Manual override
+        if param_name in overrides:
+            mode, extra = overrides[param_name]
+            if mode == "arg":
+                wrapper = click.argument(param_name, type=param_type, **extra)(wrapper)
+            elif mode == "opt":
+                wrapper = click.option(
+                    f"--{param_name.replace('_', '-')}",
+                    type=param_type,
+                    default=default,
+                    show_default=has_default,
+                    **extra,
+                )(wrapper)
+            continue
+
+        # Auto mode
+        if has_default:
+            wrapper = click.option(
+                f"--{param_name.replace('_', '-')}",
+                default=default,
+                required=False,
+                show_default=True,
+                type=param_type,
+            )(wrapper)
+        else:
+            wrapper = click.argument(param_name, type=param_type)(wrapper)
 
     # Global registration
     COMMANDS[name] = wrapper
@@ -76,11 +100,26 @@ def group(name: str) -> click.Group:
     return _GROUPS[name]
 
 
+def argument(param_name: str, **kwargs):
+    def wrapper(func):
+        _ARG_OVERRIDES[func][param_name] = ("arg", kwargs)
+        return func
+
+    return wrapper
+
+
+def option(param_name: str, **kwargs):
+    def wrapper(func):
+        _ARG_OVERRIDES[func][param_name] = ("opt", kwargs)
+        return func
+
+    return wrapper
+
+
 def get_groups() -> Dict[str, click.Group]:
     return _GROUPS
 
 
-# Allow: @group.command() to register Sayer-compatible functions
 def bind_command(group: click.Group, func: Callable) -> Callable:
     func.__sayer_group__ = group
     return command(func)

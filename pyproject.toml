@@ -48,7 +48,6 @@ Changelog = "https://sayer.tarsild.io/release-notes/"
 Funding = "https://github.com/sponsors/tarsil"
 Source = "https://github.com/tarsil/sayer"
 
-
 [tool.hatch.version]
 path = "sayer/__init__.py"
 
@@ -72,6 +71,9 @@ testing = [
     "pytest>=7.2.2,<9.0.0",
     "pytest-cov>=4.0.0,<5.0.0",
 ]
+
+[project.scripts]
+sayer = "sayer.__main__:run"
 
 [tool.hatch.envs.default.scripts]
 clean_pyc = "find . -type f -name \"*.pyc\" -delete"

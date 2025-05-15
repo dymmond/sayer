@@ -26,11 +26,13 @@ If Typer is FastAPI for the CLI, **Sayer is FastAPI++ for serious CLI tools**.
 ```python
 from sayer import command, run
 
+
 @command
 def hello(name: str, loud: bool = False):
     """Say hello to someone."""
     message = f"Hello, {name}!"
     print(message.upper() if loud else message)
+
 
 if __name__ == "__main__":
     run()

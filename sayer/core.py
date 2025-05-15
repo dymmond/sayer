@@ -1,15 +1,14 @@
-import inspect
-from typing import Any, Callable, Dict
-
 import click
+import inspect
+from typing import Callable, Dict, Any
 
-from sayer.middleware import run_before
+from sayer.middleware import run_before, run_after
 
 COMMANDS: Dict[str, click.Command] = {}
+_GROUPS: Dict[str, click.Group] = {}
 
 def command(func: Callable) -> click.Command:
-    """Register a Sayer command based on type hints."""
-
+    """Register a Sayer command from a typed function."""
     name = func.__name__.replace("_", "-")
     sig = inspect.signature(func)
 
@@ -27,7 +26,8 @@ def command(func: Callable) -> click.Command:
         result = func(**bound)
         if inspect.iscoroutine(result):
             import asyncio
-            asyncio.run(result)
+            result = asyncio.run(result)
+        run_after(name, bound, result)
         return result
 
     for param in reversed(sig.parameters.values()):
@@ -43,7 +43,14 @@ def command(func: Callable) -> click.Command:
             show_default=not is_required,
         )(wrapper)
 
+    # Global registration
     COMMANDS[name] = wrapper
+
+    # Attach to group if decorated inside a group context
+    if hasattr(func, "__sayer_group__"):
+        group = func.__sayer_group__
+        group.add_command(wrapper)
+
     return wrapper
 
 def _convert(value: Any, to_type: type) -> Any:
@@ -55,3 +62,19 @@ def _convert(value: Any, to_type: type) -> Any:
 
 def get_commands() -> Dict[str, click.Command]:
     return COMMANDS
+
+def group(name: str) -> click.Group:
+    """Create or get a command group by name."""
+    if name not in _GROUPS:
+        _GROUPS[name] = click.Group(name=name)
+    return _GROUPS[name]
+
+def get_groups() -> Dict[str, click.Group]:
+    return _GROUPS
+
+# Allow: @group.command() to register Sayer-compatible functions
+def bind_command(group: click.Group, func: Callable) -> Callable:
+    func.__sayer_group__ = group
+    return command(func)
+
+click.Group.command = bind_command

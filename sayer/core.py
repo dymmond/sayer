@@ -1,13 +1,14 @@
 import inspect
 from collections import defaultdict
-from typing import Any, Callable, Dict
+from typing import Annotated, Any, Callable, get_args, get_origin
 
 import click
 
 from sayer.middleware import run_after, run_before
+from sayer.params import Param
 
-COMMANDS: Dict[str, click.Command] = {}
-_GROUPS: Dict[str, click.Group] = {}
+COMMANDS: dict[str, click.Command] = {}
+_GROUPS: dict[str, click.Group] = {}
 _ARG_OVERRIDES = defaultdict(dict)
 
 
@@ -39,11 +40,40 @@ def command(func: Callable) -> click.Command:
 
     for param in reversed(sig.parameters.values()):
         param_name = param.name
-        param_type = param.annotation if param.annotation != inspect._empty else str
-        has_default = param.default != inspect._empty
-        default = param.default if has_default else None
+        raw_annotation = param.annotation if param.annotation != inspect._empty else str
 
-        # Manual override
+        param_type = raw_annotation
+        meta: Param | None = None
+        description = ""
+
+        # Handle Annotated[T, ...] with Param(...) and string description
+        if get_origin(raw_annotation) is Annotated:
+            args = get_args(raw_annotation)
+            param_type = args[0]
+            for arg in args[1:]:
+                if isinstance(arg, Param):
+                    meta = arg
+                elif isinstance(arg, str):
+                    description = arg
+
+        # Fallback: use Param(...) as default
+        if not meta:
+            is_param_wrapper = isinstance(param.default, Param)
+            meta = param.default if is_param_wrapper else None
+
+        # Extract metadata
+        if meta:
+            has_default = meta.default is not ...
+            default = meta.default if has_default else None
+            required = meta.explicit_required if meta.explicit_required is not None else not has_default
+            description = meta.description or description
+        else:
+            has_default = param.default != inspect._empty
+            default = param.default if has_default else None
+            required = not has_default
+            description = description or ""
+
+        # Manual override (argument/option decorators)
         if param_name in overrides:
             mode, extra = overrides[param_name]
             if mode == "arg":
@@ -53,27 +83,37 @@ def command(func: Callable) -> click.Command:
                     f"--{param_name.replace('_', '-')}",
                     type=param_type,
                     default=default,
+                    required=required,
                     show_default=has_default,
+                    help=description,
                     **extra,
                 )(wrapper)
             continue
 
-        # Auto mode
-        if has_default:
+        # Auto wrapping: argument or option
+        if required:
+            wrapper = click.argument(param_name, type=param_type)(wrapper)
+            for p in wrapper.params:
+                if p.name == param_name:
+                    if description:
+                        p.description = description
+                    if default is not None:
+                        p.default = default
+        else:
             wrapper = click.option(
                 f"--{param_name.replace('_', '-')}",
                 default=default,
                 required=False,
                 show_default=True,
                 type=param_type,
+                help=description,
             )(wrapper)
-        else:
-            wrapper = click.argument(param_name, type=param_type)(wrapper)
+            for p in wrapper.params:
+                if p.name == param_name:
+                    p.default = default
 
-    # Global registration
     COMMANDS[name] = wrapper
 
-    # Attach to group if decorated inside a group context
     if hasattr(func, "__sayer_group__"):
         group = func.__sayer_group__
         group.add_command(wrapper)
@@ -89,12 +129,15 @@ def _convert(value: Any, to_type: type) -> Any:
     return to_type(value)
 
 
-def get_commands() -> Dict[str, click.Command]:
+def get_commands() -> dict[str, click.Command]:
     return COMMANDS
 
 
+def get_groups() -> dict[str, click.Group]:
+    return _GROUPS
+
+
 def group(name: str) -> click.Group:
-    """Create or get a command group by name."""
     if name not in _GROUPS:
         _GROUPS[name] = click.Group(name=name)
     return _GROUPS[name]
@@ -114,10 +157,6 @@ def option(param_name: str, **kwargs):
         return func
 
     return wrapper
-
-
-def get_groups() -> Dict[str, click.Group]:
-    return _GROUPS
 
 
 def bind_command(group: click.Group, func: Callable) -> Callable:

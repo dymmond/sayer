@@ -1,3 +1,5 @@
+import inspect
+
 import click
 from rich.console import Console, Group
 from rich.markdown import Markdown
@@ -7,6 +9,7 @@ from rich.table import Table
 from rich.text import Text
 
 console = Console()
+
 
 def _generate_signature(cmd: click.Command) -> str:
     parts = []
@@ -21,6 +24,7 @@ def _generate_signature(cmd: click.Command) -> str:
                 opt = f"[{opt} <{param.name}>]"
             parts.append(opt)
     return " ".join(parts)
+
 
 def render_help_for_command(ctx: click.Context):
     cmd = ctx.command
@@ -40,16 +44,29 @@ def render_help_for_command(ctx: click.Context):
     param_table.add_column("Parameter")
     param_table.add_column("Type")
     param_table.add_column("Required")
+    param_table.add_column("Default", justify="center")
+    param_table.add_column("Description")
 
     for param in cmd.params:
-        if isinstance(param, click.Option):
-            typestr = str(param.type).replace(" ", "")
-            required = "Yes" if param.required else "No"
-            param_table.add_row(f"--{param.name}", typestr, required)
-        elif isinstance(param, click.Argument):
-            typestr = str(param.type).replace(" ", "")
-            param_table.add_row(f"<{param.name}>", typestr, "Yes")
+        typestr = str(param.type).replace(" ", "")
+        required = "Yes" if getattr(param, "required", False) else "No"
+        default = getattr(param, "default", None)
+        description = getattr(param, "help", "") or getattr(param, "description", "")
 
+        # normalize default
+        if default in (None, inspect._empty):
+            default_str = ""
+        elif isinstance(default, bool):
+            default_str = "true" if default else "false"
+        else:
+            default_str = str(default)
+
+        if isinstance(param, click.Option):
+            param_table.add_row(f"--{param.name}", typestr, required, default_str, description)
+        elif isinstance(param, click.Argument):
+            param_table.add_row(f"<{param.name}>", typestr, "Yes", "", description)
+
+    # Compose output
     content = Group(
         Text("Description", style="bold cyan"),
         Padding(description_md, (0, 0, 0, 2)),

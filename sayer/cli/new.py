@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from sayer.core import command
+from sayer.params import Param
 from sayer.ui import error, success
 
 TEMPLATE: dict[str, str] = {
@@ -30,7 +31,7 @@ dependencies = ["sayer"]
 
 
 @command
-def new(name: str) -> None:
+def new(name: str = Param(required=True, description="The name given for the new cli project")) -> None:
     """
     Create a new Sayer CLI project in *NAME* directory.
     """

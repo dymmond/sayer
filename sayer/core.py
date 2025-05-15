@@ -5,11 +5,11 @@ from typing import Any, Callable, Dict
 import click
 
 from sayer.middleware import run_after, run_before
+from sayer.params import Param  # ✅ new
 
 COMMANDS: Dict[str, click.Command] = {}
 _GROUPS: Dict[str, click.Group] = {}
 _ARG_OVERRIDES = defaultdict(dict)
-
 
 def command(func: Callable) -> click.Command:
     """Register a Sayer command from a typed function."""
@@ -30,7 +30,6 @@ def command(func: Callable) -> click.Command:
         result = func(**bound)
         if inspect.iscoroutine(result):
             import asyncio
-
             result = asyncio.run(result)
         run_after(name, bound, result)
         return result
@@ -40,8 +39,20 @@ def command(func: Callable) -> click.Command:
     for param in reversed(sig.parameters.values()):
         param_name = param.name
         param_type = param.annotation if param.annotation != inspect._empty else str
-        has_default = param.default != inspect._empty
-        default = param.default if has_default else None
+
+        is_param_wrapper = isinstance(param.default, Param)
+        meta: Param | None = param.default if is_param_wrapper else None
+
+        if meta:
+            has_default = meta.default is not ...
+            default = meta.default if has_default else None
+            required = meta.explicit_required if meta.explicit_required is not None else not has_default
+            description = meta.description
+        else:
+            has_default = param.default != inspect._empty
+            default = param.default if has_default else None
+            required = not has_default
+            description = ""
 
         # Manual override
         if param_name in overrides:
@@ -53,33 +64,38 @@ def command(func: Callable) -> click.Command:
                     f"--{param_name.replace('_', '-')}",
                     type=param_type,
                     default=default,
+                    required=required,
                     show_default=has_default,
+                    help=description,
                     **extra,
                 )(wrapper)
             continue
 
         # Auto mode
-        if has_default:
+        if required:
+            arg = click.argument(param_name, type=param_type)
+            wrapper = arg(wrapper)
+
+            if description:
+                arg_obj = next(p for p in wrapper.params if p.name == param_name)
+                arg_obj.description = description
+        else:
             wrapper = click.option(
                 f"--{param_name.replace('_', '-')}",
                 default=default,
                 required=False,
                 show_default=True,
                 type=param_type,
+                help=description,
             )(wrapper)
-        else:
-            wrapper = click.argument(param_name, type=param_type)(wrapper)
 
-    # Global registration
     COMMANDS[name] = wrapper
 
-    # Attach to group if decorated inside a group context
     if hasattr(func, "__sayer_group__"):
         group = func.__sayer_group__
         group.add_command(wrapper)
 
     return wrapper
-
 
 def _convert(value: Any, to_type: type) -> Any:
     if to_type is bool:
@@ -88,41 +104,31 @@ def _convert(value: Any, to_type: type) -> Any:
         return str(value).lower() in ("true", "1", "yes", "on")
     return to_type(value)
 
-
 def get_commands() -> Dict[str, click.Command]:
     return COMMANDS
 
-
 def group(name: str) -> click.Group:
-    """Create or get a command group by name."""
     if name not in _GROUPS:
         _GROUPS[name] = click.Group(name=name)
     return _GROUPS[name]
-
 
 def argument(param_name: str, **kwargs):
     def wrapper(func):
         _ARG_OVERRIDES[func][param_name] = ("arg", kwargs)
         return func
-
     return wrapper
-
 
 def option(param_name: str, **kwargs):
     def wrapper(func):
         _ARG_OVERRIDES[func][param_name] = ("opt", kwargs)
         return func
-
     return wrapper
-
 
 def get_groups() -> Dict[str, click.Group]:
     return _GROUPS
 
-
 def bind_command(group: click.Group, func: Callable) -> Callable:
     func.__sayer_group__ = group
     return command(func)
-
 
 click.Group.command = bind_command

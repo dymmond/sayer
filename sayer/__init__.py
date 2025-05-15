@@ -2,6 +2,7 @@ from .cli import new as _internal_commands  # noqa: F401, pylint: disable=unused
 from .config import get_config
 from .core import argument, command, group, option
 from .loader import load_commands_from
+from .params import Param
 from .runner import run
 from .ui_helpers import confirm, progress, table
 
@@ -18,4 +19,5 @@ __all__ = [
     "get_config",
     "argument",
     "option",
+    "Param",
 ]

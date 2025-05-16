@@ -1,4 +1,4 @@
-from sayer.runner import run
+from sayer.client import run
 
 if __name__ == "__main__":
     run()

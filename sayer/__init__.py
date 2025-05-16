@@ -1,6 +1,6 @@
 from .cli import new as _internal_commands  # noqa: F401, pylint: disable=unused-import
 from .config import get_config
-from .core import argument, command, group, option
+from .core import command, group
 from .loader import load_commands_from
 from .params import Param
 from .runner import run
@@ -17,7 +17,5 @@ __all__ = [
     "progress",
     "table",
     "get_config",
-    "argument",
-    "option",
     "Param",
 ]

@@ -61,15 +61,19 @@ dependencies = [
     "ipython",
     "ptpython",
     "twine",
+    "ipdb"
 ]
 
 [project.optional-dependencies]
 testing = [
+    "anyio[trio]>=4.9.0,<6.0.0",
+    "pytest-asyncio>=0.26.0",
     "autoflake>=2.0.2,<3.0.0",
     "black==24.1.1,<25.0",
     "isort>=5.12.0,<6.0.0",
     "pytest>=7.2.2,<9.0.0",
     "pytest-cov>=4.0.0,<5.0.0",
+    "ipdb"
 ]
 
 [project.scripts]
@@ -101,7 +105,11 @@ build = "mkdocs build"
 serve = "mkdocs serve --dev-addr localhost:8000"
 
 [tool.hatch.envs.test]
-dependencies = ["sayer[testing]"]
+features = ["testing"]
+
+[tool.hatch.envs.hatch-test]
+features = ["testing"]
+template = "test"
 
 [tool.hatch.envs.test.scripts]
 # needs docker services running

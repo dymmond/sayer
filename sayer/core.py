@@ -70,14 +70,14 @@ def _build_click_parameter(
     has_meta_default = getattr(meta, "default", ...) is not ...
     default = getattr(meta, "default", param_default)
     required = getattr(meta, "required", not (has_func_default or has_meta_default))
-    help_text = getattr(meta, "help", help_text) or getattr(meta, "help", help_text)
+    help_text = getattr(meta, "help", help_text) or getattr(meta, "description", help_text)
 
     if isinstance(meta, Argument):
-        return click.argument(pname, type=ptype, required=required, default=default)(wrapper)
+        wrapper = click.argument(pname, type=ptype, required=required, default=default)(wrapper)
 
     elif isinstance(meta, Env):
         env_default = os.getenv(meta.envvar, meta.default)
-        return click.option(
+        wrapper = click.option(
             f"--{pname.replace('_','-')}",
             type=ptype,
             default=env_default,
@@ -87,7 +87,7 @@ def _build_click_parameter(
         )(wrapper)
 
     elif isinstance(meta, Option):
-        return click.option(
+        wrapper = click.option(
             f"--{pname.replace('_','-')}",
             type=None if is_flag else ptype,
             is_flag=is_flag,
@@ -101,41 +101,47 @@ def _build_click_parameter(
             envvar=meta.envvar,
         )(wrapper)
 
-    # Fallback logic if no explicit metadata
-    if not has_func_default:
-        return click.argument(pname, type=ptype)(wrapper)
-    elif param.annotation is bool and isinstance(param.default, bool):
-        return click.option(
-            f"--{pname.replace('_','-')}",
-            is_flag=True,
-            default=param.default,
-            required=False,
-            help=help_text,
-        )(wrapper)
-    elif isinstance(param.default, Param):
-        return click.argument(
-            pname,
-            type=ptype,
-            required=False,
-            default=param.default.default,
-        )(wrapper)
-    elif param.default is None:
-        return click.option(
-            f"--{pname.replace('_','-')}",
-            type=ptype,
-            default=None,
-            required=False,
-            show_default=True,
-            help=help_text,
-        )(wrapper)
     else:
-        wrapper = click.argument(pname, type=ptype, default=param.default, required=False)(wrapper)
-        for p in wrapper.params:
-            if p.name == pname:
-                p.required = False
-                p.default = param.default
-                break
-        return wrapper
+        if not has_func_default:
+            wrapper = click.argument(pname, type=ptype)(wrapper)
+        elif param.annotation is bool and isinstance(param.default, bool):
+            wrapper = click.option(
+                f"--{pname.replace('_','-')}",
+                is_flag=True,
+                default=param.default,
+                required=False,
+                help=help_text,
+            )(wrapper)
+        elif isinstance(param.default, Param):
+            wrapper = click.argument(
+                pname,
+                type=ptype,
+                required=False,
+                default=param.default.default,
+            )(wrapper)
+        elif param.default is None:
+            wrapper = click.option(
+                f"--{pname.replace('_','-')}",
+                type=ptype,
+                default=None,
+                required=False,
+                show_default=True,
+                help=help_text,
+            )(wrapper)
+        else:
+            wrapper = click.argument(pname, type=ptype, default=param.default, required=False)(wrapper)
+            for p in wrapper.params:
+                if p.name == pname:
+                    p.required = False
+                    p.default = param.default
+                    break
+
+    # Ensure help is present for rich rendering
+    for p in wrapper.params:
+        if p.name == pname and not getattr(p, "help", None):
+            p.help = help_text
+
+    return wrapper
 
 
 def command(func: Callable) -> click.Command:

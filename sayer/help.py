@@ -51,7 +51,7 @@ def render_help_for_command(ctx: click.Context):
         typestr = str(param.type).replace(" ", "")
         required = "Yes" if getattr(param, "required", False) else "No"
         default = getattr(param, "default", None)
-        description = getattr(param, "help", "") or getattr(param, "description", "")
+        description = getattr(param, "help", "") or getattr(param, "help", "")
 
         # normalize default
         if default in (None, inspect._empty):

@@ -104,7 +104,7 @@ def command(func: Callable) -> click.Command:
                     if p.name == pname:
                         p.description = help_text
         else:
-            # ➡️ Distinguish between:
+            # Distinguish between:
             #    * optional flag/option (for None or bool)
             #    * optional positional (for literal defaults)
             if default is None or is_flag:

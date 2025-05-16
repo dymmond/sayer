@@ -55,7 +55,7 @@ def test_group_registration_and_binding():
 
 def test_annotated_param_with_description():
     @command
-    def echo(msg: Annotated[str, Param(description="The message to print")]):
+    def echo(msg: Annotated[str, Param(help="The message to print")]):
         click.echo(msg)
 
     cmd = get_commands()["echo"]
@@ -159,7 +159,7 @@ def test_multiple_params_inference_with_param():
 
 def test_help_includes_description():
     @command
-    def show(msg: Annotated[str, Param(description="test message")]):
+    def show(msg: Annotated[str, Param(help="test message")]):
         click.echo(msg)
 
     cmd = get_commands()["show"]

@@ -11,6 +11,7 @@ from sayer.ui import RichGroup
 COMMANDS: dict[str, click.Command] = {}
 _GROUPS: dict[str, click.Group] = {}
 
+
 def _convert(value: Any, to_type: type) -> Any:
     """Convert CLI input string to the specified type."""
     if to_type is bool:
@@ -18,6 +19,7 @@ def _convert(value: Any, to_type: type) -> Any:
             return value
         return str(value).lower() in ("true", "1", "yes", "on")
     return to_type(value)
+
 
 def _should_use_option(meta: Param, default: Any) -> bool:
     """Determine if the parameter metadata implies this should be a Click option."""
@@ -29,6 +31,7 @@ def _should_use_option(meta: Param, default: Any) -> bool:
         or meta.callback is not None
         or (meta.default is not ... and meta.default is not None)
     )
+
 
 def _extract_command_help(signature: inspect.Signature, func: Callable) -> str:
     """Extract help text for a command from function docstring or parameter descriptions."""
@@ -45,13 +48,14 @@ def _extract_command_help(signature: inspect.Signature, func: Callable) -> str:
                         return a.help
     return cmd_help
 
+
 def _build_click_parameter(
     param: inspect.Parameter,
     raw_anno: Any,
     ptype: Any,
     meta: Param | Option | Argument | Env | None,
     help_text: str,
-    wrapper: Callable
+    wrapper: Callable,
 ) -> Callable:
     """Attach Click option/argument to wrapper based on type and metadata."""
     pname = param.name
@@ -133,6 +137,7 @@ def _build_click_parameter(
                 break
         return wrapper
 
+
 def command(func: Callable) -> click.Command:
     """Register a function as a CLI command with Click, respecting rich parameter metadata."""
     name = func.__name__.replace("_", "-")
@@ -153,6 +158,7 @@ def command(func: Callable) -> click.Command:
         result = func(**bound)
         if inspect.iscoroutine(result):
             import asyncio
+
             result = asyncio.run(result)
         run_after(name, bound, result)
         return result
@@ -184,6 +190,7 @@ def command(func: Callable) -> click.Command:
         func.__sayer_group__.add_command(wrapper)
     return wrapper
 
+
 def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
     """Register or return an existing Click group by name."""
     if name not in _GROUPS:
@@ -191,17 +198,21 @@ def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
         _GROUPS[name] = cls(name=name)
     return _GROUPS[name]
 
+
 def get_commands() -> dict[str, click.Command]:
     """Return all registered commands."""
     return COMMANDS
+
 
 def get_groups() -> dict[str, click.Group]:
     """Return all registered groups."""
     return _GROUPS
 
+
 def bind_command(group: click.Group, func: Callable) -> click.Command:
     """Bind a command function to a given Click group."""
     func.__sayer_group__ = group
     return command(func)
+
 
 click.Group.command = bind_command

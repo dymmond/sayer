@@ -1,10 +1,11 @@
 import inspect
 from collections import defaultdict
-from typing import Any, Callable
+from typing import Annotated, Any, Callable, get_args, get_origin
 
 import click
 
 from sayer.middleware import run_after, run_before
+from sayer.params import Param
 from sayer.ui import RichGroup
 
 COMMANDS: dict[str, click.Command] = {}
@@ -17,6 +18,70 @@ def command(func: Callable) -> click.Command:
     """Register a Sayer command from a typed function."""
     name = func.__name__.replace("_", "-")
     sig = inspect.signature(func)
+
+    overrides = _ARG_OVERRIDES.get(func, {})
+    applied = _APPLIED_PARAMS.get(func, set())
+
+    param_decorators: list[tuple[str, str, Callable[..., click.Command], str]] = []
+
+    for param in reversed(sig.parameters.values()):
+        param_name = param.name
+
+        # skip if user already applied @argument/@option
+        if param_name in applied or param_name in overrides:
+            continue
+
+        # infer annotation and metadata
+        raw_anno = param.annotation if param.annotation != inspect._empty else str
+        param_type = raw_anno
+        meta: Param | None = None
+        description = ""
+
+        # support Annotated[T, Param(...), "doc"]
+        if get_origin(raw_anno) is Annotated:
+            args = get_args(raw_anno)
+            param_type = args[0]
+            for a in args[1:]:
+                if isinstance(a, Param):
+                    meta = a
+                elif isinstance(a, str):
+                    description = a
+
+        # fallback Param(...) as default
+        if not meta and isinstance(param.default, Param):
+            meta = param.default
+
+        # extract Param metadata or fallback
+        if meta:
+            has_def = meta.default is not ...
+            default = meta.default if has_def else None
+            required = meta.explicit_required if meta.explicit_required is not None else not has_def
+            if meta.description:
+                description = meta.description
+        else:
+            has_def = param.default != inspect._empty
+            default = param.default if has_def else None
+            required = not has_def
+
+        is_flag = param_type is bool
+
+        # choose decorator
+        if required:
+            decorator = click.argument(param_name, type=param_type)
+            mode = "arg"
+        else:
+            decorator = click.option(
+                f"--{param_name.replace('_', '-')}",
+                type=None if is_flag else param_type,
+                is_flag=is_flag,
+                default=default,
+                required=False,
+                show_default=True,
+                help=description,
+            )
+            mode = "opt"
+
+        param_decorators.append((param_name, mode, decorator, description))
 
     @click.command(name=name, help=func.__doc__ or "")
     @click.pass_context
@@ -36,7 +101,28 @@ def command(func: Callable) -> click.Command:
         run_after(name, bound, result)
         return result
 
-    wrapper._original_func = func  # Used for decorators to reference
+    wrapper._original_func = func
+
+    # Apply explicit overrides first, and mark them so the inference loop skips them
+    for pname, (mode, extra) in overrides.items():
+        if mode == "arg":
+            wrapper = click.argument(pname, **extra)(wrapper)
+        else:
+            raw = sig.parameters[pname].annotation
+            is_flag = raw is bool
+            wrapper = click.option(
+                f"--{pname.replace('_', '-')}",
+                type=None if is_flag else raw,
+                is_flag=is_flag,
+                default=(sig.parameters[pname].default if sig.parameters[pname].default != inspect._empty else None),
+                required=False,
+                show_default=True,
+                **extra,
+            )(wrapper)
+
+    # Now clear overrides so the loop won’t see them again
+    overrides.clear()
+
     COMMANDS[name] = wrapper
 
     if hasattr(func, "__sayer_group__"):

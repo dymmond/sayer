@@ -1,4 +1,3 @@
-
 import click
 
 from sayer.core import get_commands, get_groups

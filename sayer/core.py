@@ -58,8 +58,10 @@ def command(func: Callable) -> click.Command:
         run_after(name, bound, result)
         return result
 
-    # Apply parameters via type inference and Param()/Annotated
-    for param in reversed(sig.parameters.values()):
+    wrapper._original_func = func
+
+    # 1️⃣ Apply parameters via type inference and Param()/Annotated
+    for param in sig.parameters.values():
         pname = param.name
         raw_anno = param.annotation if param.annotation != inspect._empty else str
         ptype = raw_anno
@@ -80,6 +82,7 @@ def command(func: Callable) -> click.Command:
         if not meta and isinstance(param.default, Param):
             meta = param.default
 
+        # Determine default, required, description
         if meta:
             has_def = meta.default is not ...
             default = meta.default if has_def else None
@@ -95,24 +98,42 @@ def command(func: Callable) -> click.Command:
 
         if required:
             # positional argument
-            decorator = click.argument(pname, type=ptype)
-            wrapper = decorator(wrapper)
+            wrapper = click.argument(pname, type=ptype)(wrapper)
             if help_text:
                 for p in wrapper.params:
                     if p.name == pname:
                         p.description = help_text
         else:
-            # optional
-            decorator = click.option(
-                f"--{pname.replace('_','-')}",
-                type=None if is_flag else ptype,
-                is_flag=is_flag,
-                default=default,
-                required=False,
-                show_default=True,
-                help=help_text,
-            )
-            wrapper = decorator(wrapper)
+            # ➡️ Distinguish between:
+            #    * optional flag/option (for None or bool)
+            #    * optional positional (for literal defaults)
+            if default is None or is_flag:
+                # option/flag form
+                wrapper = click.option(
+                    f"--{pname.replace('_','-')}",
+                    type=None if is_flag else ptype,
+                    is_flag=is_flag,
+                    default=default,
+                    required=False,
+                    show_default=True,
+                    help=help_text,
+                )(wrapper)
+            else:
+                # optional positional with literal default
+                wrapper = click.argument(
+                    pname,
+                    type=ptype,
+                    required=False,
+                    default=default,
+                )(wrapper)
+                # ⚙️ Patch the Argument so Click accepts two positionals
+                for p in wrapper.params:
+                    if p.name == pname:
+                        p.required = False
+                        p.default = default
+                        if help_text:
+                            p.description = help_text
+                        break
 
     COMMANDS[name] = wrapper
     if hasattr(func, "__sayer_group__"):

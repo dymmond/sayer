@@ -24,6 +24,7 @@ def test_command_argument_injection():
     cmd = get_commands()["greet"]
     runner = CliRunner()
     result = runner.invoke(cmd, ["World"])
+
     assert result.exit_code == 0
     assert "Hello World" in result.output
 
@@ -36,6 +37,7 @@ def test_command_option_defaults():
     cmd = get_commands()["run"]
     runner = CliRunner()
     result = runner.invoke(cmd, [])
+
     assert result.exit_code == 0
     assert "True" in result.output
 
@@ -59,6 +61,7 @@ def test_annotated_param_with_description():
     cmd = get_commands()["echo"]
     runner = CliRunner()
     result = runner.invoke(cmd, ["Hi"])
+
     assert result.exit_code == 0
     assert "Hi" in result.output
 
@@ -71,11 +74,9 @@ def test_param_default_via_Param():
     cmd = get_commands()["add"]
     runner = CliRunner()
     result = runner.invoke(cmd, ["3"])
+
     assert result.exit_code == 0
     assert "5" in result.output
-
-
-# Additional tests
 
 
 def test_optional_string_becomes_option():
@@ -85,12 +86,16 @@ def test_optional_string_becomes_option():
 
     cmd = get_commands()["greet"]
     runner = CliRunner()
+
     # calling without args should show default None
     result = runner.invoke(cmd, [])
+
     assert result.exit_code == 0
     assert "Name: None" in result.output
+
     # calling with option
     result2 = runner.invoke(cmd, ["--name", "Alice"])
+
     assert result2.exit_code == 0
     assert "Name: Alice" in result2.output
 
@@ -102,14 +107,18 @@ def test_boolean_flag_inference():
 
     cmd = get_commands()["toggle"]
     runner = CliRunner()
+
     # default
-    res1 = runner.invoke(cmd, [])
-    assert res1.exit_code == 0
-    assert "False" in res1.output
+    result = runner.invoke(cmd, [])
+
+    assert result.exit_code == 0
+    assert "False" in result.output
+
     # flag
-    res2 = runner.invoke(cmd, ["--force"])
-    assert res2.exit_code == 0
-    assert "True" in res2.output
+    result2 = runner.invoke(cmd, ["--force"])
+
+    assert result2.exit_code == 0
+    assert "True" in result2.output
 
 
 def test_multiple_params_inference():
@@ -119,12 +128,33 @@ def test_multiple_params_inference():
 
     cmd = get_commands()["concat"]
     runner = CliRunner()
-    res = runner.invoke(cmd, ["A"])  # b defaults to "B"
-    assert res.exit_code == 0
-    assert res.output.strip() == "AB"
-    res2 = runner.invoke(cmd, ["A", "C"])
-    assert res2.exit_code == 0
-    assert res2.output.strip() == "AC"
+    result = runner.invoke(cmd, ["A"])  # b defaults to "B"
+
+    assert result.exit_code == 0
+    assert result.output.strip() == "AB"
+
+    result2 = runner.invoke(cmd, ["A", "C"])
+
+    assert result2.exit_code == 0
+    assert result2.output.strip() == "AC"
+
+
+def test_multiple_params_inference_with_param():
+    @command
+    def concat(a: str, b: str = Param(default="B")):
+        click.echo(a + b)
+
+    cmd = get_commands()["concat"]
+    runner = CliRunner()
+    result = runner.invoke(cmd, ["A"])  # b defaults to "B"
+
+    assert result.exit_code == 0
+    assert result.output.strip() == "AB"
+
+    result2 = runner.invoke(cmd, ["A", "C"])
+
+    assert result2.exit_code == 0
+    assert result2.output.strip() == "AC"
 
 
 def test_help_includes_description():

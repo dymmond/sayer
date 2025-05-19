@@ -43,6 +43,7 @@ dependencies = [
   "click>=8.2.0",
   "monkay>=0.4.2",
   "rich>=14.0.0",
+  "typing_extensions>=4.13.2"
 ]
 
 keywords = ["sayer"]

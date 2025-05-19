@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import threading
 from abc import ABC, abstractmethod
 from functools import lru_cache

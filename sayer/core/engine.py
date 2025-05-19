@@ -7,7 +7,7 @@ import click
 
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, Option, Param
-from sayer.ui import RichGroup
+from sayer.utils.ui import RichGroup
 
 # Define a type variable for the function being wrapped
 F = TypeVar("F", bound=Callable[..., Any])

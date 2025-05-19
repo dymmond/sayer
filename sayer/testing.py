@@ -3,7 +3,7 @@ from typing import Any
 
 from click.testing import CliRunner
 
-from sayer.client import app as _app
+from sayer.core.client import app as _app
 
 
 class SayerTestResult:

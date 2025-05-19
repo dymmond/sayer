@@ -4,12 +4,12 @@ from rich.console import Console  # Keep import
 from rich.panel import Panel
 from rich.text import Text
 
-from sayer.help import render_help_for_command
+from sayer.core.help import render_help_for_command
 
 
 class RichGroup(click.Group):
     def command(self, *args, **kwargs):
-        from sayer.engine import command
+        from sayer.core.engine import command
 
         def decorator(func):
             func.__sayer_group__ = self
@@ -33,9 +33,7 @@ class RichGroup(click.Group):
 
     def get_help(self, ctx):
         help_text = super().get_help(ctx)
-        panel = Panel.fit(
-            Text(help_text), title=f"[bold cyan]{ctx.command.name}", border_style="cyan"
-        )
+        panel = Panel.fit(Text(help_text), title=f"[bold cyan]{ctx.command.name}", border_style="cyan")
         Console().print(panel)
         ctx.exit()
 
@@ -70,7 +68,7 @@ def success(message: str):
     Console().print(f"[bold green]✔ {message}[/]", highlight=False)
 
 
-def warn(message: str):
+def warning(message: str):
     # Create Console locally
     Console().print(f"[bold yellow]⚠ {message}[/]", highlight=False)
 

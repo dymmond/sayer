@@ -7,17 +7,17 @@ theme:
   custom_dir: docs/overrides
   language: en
   palette:
-    - scheme: "default"
-      primary: "purple"
-      accent: "amber"
+    - scheme: "amber"
+      primary: "red"
+      accent: "lime"
       media: "(prefers-color-scheme: light)"
       toggle:
             icon: "material/lightbulb"
             name: "Switch to dark mode"
-    - scheme: "slate"
+    - scheme: "amber"
       media: "(prefers-color-scheme: dark)"
-      primary: "purple"
-      accent: "amber"
+      primary: "lime"
+      accent: "red"
       toggle:
             icon: "material/lightbulb-outline"
             name: "Switch to light mode"
@@ -28,6 +28,12 @@ theme:
     - search.highlight
     - content.tabs.link
     - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+    - content.code.select
+    - navigation.indexes
+    - navigation.path
+    - navigation.tabs
 
 repo_name: tarsil/sayer
 repo_url: https://github.com/tarsil/sayer
@@ -63,6 +69,9 @@ markdown_extensions:
       alternate_style: true
   - attr_list
   - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 extra:
   alternate:

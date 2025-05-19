@@ -54,7 +54,7 @@ Funding = "https://github.com/sponsors/tarsil"
 Source = "https://github.com/tarsil/sayer"
 
 [tool.hatch.version]
-path = "sayer/__init__.py"
+path = "sayer/__version__.py"
 
 [tool.hatch.envs.default]
 installer = "uv"

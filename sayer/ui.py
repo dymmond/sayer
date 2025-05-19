@@ -4,6 +4,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from sayer.help import render_help_for_command
+
 console = Console()
 
 
@@ -33,9 +35,7 @@ class RichGroup(click.Group):
 
     def get_help(self, ctx):
         help_text = super().get_help(ctx)
-        panel = Panel.fit(
-            Text(help_text), title=f"[bold cyan]{ctx.command.name}", border_style="cyan"
-        )
+        panel = Panel.fit(Text(help_text), title=f"[bold cyan]{ctx.command.name}", border_style="cyan")
         Console().print(panel)
         ctx.exit()
 
@@ -45,15 +45,19 @@ class RichGroup(click.Group):
         except TypeError:
             return self
 
-    def xformat_help(self, ctx, formatter=None):
+    def format_help(self, ctx, formatter=None):
         # If no explicit help, infer from first subcommand's help
-        if not self.help and self.commands:
-            first_cmd_name = next(iter(self.commands))
-            first_cmd = self.commands[first_cmd_name]
-            inferred = first_cmd.help or (first_cmd.callback.__doc__ or "").strip()
-            if inferred:
-                self.help = inferred
-        return super().format_help(ctx, formatter)
+        return render_help_for_command(ctx)
+
+    # def format_help(self, ctx, formatter=None):
+    #     # If no explicit help, infer from first subcommand's help
+    #     if not self.help and self.commands:
+    #         first_cmd_name = next(iter(self.commands))
+    #         first_cmd = self.commands[first_cmd_name]
+    #         inferred = first_cmd.help or (first_cmd.callback.__doc__ or "").strip()
+    #         if inferred:
+    #             self.help = inferred
+    #     return super().format_help(ctx, formatter)
 
 
 def echo(*args, **kwargs):

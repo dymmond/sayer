@@ -134,9 +134,7 @@ def _build_click_parameter(
 
     # If generic Param metadata is used with Annotated, decide if it should be an Option
     if isinstance(meta, Param) and get_origin(raw_anno) is Annotated:
-        if _should_use_option(
-            meta, param_default
-        ):  # Used param_default instead of param.default, which is equivalent
+        if _should_use_option(meta, param_default):  # Used param_default instead of param.default, which is equivalent
             # Convert generic Param to Option metadata if it meets the criteria
             meta = meta.as_option()
 
@@ -352,9 +350,7 @@ def command(
     return decorator if func is None else decorator(func)
 
 
-def group(
-    name: str, group_cls: type[click.Group] | None = None, help: str | None = None
-) -> click.Group:
+def group(name: str, group_cls: type[click.Group] | None = None, help: str | None = None) -> click.Group:
     """
     Registers a Click group or returns an existing one by name.
 

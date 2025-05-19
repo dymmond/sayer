@@ -1,6 +1,6 @@
 import importlib.metadata
 
-from sayer.ui import error
+from sayer.utils.ui import error
 
 
 def load_plugins():

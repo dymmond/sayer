@@ -3,7 +3,7 @@ from typing import Annotated
 import click
 from click.testing import CliRunner
 
-from sayer.core import command, get_commands
+from sayer.core.engine import command, get_commands
 from sayer.params import Argument, Env, Option
 
 

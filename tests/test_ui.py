@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from sayer.client import app
+from sayer.core.client import app
 
 
 @pytest.fixture

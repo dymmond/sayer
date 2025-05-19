@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Annotated
 
-from sayer.core import command
+from sayer.core.engine import command
 from sayer.params import Argument
-from sayer.ui import error, success
+from sayer.utils.ui import error, success
 
 TEMPLATE: dict[str, str] = {
     "main.py": """from sayer import run, load_commands_from, echo

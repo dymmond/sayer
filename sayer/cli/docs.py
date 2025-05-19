@@ -4,9 +4,9 @@ from typing import Annotated, get_args, get_origin
 
 import click
 
-from sayer.core import group
+from sayer.core.engine import group
 from sayer.params import Option
-from sayer.ui import success
+from sayer.utils.ui import success
 
 # Create the 'docs' subgroup
 docs = group(
@@ -92,7 +92,7 @@ def generate(
     """
     Generate Markdown documentation for all Sayer commands and groups.
     """
-    from sayer.client import app
+    from sayer.core.client import app
 
     # Ensure output directory
     output = output.expanduser()
@@ -128,8 +128,6 @@ def generate(
             continue
         for sub, sub_cmd in grp.commands.items():
             filename = f"{name}-{sub}.md"
-            (commands_dir / filename).write_text(
-                render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8"
-            )
+            (commands_dir / filename).write_text(render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8")
 
     success(f"Generated docs in {output}")

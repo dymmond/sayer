@@ -1,17 +1,15 @@
 import click
 from rich import print as rprint
-from rich.console import Console
+from rich.console import Console  # Keep import
 from rich.panel import Panel
 from rich.text import Text
 
-from sayer.help import render_help_for_command
-
-console = Console()
+from sayer.core.help import render_help_for_command
 
 
 class RichGroup(click.Group):
     def command(self, *args, **kwargs):
-        from sayer.core import command
+        from sayer.core.engine import command
 
         def decorator(func):
             func.__sayer_group__ = self
@@ -30,7 +28,7 @@ class RichGroup(click.Group):
             usage = self.get_usage(ctx)
             body = f"[bold red]Error:[/] {e.format_message()}\n\n[bold cyan]Usage:[/]\n  {usage.strip()}"
             panel = Panel.fit(Text.from_markup(body), title="Error", border_style="red")
-            console.print(panel)
+            Console().print(panel)
             ctx.exit(e.exit_code)
 
     def get_help(self, ctx):
@@ -43,38 +41,38 @@ class RichGroup(click.Group):
         try:
             return super().main(*args, **kwargs)
         except TypeError:
+            # This seems like an unusual way to handle TypeError,
+            # but keeping it as per your original code.
+            # If the goal is to make the group callable directly
+            # without 'main', you might reconsider this.
             return self
 
     def format_help(self, ctx, formatter=None):
         # If no explicit help, infer from first subcommand's help
         return render_help_for_command(ctx)
 
-    # def format_help(self, ctx, formatter=None):
-    #     # If no explicit help, infer from first subcommand's help
-    #     if not self.help and self.commands:
-    #         first_cmd_name = next(iter(self.commands))
-    #         first_cmd = self.commands[first_cmd_name]
-    #         inferred = first_cmd.help or (first_cmd.callback.__doc__ or "").strip()
-    #         if inferred:
-    #             self.help = inferred
-    #     return super().format_help(ctx, formatter)
-
 
 def echo(*args, **kwargs):
+    # rprint should ideally use the current sys.stdout,
+    # which CliRunner redirects. This might work without changes.
     rprint(*args, **kwargs)
 
 
 def error(message: str):
-    console.print(f"[bold red]✖ {message}[/]", highlight=False)
+    # Create Console locally
+    Console().print(f"[bold red]✖ {message}[/]", highlight=False)
 
 
 def success(message: str):
-    console.print(f"[bold green]✔ {message}[/]", highlight=False)
+    # Create Console locally
+    Console().print(f"[bold green]✔ {message}[/]", highlight=False)
 
 
-def warn(message: str):
-    console.print(f"[bold yellow]⚠ {message}[/]", highlight=False)
+def warning(message: str):
+    # Create Console locally
+    Console().print(f"[bold yellow]⚠ {message}[/]", highlight=False)
 
 
 def info(message: str):
-    console.print(f"[bold blue]ℹ {message}[/]", highlight=False)
+    # Create Console locally
+    Console().print(f"[bold blue]ℹ {message}[/]", highlight=False)

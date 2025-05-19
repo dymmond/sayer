@@ -101,7 +101,3 @@ HELLO, ALICE!
 * Automation scripts
 * CLI-based microservices
 * Anything that grows beyond a single script
-
----
-
-Would you like me to push this as `README.md` content in `docs_src/index.md` or just keep iterating for now?

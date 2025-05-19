@@ -18,6 +18,16 @@ else
     UV="uv"
 fi
 
+# Install the project in editable mode with extras
+if ! command -v hatch > /dev/null 2>&1
+then
+    echo "Hatch not found. Setting up environment and installing hatch..."
+    $UV venv
+
+else
+    echo "Hatch found. Proceeding with dependency installation."
+fi
+
 echo "Installing local dependencies..."
 $UV pip install -e ".[testing,completion]"
 

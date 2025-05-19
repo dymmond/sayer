@@ -1,8 +1,7 @@
-# File: sayer/app.py
 import click
 
-from .help import render_help_for_command
-from .ui import RichGroup
+from sayer.help import render_help_for_command
+from sayer.ui import RichGroup
 
 
 class RichCommand(click.Command):

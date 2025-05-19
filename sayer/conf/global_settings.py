@@ -74,6 +74,7 @@ class Settings:
     of the color output in different environments, ensuring that the
     application can adapt to various terminal capabilities.
     """
+    __logging_config__: LoggingConfig | None = None
 
     @property
     def logging_config(self) -> "LoggingConfig" | None:
@@ -94,8 +95,26 @@ class Settings:
         # if sayer.logging depends on sayer.conf.monkay.settings.
         from sayer.core.logging import StandardLoggingConfig
 
-        # Returns a logging configuration object with the specified level.
-        return StandardLoggingConfig(level=self.logging_level)
+        if self.__logging_config__ is None:
+            # Returns a logging configuration object with the specified level.
+            self.__logging_config__ = StandardLoggingConfig(level=self.logging_level)
+        return self.__logging_config__
+
+    @logging_config.setter
+    def logging_config(self, config: "LoggingConfig") -> None:
+        """
+        Sets the logging configuration.
+
+        This setter allows for dynamic assignment of a custom logging
+        configuration object that adheres to the `LoggingConfig` protocol.
+        It can be used to override the default logging behavior.
+
+        Args:
+            config: An instance implementing `LoggingConfig` to set as the
+                    current logging configuration.
+        """
+        # Set the logging configuration directly.
+        self.__logging_config__ = config
 
     def dict(self, exclude_none: bool = False, upper: bool = False) -> dict[str, Any]:
         """

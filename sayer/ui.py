@@ -17,6 +17,10 @@ class RichGroup(click.Group):
 
         return decorator
 
+    def get_usage(self, ctx):
+        # Use default usage formatting
+        return super().get_usage(ctx)
+
     def resolve_command(self, ctx, args):
         try:
             return super().resolve_command(ctx, args)
@@ -29,12 +33,27 @@ class RichGroup(click.Group):
 
     def get_help(self, ctx):
         help_text = super().get_help(ctx)
-        panel = Panel.fit(Text(help_text), title=f"[bold cyan]{ctx.command.name}", border_style="cyan")
+        panel = Panel.fit(
+            Text(help_text), title=f"[bold cyan]{ctx.command.name}", border_style="cyan"
+        )
         Console().print(panel)
         ctx.exit()
 
     def main(self, *args, **kwargs):
-        super().main(*args, **kwargs)
+        try:
+            return super().main(*args, **kwargs)
+        except TypeError:
+            return self
+
+    def xformat_help(self, ctx, formatter=None):
+        # If no explicit help, infer from first subcommand's help
+        if not self.help and self.commands:
+            first_cmd_name = next(iter(self.commands))
+            first_cmd = self.commands[first_cmd_name]
+            inferred = first_cmd.help or (first_cmd.callback.__doc__ or "").strip()
+            if inferred:
+                self.help = inferred
+        return super().format_help(ctx, formatter)
 
 
 def echo(*args, **kwargs):

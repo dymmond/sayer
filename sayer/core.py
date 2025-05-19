@@ -134,7 +134,9 @@ def _build_click_parameter(
 
     # If generic Param metadata is used with Annotated, decide if it should be an Option
     if isinstance(meta, Param) and get_origin(raw_anno) is Annotated:
-        if _should_use_option(meta, param_default):  # Used param_default instead of param.default, which is equivalent
+        if _should_use_option(
+            meta, param_default
+        ):  # Used param_default instead of param.default, which is equivalent
             # Convert generic Param to Option metadata if it meets the criteria
             meta = meta.as_option()
 
@@ -336,20 +338,23 @@ def command(
 
             current = _build_click_parameter(param, raw_anno, ptype, meta, help_text, current)
 
-        # Register
-        COMMANDS[name] = current
+        # ─── Crucial registration logic ───
         if hasattr(fn, "__sayer_group__"):
+            # Bound commands go only in their group
             fn.__sayer_group__.add_command(current)
+        else:
+            # Unbound commands go to top-level
+            COMMANDS[name] = current
+
         return current
 
     # Support both @command and @command(middleware=[...])
-    if func is None:
-        return decorator
-    else:
-        return decorator(func)
+    return decorator if func is None else decorator(func)
 
 
-def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
+def group(
+    name: str, group_cls: type[click.Group] | None = None, help: str | None = None
+) -> click.Group:
     """
     Registers a Click group or returns an existing one by name.
 
@@ -359,14 +364,14 @@ def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
     Args:
         name: The name of the group.
         group_cls: An optional custom Click Group class to use. Defaults to RichGroup.
-
+        help: An optional help string for the group.
     Returns:
         The Click.Group instance.
     """
     if name not in _GROUPS:
         # Create a new group if it doesn't exist
         cls = group_cls or RichGroup
-        _GROUPS[name] = cls(name=name)
+        _GROUPS[name] = cls(name=name, help=help)
     # Return the existing or newly created group
     return _GROUPS[name]
 

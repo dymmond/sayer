@@ -1,10 +1,12 @@
 import inspect
+import anyio
 import os
-from typing import Annotated, Any, Callable, get_args, get_origin, TypeVar
+from typing import Annotated, Any, Callable, get_args, get_origin, TypeVar, overload, Sequence
 
 import click
 
-from sayer.middleware import run_after, run_before
+
+from sayer.middleware import run_after, run_before, resolve as resolve_middleware
 from sayer.params import Argument, Env, Option, Param
 from sayer.ui import RichGroup
 
@@ -55,8 +57,8 @@ def _should_use_option(meta: Param, default: Any) -> bool:
     """
     return (
         meta.envvar is not None
-        or meta.prompt # Use original truthiness check
-        or meta.confirmation_prompt # Use original truthiness check
+        or meta.prompt  # Use original truthiness check
+        or meta.confirmation_prompt  # Use original truthiness check
         or meta.hide_input
         or meta.callback is not None
         # Check if a default is explicitly set in the metadata, ignoring the Param(...) sentinel
@@ -133,7 +135,9 @@ def _build_click_parameter(
 
     # If generic Param metadata is used with Annotated, decide if it should be an Option
     if isinstance(meta, Param) and get_origin(raw_anno) is Annotated:
-        if _should_use_option(meta, param_default): # Used param_default instead of param.default, which is equivalent
+        if _should_use_option(
+            meta, param_default
+        ):  # Used param_default instead of param.default, which is equivalent
             # Convert generic Param to Option metadata if it meets the criteria
             meta = meta.as_option()
 
@@ -152,39 +156,34 @@ def _build_click_parameter(
 
     if isinstance(meta, Argument):
         # Parameter is explicitly defined as a Click argument
-        wrapper = click.argument(
-            pname,
-            type=ptype,
-            required=required,
-            default=default
-        )(wrapper)
+        wrapper = click.argument(pname, type=ptype, required=required, default=default)(wrapper)
 
     elif isinstance(meta, Env):
         # Parameter gets its value primarily from an environment variable
         env_default = os.getenv(meta.envvar, meta.default)
         wrapper = click.option(
-            f"--{pname.replace('_','-')}", # Use hyphenated option name
+            f"--{pname.replace('_','-')}",  # Use hyphenated option name
             type=ptype,
             default=env_default,
-            show_default=True, # Always show the default value (from env or metadata)
-            required=meta.required, # Use required status from Env metadata
-            help=f"[env:{meta.envvar}] {help_text}", # Prepend env var info to help
+            show_default=True,  # Always show the default value (from env or metadata)
+            required=meta.required,  # Use required status from Env metadata
+            help=f"[env:{meta.envvar}] {help_text}",  # Prepend env var info to help
         )(wrapper)
 
     elif isinstance(meta, Option):
         # Parameter is explicitly defined as a Click option
         wrapper = click.option(
-            f"--{pname.replace('_','-')}", # Use hyphenated option name
-            type=None if is_flag else ptype, # Type is None for flags
-            is_flag=is_flag, # Set is_flag for boolean types
+            f"--{pname.replace('_','-')}",  # Use hyphenated option name
+            type=None if is_flag else ptype,  # Type is None for flags
+            is_flag=is_flag,  # Set is_flag for boolean types
             default=default,
-            required=required, # Use required status from Option metadata
-            show_default=True, # Always show the default value
+            required=required,  # Use required status from Option metadata
+            show_default=True,  # Always show the default value
             help=help_text,
             prompt=meta.prompt,
             hide_input=meta.hide_input,
             callback=meta.callback,
-            envvar=meta.envvar, # Link to environment variable if specified
+            envvar=meta.envvar,  # Link to environment variable if specified
         )(wrapper)
 
     else:
@@ -200,7 +199,7 @@ def _build_click_parameter(
                 f"--{pname.replace('_','-')}",
                 is_flag=True,
                 default=param.default,
-                required=False, # Flags are typically not required
+                required=False,  # Flags are typically not required
                 help=help_text,
             )(wrapper)
         elif isinstance(param.default, Param):
@@ -213,8 +212,8 @@ def _build_click_parameter(
                 default=param.default.default,
             )(wrapper)
         elif param.default is None:
-             # Parameter has a default of None -> it's an optional option
-             # This allows explicitly passing --param None
+            # Parameter has a default of None -> it's an optional option
+            # This allows explicitly passing --param None
             wrapper = click.option(
                 f"--{pname.replace('_','-')}",
                 type=ptype,
@@ -229,7 +228,7 @@ def _build_click_parameter(
                 pname,
                 type=ptype,
                 default=param.default,
-                required=False # Arguments with defaults are optional
+                required=False,  # Arguments with defaults are optional
             )(wrapper)
 
             # Ensure the argument is marked as optional explicitly in Click's params
@@ -251,105 +250,106 @@ def _build_click_parameter(
     return wrapper
 
 
-def command(func: F) -> click.Command:
-    """
-    Registers a function as a CLI command using Click, respecting `sayer` parameter metadata.
+@overload
+def command(func: F) -> click.Command: ...
 
-    This decorator wraps the original function, processes its signature and annotations
-    to build corresponding Click options and arguments, and registers it globally.
-    It also integrates `sayer` middleware (`run_before`, `run_after`).
+
+@overload
+def command(
+    func: F | None = None, *, middleware: Sequence[str | Callable[..., Any]] = ()
+) -> click.Command | Callable[[F], click.Command]: ...
+
+
+def command(
+    func: F | None = None, *, middleware: Sequence[str | Callable[..., Any]] = ()
+) -> click.Command | Callable[[F], click.Command]:
+    """
+    Registers a function as a CLI command using Click, respecting `sayer` parameter metadata
+    and allowing per-command middleware.
 
     Args:
         func: The function to register as a command.
+        middleware: A list of middleware names or callables to run around this command.
+                    Strings are looked up in the global registry; callables are used directly.
 
     Returns:
-        A Click.Command instance representing the wrapped function.
+        If used as `@command`, returns a Click.Command; if used as `@command(middleware=[...])`,
+        returns a decorator that accepts the function and returns its Click.Command.
     """
-    # Generate the command name from the function name (replace underscores with hyphens)
-    name = func.__name__.replace("_", "-")
-    # Get the function's signature for parameter inspection
-    sig = inspect.signature(func)
-    # Extract help text for the command
-    cmd_help = _extract_command_help(sig, func)
 
-    # Create the Click command wrapper
-    @click.command(name=name, help=cmd_help)
-    @click.pass_context # Inject Click context
-    def wrapper(ctx: click.Context, **kwargs: Any):
-        """
-        Internal wrapper function executed by Click when the command is invoked.
+    def decorator(fn: F) -> click.Command:
+        name = fn.__name__.replace("_", "-")
+        sig = inspect.signature(fn)
+        cmd_help = _extract_command_help(sig, fn)
 
-        It handles parameter type conversion and middleware execution.
-        """
-        # Prepare arguments for the original function by converting types
-        bound_args = {}
-        for p in sig.parameters.values():
-            # Get the value provided by Click (from CLI args, options, defaults, etc.)
-            val = kwargs.get(p.name)
-            # Convert the value to the expected type if an annotation is present
-            if p.annotation != inspect._empty:
-                val = _convert(val, p.annotation)
-            bound_args[p.name] = val
+        # Resolve named & direct middleware into before/after hooks
+        before_hooks, after_hooks = resolve_middleware(middleware)
 
-        # Execute 'before' middleware
-        run_before(name, bound_args)
+        @click.command(name=name, help=cmd_help)
+        @click.pass_context
+        def wrapper(ctx: click.Context, **kwargs: Any):
+            """
+            Internal wrapper that handles type conversion and middleware execution.
+            """
+            # Convert and bind args
+            bound_args: dict[str, Any] = {}
+            for p in sig.parameters.values():
+                val = kwargs.get(p.name)
+                if p.annotation is not inspect._empty:
+                    val = _convert(val, p.annotation)
+                bound_args[p.name] = val
 
-        # Call the original function with the prepared arguments
-        result = func(**bound_args)
+            # Global + per-command 'before'
+            run_before(name, bound_args)
+            for hook in before_hooks:
+                hook(name, bound_args)
 
-        # Handle async functions
-        if inspect.iscoroutine(result):
-            import asyncio
-            result = asyncio.run(result) # Run the async function to completion
+            # Call the original function
+            result = fn(**bound_args)
+            if inspect.iscoroutine(result):
+                result = anyio.run(lambda: result)
 
-        # Execute 'after' middleware
-        run_after(name, bound_args, result)
+            # Global + per-command 'after'
+            run_after(name, bound_args, result)
+            for hook in after_hooks:
+                hook(name, bound_args, result)
 
-        # Return the result of the original function
-        return result
+            return result
 
-    # Store a reference to the original function on the wrapper for introspection if needed
-    wrapper._original_func = func # type: ignore
+        # Preserve original function reference
+        wrapper._original_func = fn  # type: ignore
 
-    # Process each parameter in the original function's signature
-    current_wrapper = wrapper
-    for param in sig.parameters.values():
-        # Determine the raw annotation and the effective parameter type
-        raw_anno = param.annotation if param.annotation != inspect._empty else str # Default to str if no annotation
-        ptype: type = raw_anno
+        # Attach all parameters
+        current = wrapper
+        for param in sig.parameters.values():
+            raw_anno = param.annotation if param.annotation is not inspect._empty else str
+            ptype = raw_anno if get_origin(raw_anno) is not Annotated else get_args(raw_anno)[0]
 
-        meta: Param | Option | Argument | Env | None = None
-        help_text: str = ""
+            # find metadata & help_text (Annotated or default=Param)
+            meta: Param | Option | Argument | Env | None = None
+            help_text = ""
+            if get_origin(raw_anno) is Annotated:
+                for a in get_args(raw_anno)[1:]:
+                    if isinstance(a, (Option, Argument, Env, Param)):
+                        meta = a
+                    elif isinstance(a, str):
+                        help_text = a
+            if isinstance(param.default, Param) and not meta:
+                meta = param.default
 
-        # Process Annotated annotations
-        if get_origin(raw_anno) is Annotated:
-            args = get_args(raw_anno)
-            ptype = args[0] # The first argument is the type
-            # Iterate through subsequent arguments to find metadata and help text
-            for arg in args[1:]:
-                if isinstance(arg, (Option, Argument, Env, Param)):
-                    meta = arg # Found metadata instance
-                elif isinstance(arg, str):
-                    help_text = arg # Found help text string
+            current = _build_click_parameter(param, raw_anno, ptype, meta, help_text, current)
 
-        # If no metadata found in Annotated, check if the default value is a Param instance
-        if isinstance(param.default, Param) and not meta:
-            meta = param.default
+        # Register
+        COMMANDS[name] = current
+        if hasattr(fn, "__sayer_group__"):
+            fn.__sayer_group__.add_command(current)
+        return current
 
-        # Build and attach the Click parameter to the wrapper
-        current_wrapper = _build_click_parameter(
-            param, raw_anno, ptype, meta, help_text, current_wrapper
-        )
-
-    # Register the command globally
-    COMMANDS[name] = current_wrapper
-
-    # If the original function was bound to a group, add the Click command to it
-    if hasattr(func, "__sayer_group__"):
-        func.__sayer_group__.add_command(current_wrapper)
-
-    # Return the final Click command object
-    return current_wrapper
+    # Support both @command and @command(middleware=[...])
+    if func is None:
+        return decorator
+    else:
+        return decorator(func)
 
 
 def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
@@ -410,10 +410,11 @@ def bind_command(group: click.Group, func: F) -> click.Command:
         The result of calling the `command` decorator on the function.
     """
     # Attach the target group to the function object. This is picked up by the `command` decorator.
-    func.__sayer_group__ = group # type: ignore
+    func.__sayer_group__ = group  # type: ignore
     # Register the function as a command
     return command(func)
 
+
 # Monkey patch Click's Group class to add the bind_command method.
 # This allows using group_instance.command(func) syntax.
-click.Group.command = bind_command # type: ignore
+click.Group.command = bind_command  # type: ignore

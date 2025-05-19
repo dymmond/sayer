@@ -38,7 +38,12 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Internet :: WWW/HTTP",
 ]
-dependencies = ["click>=8.2.0", "rich>=14.0.0"]
+dependencies = [
+  "anyio>=4.9.0",
+  "click>=8.2.0",
+  "rich>=14.0.0",
+]
+
 keywords = ["sayer"]
 
 [project.urls]

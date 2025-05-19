@@ -113,6 +113,9 @@ serve = "mkdocs serve --dev-addr localhost:8000"
 [tool.hatch.envs.test]
 features = ["testing"]
 
+[tool.hatch.envs.hatch-test.env-vars]
+SAYER_SETTINGS_MODULE = "tests.settings.TestSettings"
+
 [tool.hatch.envs.hatch-test]
 features = ["testing"]
 template = "test"

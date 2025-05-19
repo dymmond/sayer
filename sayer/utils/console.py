@@ -3,6 +3,8 @@ from typing import Any
 
 from rich.console import Console
 
+from sayer.conf import monkay
+
 
 class ConsoleProxy:
     """
@@ -14,8 +16,8 @@ class ConsoleProxy:
         # Instantiate a fresh Console writing to the current stdout
         console = Console(
             file=sys.stdout,
-            force_terminal=False,
-            color_system=None,
+            force_terminal=monkay.settings.force_terminal,
+            color_system=monkay.settings.color_system,
         )
         return getattr(console, name)
 

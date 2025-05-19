@@ -147,7 +147,7 @@ def _build_click_parameter(
     required = getattr(meta, "required", not (has_func_default or has_meta_default))
 
     # Determine the final help text, prioritizing metadata help/description
-    help_text = getattr(meta, "help", help_text) or getattr(meta, "description", help_text)
+    help_text = getattr(meta, "help", help_text) or getattr(meta, "help", help_text)
 
     # --- Apply Click Decorators based on Metadata Type ---
 
@@ -336,20 +336,21 @@ def command(
 
             current = _build_click_parameter(param, raw_anno, ptype, meta, help_text, current)
 
-        # Register
-        COMMANDS[name] = current
+        # ─── Crucial registration logic ───
         if hasattr(fn, "__sayer_group__"):
+            # Bound commands go only in their group
             fn.__sayer_group__.add_command(current)
+        else:
+            # Unbound commands go to top-level
+            COMMANDS[name] = current
+
         return current
 
     # Support both @command and @command(middleware=[...])
-    if func is None:
-        return decorator
-    else:
-        return decorator(func)
+    return decorator if func is None else decorator(func)
 
 
-def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
+def group(name: str, group_cls: type[click.Group] | None = None, help: str | None = None) -> click.Group:
     """
     Registers a Click group or returns an existing one by name.
 
@@ -359,14 +360,14 @@ def group(name: str, group_cls: type[click.Group] | None = None) -> click.Group:
     Args:
         name: The name of the group.
         group_cls: An optional custom Click Group class to use. Defaults to RichGroup.
-
+        help: An optional help string for the group.
     Returns:
         The Click.Group instance.
     """
     if name not in _GROUPS:
         # Create a new group if it doesn't exist
         cls = group_cls or RichGroup
-        _GROUPS[name] = cls(name=name)
+        _GROUPS[name] = cls(name=name, help=help)
     # Return the existing or newly created group
     return _GROUPS[name]
 

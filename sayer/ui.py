@@ -4,6 +4,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from sayer.help import render_help_for_command
+
 console = Console()
 
 
@@ -16,6 +18,10 @@ class RichGroup(click.Group):
             return command(func)
 
         return decorator
+
+    def get_usage(self, ctx):
+        # Use default usage formatting
+        return super().get_usage(ctx)
 
     def resolve_command(self, ctx, args):
         try:
@@ -34,7 +40,24 @@ class RichGroup(click.Group):
         ctx.exit()
 
     def main(self, *args, **kwargs):
-        super().main(*args, **kwargs)
+        try:
+            return super().main(*args, **kwargs)
+        except TypeError:
+            return self
+
+    def format_help(self, ctx, formatter=None):
+        # If no explicit help, infer from first subcommand's help
+        return render_help_for_command(ctx)
+
+    # def format_help(self, ctx, formatter=None):
+    #     # If no explicit help, infer from first subcommand's help
+    #     if not self.help and self.commands:
+    #         first_cmd_name = next(iter(self.commands))
+    #         first_cmd = self.commands[first_cmd_name]
+    #         inferred = first_cmd.help or (first_cmd.callback.__doc__ or "").strip()
+    #         if inferred:
+    #             self.help = inferred
+    #     return super().format_help(ctx, formatter)
 
 
 def echo(*args, **kwargs):

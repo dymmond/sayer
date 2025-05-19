@@ -1,3 +1,5 @@
+from sayer.__version__ import get_version
+
 from .app import Sayer
 from .cli import new as _internal_commands  # noqa: F401, pylint: disable=unused-import
 from .config import get_config
@@ -6,7 +8,7 @@ from .loader import load_commands_from
 from .params import Param
 from .ui_helpers import confirm, progress, table
 
-__version__ = "0.1.0"
+__version__ = get_version()
 
 __all__ = [
     "command",

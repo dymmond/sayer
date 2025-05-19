@@ -1,4 +1,5 @@
 import inspect
+from typing import Annotated, get_args, get_origin
 
 import click
 from rich.console import Console, Group
@@ -13,69 +14,119 @@ from sayer.params import Argument, Env, Option, Param
 console = Console()
 
 
-def render_help_for_command(ctx):
+def render_help_for_command(ctx: click.Context) -> None:
+    """
+    Render help for a single command (or group) using Rich formatting.
+    Includes description, usage, parameters, and if a group, lists its sub-commands recursively.
+    """
     cmd = ctx.command
+    # Command description (help or docstring)
     doc = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."
     signature = _generate_signature(cmd)
-    usage = f"sayer {ctx.command.name} {signature}"
+    # Build usage line
+    if isinstance(cmd, click.Group):
+        usage = f"sayer {cmd.name} [OPTIONS] COMMAND [ARGS]..."
+    else:
+        usage = f"sayer {cmd.name} {signature}"
 
     # Section: Description
     description_md = Markdown(doc)
 
-    # Section: Usage
-    usage_text = Text("\nUsage\n", style="bold cyan")
-    usage_text += Text(f"  {usage}\n")
+    # Build parameters table
+    param_table = Table(
+        show_header=True,
+        header_style="bold yellow",
+        box=None,
+        pad_edge=False,
+        title_style="bold magenta",
+    )
+    param_table.add_column("Parameter", style="cyan")
+    param_table.add_column("Type", style="green")
+    param_table.add_column("Required", style="red", justify="center")
+    param_table.add_column("Default", style="blue", justify="center")
+    param_table.add_column("Description", style="white")
 
-    # Section: Parameters
-    param_table = Table(show_header=True, header_style="bold green", box=None, pad_edge=False)
-    param_table.add_column("Parameter")
-    param_table.add_column("Type")
-    param_table.add_column("Required")
-    param_table.add_column("Default", justify="center")
-    param_table.add_column("Description")
+    # Inspect original function for annotations
+    orig_fn = getattr(cmd.callback, "_original_func", None)
+    orig_sig = inspect.signature(orig_fn) if orig_fn else None
 
     for param in cmd.params:
-        typestr = str(param.type).replace(" ", "")
-        default = getattr(param, "default", inspect._empty)
-        description = getattr(param, "help", "") or ""
-
-        required = "Yes"
-        default_str = ""
-
-        if isinstance(default, (Option, Argument, Env, Param)):
-            # Extract from explicit .required or fallback to default sentinel
-            if default.required is not None:
-                required = "Yes" if default.required else "No"
+        # Determine human-friendly Type
+        if orig_sig and param.name in orig_sig.parameters:
+            anno = orig_sig.parameters[param.name].annotation
+            if get_origin(anno) is Annotated:
+                raw = get_args(anno)[0]
             else:
-                required = "No" if default.default not in (inspect._empty, None, ...) else "Yes"
-            real_default = default.default
+                raw = anno
+            if raw is inspect._empty:
+                typestr = "STRING"
+            else:
+                typestr = getattr(raw, "__name__", str(raw)).upper()
         else:
-            # Fallback Click default handling
-            required = "No" if default not in (None, inspect._empty, ...) else "Yes"
-            real_default = default
+            pt = param.type
+            typestr = pt.name.upper() if hasattr(pt, "name") else str(pt).upper()
 
-        if real_default not in (None, inspect._empty, ...):
-            default_str = str(real_default).lower() if isinstance(real_default, bool) else str(real_default)
+        # Determine default & required
+        default_val = getattr(param, "default", inspect._empty)
+        if isinstance(default_val, (Option, Argument, Env, Param)):
+            real_default = default_val.default
+            required = "Yes" if default_val.required else "No"
+        else:
+            real_default = default_val
+            required = "No" if real_default not in (inspect._empty, None, ...) else "Yes"
+
+        # Format default
+        if real_default in (inspect._empty, None, ...):
+            default_str = ""
+        elif isinstance(real_default, bool):
+            default_str = "true" if real_default else "false"
+        else:
+            default_str = str(real_default)
 
         label = f"--{param.name}" if isinstance(param, click.Option) else f"<{param.name}>"
-        param_table.add_row(label, typestr, required, default_str, description)
+        help_text = getattr(param, "help", "") or ""
+        param_table.add_row(label, typestr, required, default_str, help_text)
 
-    # Compose rich output
-    content = Group(
-        Text("Description", style="bold cyan"),
-        Padding(description_md, (0, 0, 0, 2)),
-        Text("\nUsage", style="bold cyan"),
-        Text(f"  {usage}\n"),
-        Text("Parameters", style="bold cyan"),
-        Padding(param_table, (0, 0, 0, 2)),
-    )
+        # Compose rich header and optionally include subcommands
+    if isinstance(cmd, click.Group):
+        # Commands table for this group
+        cmd_table = Table(
+            show_header=True,
+            header_style="bold green",
+            box=None,
+            pad_edge=False,
+        )
+        cmd_table.add_column("Name", style="cyan")
+        cmd_table.add_column("Description", style="white")
+        for name, sub in cmd.commands.items():
+            cmd_table.add_row(name, sub.help or "")
 
-    console.print(Panel.fit(content, title=f"{ctx.command.name}", border_style="cyan"))
+        content = Group(
+            Text("Description", style="bold blue"),
+            Padding(description_md, (0, 0, 1, 2)),
+            Text("Usage", style="bold cyan"),
+            Padding(Text(f"  {usage}"), (0, 0, 1, 2)),
+            Text("Parameters", style="bold cyan"),
+            Padding(param_table, (0, 0, 0, 2)),
+            Text("\nCommands", style="bold cyan"),
+            Padding(cmd_table, (1, 0, 0, 2)),
+        )
+    else:
+        content = Group(
+            Text("Description", style="bold blue"),
+            Padding(description_md, (0, 0, 1, 2)),
+            Text("Usage", style="bold cyan"),
+            Padding(Text(f"  {usage}"), (0, 0, 1, 2)),
+            Text("Parameters", style="bold cyan"),
+            Padding(param_table, (0, 0, 0, 2)),
+        )
+
+    console.print(Panel.fit(content, title=cmd.name, border_style="bold cyan"))
     ctx.exit()
 
 
-def _generate_signature(cmd):
-    parts = []
+def _generate_signature(cmd: click.Command) -> str:
+    parts: list[str] = []
     for p in cmd.params:
         if isinstance(p, click.Argument):
             parts.append(f"<{p.name}>")

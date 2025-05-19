@@ -147,7 +147,7 @@ def _build_click_parameter(
     required = getattr(meta, "required", not (has_func_default or has_meta_default))
 
     # Determine the final help text, prioritizing metadata help/description
-    help_text = getattr(meta, "help", help_text) or getattr(meta, "description", help_text)
+    help_text = getattr(meta, "help", help_text) or getattr(meta, "help", help_text)
 
     # --- Apply Click Decorators based on Metadata Type ---
 

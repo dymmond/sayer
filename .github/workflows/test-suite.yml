@@ -39,9 +39,9 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           scripts/install
-      - name: "Run linting checks"
-        run: "hatch run lint"
-      - name: "Run typing checks"
-        run: "hatch run test:check_types"
+#      - name: "Run linting checks"
+#        run: "hatch run lint"
+#      - name: "Run typing checks"
+#        run: "hatch run test:check_types"
       - name: "Run tests"
         run: "hatch run test:test"

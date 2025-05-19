@@ -4,7 +4,7 @@ from typing import Annotated, get_args, get_origin
 
 import click
 
-from sayer.core import get_commands, get_groups, group
+from sayer.core import group
 from sayer.params import Option
 from sayer.ui import success
 
@@ -16,16 +16,66 @@ docs = group(
 
 
 def _generate_signature(cmd: click.Command) -> str:
+    """
+    Generate the usage signature for a Click command.
+    """
     parts: list[str] = []
     for p in cmd.params:
         if isinstance(p, click.Argument):
             parts.append(f"<{p.name}>")
         elif isinstance(p, click.Option):
-            if getattr(p, "is_flag", False):
+            if p.is_flag:
                 parts.append(f"[--{p.name}]")
             else:
                 parts.append(f"[--{p.name} <{p.name}>]")
     return " ".join(parts)
+
+
+def render_cmd(full_name: str, cmd: click.Command) -> str:
+    """
+    Render a single command to Markdown.
+    """
+    sig = _generate_signature(cmd)
+    md = []
+    # Title
+    md.append(f"# sayer {full_name}\n")
+    # Description
+    desc = cmd.help or inspect.getdoc(cmd.callback) or "No description provided."
+    md.append(f"{desc.strip()}\n")
+    # Usage
+    md.append("## Usage\n")
+    md.append(f"```bash\nsayer {full_name} {sig}\n```\n")
+    # Parameters
+    md.append("## Parameters\n")
+    md.append("| Name | Type | Required | Default | Description |")
+    md.append("|------|------|----------|---------|-------------|")
+
+    # Attempt to inspect original function for annotation-driven types
+    orig_fn = getattr(cmd.callback, "_original_func", None)
+    orig_sig = inspect.signature(orig_fn) if orig_fn else None
+
+    for p in cmd.params:
+        # Name label
+        label = f"--{p.name}" if isinstance(p, click.Option) else f"<{p.name}>"
+        # Type
+        if orig_sig and p.name in orig_sig.parameters:
+            anno = orig_sig.parameters[p.name].annotation
+            raw = get_args(anno)[0] if get_origin(anno) is Annotated else anno
+            typestr = raw.__name__.upper() if hasattr(raw, "__name__") else str(raw).upper()
+        else:
+            pt = p.type
+            typestr = pt.name.upper() if getattr(pt, "name", None) else str(pt).upper()
+        # Required
+        req = getattr(p, "required", None)
+        required = "Yes" if req else "No"
+        # Default
+        default = p.default
+        default_str = "" if default in (None, inspect._empty) else str(default)
+        # Description
+        help_text = getattr(p, "help", "") or ""
+        md.append(f"| {label} | {typestr} | {required} | {default_str} | {help_text} |")
+
+    return "\n".join(md)
 
 
 @docs.command()
@@ -42,78 +92,44 @@ def generate(
     """
     Generate Markdown documentation for all Sayer commands and groups.
     """
+    from sayer.client import app
+
+    # Ensure output directory
     output = output.expanduser()
     commands_dir = output / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1️⃣ Write top-level README.md
-    with (output / "README.md").open("w", encoding="utf-8") as idx:
+    # Write top-level index
+    index_file = output / "README.md"
+    with index_file.open("w", encoding="utf-8") as idx:
         idx.write("# Sayer CLI Documentation\n\n")
-        # Top-level commands
         idx.write("## Commands\n\n")
-        for name, _ in sorted(get_commands().items()):
+        for name, cmd in app.cli.commands.items():
+            if isinstance(cmd, click.Group):
+                continue
             idx.write(f"- [{name}](commands/{name}.md)\n")
-        idx.write("\n")
-        # Groups and their sub-commands
-        for grp_name, grp_cmd in sorted(get_groups().items()):
-            idx.write(f"### {grp_name}\n\n")
-            for sub_name in sorted(grp_cmd.commands):
-                file = f"{grp_name}-{sub_name}.md"
-                idx.write(f"- [{grp_name} {sub_name}](commands/{file})\n")
+        idx.write("\n## Subcommands\n\n")
+        for name, grp in app.cli.commands.items():
+            if not isinstance(grp, click.Group):
+                continue
+            idx.write(f"### {name}\n\n")
+            for sub in grp.commands:
+                idx.write(f"- [{name} {sub}](commands/{name}-{sub}.md)\n")
             idx.write("\n")
 
-    # 2️⃣ Generate Markdown per command
-    def render_cmd(full_name: str, cmd: click.Command):
-        sig = _generate_signature(cmd)
-        md = []
-        md.append(f"# sayer {full_name}\n")
-        desc = cmd.help or inspect.getdoc(cmd.callback) or "No description provided."
-        md.append(f"{desc.strip()}\n")
-        md.append("## Usage\n")
-        md.append(f"```bash\nsayer {full_name} {sig}\n```\n")
-        md.append("## Parameters\n")
-        md.append("| Name | Type | Required | Default | Description |")
-        md.append("|------|------|----------|---------|-------------|")
-        # Attempt to get original fn for annotation-based types
-        orig_fn = getattr(cmd.callback, "_original_func", None)
-        orig_sig = inspect.signature(orig_fn) if orig_fn else None
-
-        for p in cmd.params:
-            label = f"--{p.name}" if isinstance(p, click.Option) else f"<{p.name}>"
-            # Type
-            if orig_sig and p.name in orig_sig.parameters:
-                ann = orig_sig.parameters[p.name].annotation
-                if get_origin(ann) is Annotated:
-                    raw = get_args(ann)[0]
-                else:
-                    raw = ann
-                typestr = raw.__name__.upper() if hasattr(raw, "__name__") else str(raw).upper()
-            else:
-                pt = p.type
-                typestr = (pt.name.upper() if hasattr(pt, "name") else str(pt)).upper()
-            # Required
-            req = getattr(p, "required", None)
-            if req is None:
-                required = "Yes" if isinstance(p, click.Argument) and p.required else "No"
-            else:
-                required = "Yes" if req else "No"
-            # Default
-            default = p.default
-            default_str = "" if default in (None, inspect._empty) else str(default)
-            # Help
-            help_txt = getattr(p, "help", "") or ""
-            md.append(f"| {label} | {typestr} | {required} | {default_str} | {help_txt} |")
-        return "\n".join(md)
-
-    # render each top-level cmd
-    for name, cmd in get_commands().items():
-        (commands_dir / f"{name}.md").write_text(render_cmd(name, cmd), encoding="utf-8")
-
-    # render each subgroup cmd
-    for grp_name, grp_cmd in get_groups().items():
-        for sub_name, sub_cmd in grp_cmd.commands.items():
-            full = f"{grp_name} {sub_name}"
-            filename = f"{grp_name}-{sub_name}.md"
-            (commands_dir / filename).write_text(render_cmd(full, sub_cmd), encoding="utf-8")
+    # Generate per-command docs
+    # Top-level commands
+    for name, cmd in app.cli.commands.items():
+        if not isinstance(cmd, click.Group):
+            (commands_dir / f"{name}.md").write_text(render_cmd(name, cmd), encoding="utf-8")
+    # Group subcommands
+    for name, grp in app.cli.commands.items():
+        if not isinstance(grp, click.Group):
+            continue
+        for sub, sub_cmd in grp.commands.items():
+            filename = f"{name}-{sub}.md"
+            (commands_dir / filename).write_text(
+                render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8"
+            )
 
     success(f"Generated docs in {output}")

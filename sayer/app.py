@@ -63,6 +63,13 @@ class Sayer:
 
     def add_app(self, alias: str, app: "Sayer") -> None:
         """
+        Nest another Sayer app under this as a sub-group. This is just an alias
+        to add_sayer() for clarity.
+        """
+        self.add_sayer(alias, app)
+
+    def add_sayer(self, alias: str, app: "Sayer") -> None:
+        """
         Nest another Sayer app under this as a sub-group.
         """
         self._group.add_command(app._group, name=alias)

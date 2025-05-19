@@ -41,6 +41,7 @@ classifiers = [
 dependencies = [
   "anyio>=4.9.0",
   "click>=8.2.0",
+  "monkay>=0.4.2",
   "rich>=14.0.0",
 ]
 
@@ -111,6 +112,9 @@ serve = "mkdocs serve --dev-addr localhost:8000"
 
 [tool.hatch.envs.test]
 features = ["testing"]
+
+[tool.hatch.envs.hatch-test.env-vars]
+SAYER_SETTINGS_MODULE = "tests.settings.TestSettings"
 
 [tool.hatch.envs.hatch-test]
 features = ["testing"]

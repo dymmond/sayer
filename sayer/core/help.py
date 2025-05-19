@@ -2,7 +2,7 @@ import inspect
 from typing import Annotated, get_args, get_origin
 
 import click
-from rich.console import Console, Group
+from rich.console import Group
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sayer.params import Argument, Env, Option, Param
+from sayer.utils.console import console
 
 
 def render_help_for_command(ctx: click.Context) -> None:
@@ -17,8 +18,6 @@ def render_help_for_command(ctx: click.Context) -> None:
     Render help for a single command (or group) using Rich formatting.
     Includes description, usage, parameters, and if a group, lists its sub-commands recursively.
     """
-    console = Console(stderr=False)
-
     cmd = ctx.command
     # Command description (help or docstring)
     doc = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."

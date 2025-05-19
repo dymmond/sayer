@@ -11,6 +11,7 @@ class SayerConfig:
     variables (using the uppercase key), and finally falls back to a provided
     default value.
     """
+
     def __init__(self):
         """
         Initializes a new SayerConfig instance with an empty internal configuration dictionary.

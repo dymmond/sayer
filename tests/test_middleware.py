@@ -1,17 +1,16 @@
-import inspect
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
 
+from sayer.core import command, get_commands
 from sayer.middleware import (
+    _GLOBAL_AFTER,
+    _GLOBAL_BEFORE,
+    _MIDDLEWARE_REGISTRY,
+    add_after_global,
+    add_before_global,
     register,
     resolve,
-    add_before_global,
-    add_after_global,
-    _MIDDLEWARE_REGISTRY,
-    _GLOBAL_BEFORE,
-    _GLOBAL_AFTER,
 )
-from sayer.core import command, get_commands
 
 
 @pytest.fixture(autouse=True)

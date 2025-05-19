@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Any, Sequence
+from typing import Any, Callable, Sequence
 
 # Global registry for named middleware sets
 _MIDDLEWARE_REGISTRY: dict[str, dict[str, list[Callable]]] = {}
@@ -28,9 +28,7 @@ def register(
 
 def resolve(
     middleware: Sequence[str | Callable[..., Any]],
-) -> tuple[
-    list[Callable[[str, dict[str, Any]], Any]], list[Callable[[str, dict[str, Any], Any], Any]]
-]:
+) -> tuple[list[Callable[[str, dict[str, Any]], Any]], list[Callable[[str, dict[str, Any], Any], Any]]]:
     """
     Resolve a list of middleware identifiers (names or callables) into two lists:
     (before_hooks, after_hooks).

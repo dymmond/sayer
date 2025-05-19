@@ -1,12 +1,11 @@
 import inspect
-import anyio
 import os
-from typing import Annotated, Any, Callable, get_args, get_origin, TypeVar, overload, Sequence
+from typing import Annotated, Any, Callable, Sequence, TypeVar, get_args, get_origin, overload
 
+import anyio
 import click
 
-
-from sayer.middleware import run_after, run_before, resolve as resolve_middleware
+from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, Option, Param
 from sayer.ui import RichGroup
 
@@ -135,9 +134,7 @@ def _build_click_parameter(
 
     # If generic Param metadata is used with Annotated, decide if it should be an Option
     if isinstance(meta, Param) and get_origin(raw_anno) is Annotated:
-        if _should_use_option(
-            meta, param_default
-        ):  # Used param_default instead of param.default, which is equivalent
+        if _should_use_option(meta, param_default):  # Used param_default instead of param.default, which is equivalent
             # Convert generic Param to Option metadata if it meets the criteria
             meta = meta.as_option()
 

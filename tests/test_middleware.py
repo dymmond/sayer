@@ -1,7 +1,7 @@
 import pytest
 from click.testing import CliRunner
 
-from sayer.core import command, get_commands
+from sayer.engine import command, get_commands
 from sayer.middleware import (
     _GLOBAL_AFTER,
     _GLOBAL_BEFORE,

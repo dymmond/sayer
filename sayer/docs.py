@@ -4,7 +4,7 @@ from typing import Annotated, get_args, get_origin
 
 import click
 
-from sayer.core import group
+from sayer.engine import group
 from sayer.params import Option
 from sayer.ui import success
 

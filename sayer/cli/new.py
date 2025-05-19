@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated
 
-from sayer.core import command
+from sayer.engine import command
 from sayer.params import Argument
 from sayer.ui import error, success
 

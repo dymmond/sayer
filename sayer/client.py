@@ -1,7 +1,7 @@
 import sayer.docs  # noqa
 from sayer.__version__ import get_version
 from sayer.app import RichCommand, Sayer
-from sayer.core import get_commands, get_groups
+from sayer.engine import get_commands, get_groups
 
 app = Sayer(
     name="sayer",

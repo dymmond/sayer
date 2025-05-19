@@ -24,11 +24,12 @@ then
     echo "Hatch not found. Setting up environment and installing hatch..."
     $UV venv
 
-    $UV pip install hatch
-    echo "Hatch installed into the environment."
 else
     echo "Hatch found. Proceeding with dependency installation."
 fi
+
+$UV pip install hatch
+echo "Hatch installed into the environment."
 
 echo "Installing local dependencies..."
 $UV pip install -e ".[testing,completion]"

@@ -18,9 +18,6 @@ else
     UV="uv"
 fi
 
-$UV pip install hatch
-echo "Hatch installed into the environment."
-
 echo "Installing local dependencies..."
 $UV pip install -e ".[testing,completion]"
 

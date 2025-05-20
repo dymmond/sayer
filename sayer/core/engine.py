@@ -3,7 +3,7 @@ import os
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any, Callable, Sequence, TypeVar, get_args, get_origin, overload
+from typing import IO, Annotated, Any, Callable, Sequence, TypeVar, get_args, get_origin, overload
 from uuid import UUID
 
 import anyio
@@ -13,14 +13,34 @@ from sayer.middleware import resolve as resolve_middleware, run_after, run_befor
 from sayer.params import Argument, Env, Option, Param
 from sayer.utils.ui import RichGroup
 
-# Define a type variable for the function being wrapped
-F = TypeVar("F", bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])  # Type variable for CLI command functions.
 
-# Global dictionaries to store registered commands and groups
-COMMANDS: dict[str, click.Command] = {}
-_GROUPS: dict[str, click.Group] = {}
 
-# Map Python primitives and common types to Click ParamTypes
+class _CommandRegistry(dict):
+    """
+    A specialized dictionary for storing Click commands.
+
+    This registry prevents accidental clearing of registered commands by overriding
+    the `clear` method to be a no-operation. This ensures that commands, once
+    registered, remain accessible throughout the application's lifecycle.
+    """
+
+    def clear(self) -> None:
+        """
+        Overrides the default `clear` method to do nothing.
+
+        This ensures that commands registered in the COMMANDS dictionary cannot be
+        unintentionally removed by calling `clear()`.
+        """
+        return
+
+
+COMMANDS: _CommandRegistry[str, click.Command] = _CommandRegistry()  # Global registry for Click commands.
+
+_GROUPS: dict[str, click.Group] = {}  # Global dictionary to store registered Click groups.
+
+# Maps Python primitive types to their corresponding Click parameter types.
+# This mapping facilitates automatic type conversion for command-line arguments.
 _PRIMITIVE_MAP = {
     str: click.STRING,
     int: click.INT,
@@ -34,42 +54,99 @@ _PRIMITIVE_MAP = {
 
 def _convert(value: Any, to_type: type) -> Any:
     """
-    Converts a value, typically from a CLI input string, to the specified Python type.
-    Handles boolean conversion specifically for common string representations.
+    Converts a value, typically originating from CLI input, to the specified Python type.
+
+    This function handles various type conversion scenarios, including:
+    - **Enum values**: Returns the raw string for Enums, allowing Click's `ParamType`
+      to handle the final validation against defined choices.
+    - **Datetime to Date**: Converts `datetime` objects to `date` objects if the
+      target type is `date`.
+    - **Boolean conversion**: Interprets common string representations (e.g., "true", "1",
+      "yes", "on") as `True` for boolean types.
+    - **Direct casting**: Attempts a direct type cast if the value is not already of
+      the target type and no special handling is required.
+
+    Args:
+        value: The input value to be converted.
+        to_type: The target Python type for the conversion.
+
+    Returns:
+        The converted value, or the original value if no conversion is needed or possible
+        under the defined rules.
     """
+    # If the target type is an Enum, return the value as is. Click's ParamType will validate it.
+    if isinstance(to_type, type) and issubclass(to_type, Enum):
+        return value
+    # If target is date and value is datetime, convert datetime to date.
+    if to_type is date and isinstance(value, datetime):
+        return value.date()
+    # Handle boolean conversion from various string representations.
     if to_type is bool:
         if isinstance(value, bool):
             return value
         return str(value).lower() in ("true", "1", "yes", "on")
+    # If the value is already of the target type, no conversion is needed.
+    if isinstance(value, to_type):
+        return value
+    # Attempt a direct type conversion as a fallback.
     return to_type(value)
 
 
 def _should_use_option(meta: Param, default: Any) -> bool:
     """
-    Determines if a parameter with generic `Param` metadata should be treated as a Click option.
+    Determines whether a parameter, based on its `Param` metadata, should be configured
+    as a Click option rather than a positional argument.
+
+    A parameter is considered an option if it has associated environment variables,
+    requires prompts, hides input, defines a callback, or has an explicit default
+    value that is not the `...` ellipsis (indicating no default).
+
+    Args:
+        meta: An instance of `sayer.params.Param` containing metadata for the parameter.
+        default: The default value of the parameter as defined in the function signature.
+
+    Returns:
+        `True` if the parameter should be an option, `False` otherwise.
     """
     return (
-        meta.envvar is not None
-        or meta.prompt
-        or meta.confirmation_prompt
-        or meta.hide_input
-        or meta.callback is not None
-        or (meta.default is not ... and meta.default is not None)
+        meta.envvar is not None  # Has an associated environment variable.
+        or meta.prompt  # Requires a user prompt for input.
+        or meta.confirmation_prompt  # Requires a confirmation prompt.
+        or meta.hide_input  # Hides input during prompting (e.g., for passwords).
+        or meta.callback is not None  # Defines a custom callback function.
+        or (meta.default is not ... and meta.default is not None)  # Has a defined non-None default.
     )
 
 
 def _extract_command_help(signature: inspect.Signature, func: Callable) -> str:
     """
-    Extracts the help text for a command.
+    Extracts the detailed help text for a command function.
+
+    This function prioritizes finding help text in the following order:
+    1. The function's docstring.
+    2. The `help` attribute of a `sayer.params.Param` instance used as a default value
+       for any parameter in the function signature.
+    3. A string help text provided within an `Annotated` type hint for any parameter.
+
+    Args:
+        signature: The `inspect.Signature` object of the command function.
+        func: The command function itself.
+
+    Returns:
+        The extracted help text as a string, or an empty string if no help text is found.
     """
+    # Attempt to get help text from the function's docstring.
     cmd_help = inspect.getdoc(func) or ""
     if not cmd_help:
+        # If no docstring, iterate through parameters to find help in Param defaults or Annotated.
         for param in signature.parameters.values():
+            # Check if the parameter's default is a Param instance with help text.
             if isinstance(param.default, Param) and param.default.help:
                 return param.default.help
             anno = param.annotation
+            # Check if the parameter's annotation uses Annotated and contains help text.
             if get_origin(anno) is Annotated:
-                for arg in get_args(anno)[1:]:
+                for arg in get_args(anno)[1:]:  # Iterate through metadata arguments.
                     if isinstance(arg, Param) and arg.help:
                         return arg.help
     return cmd_help
@@ -84,57 +161,132 @@ def _build_click_parameter(
     wrapper: Callable,
 ) -> Callable:
     """
-    Builds and attaches a Click parameter (option or argument) to a Click command wrapper.
+    Constructs and attaches a Click parameter (either an option or an argument) to
+    a given Click command wrapper.
+
+    This function dynamically determines the appropriate Click parameter type and
+    configuration based on the Python function parameter's type hints, default values,
+    and `sayer.params` metadata. It supports a wide range of types including sequences,
+    enums, file paths, UUIDs, dates, datetimes, and file I/O streams.
+
+    Args:
+        param: The `inspect.Parameter` object representing the function parameter.
+        raw_anno: The raw type annotation of the parameter, potentially including `Annotated`.
+        ptype: The resolved base Python type of the parameter (e.g., `str`, `int`, `list[str]`).
+        meta: An instance of `Param`, `Option`, `Argument`, or `Env` providing
+              specific metadata for parameter configuration, or `None` if no custom
+              metadata is provided.
+        help_text: The help string for the parameter, potentially extracted from annotations
+                   or docstrings.
+        wrapper: The current Click command function that this parameter decorator will wrap.
+
+    Returns:
+        The `wrapper` function, now decorated with the newly built Click parameter.
     """
-    pname = param.name
+    pname = param.name  # The name of the function parameter.
+    is_flag = ptype is bool  # True if the parameter's type is boolean, indicating a potential flag.
+    has_default = param.default is not inspect._empty  # True if the parameter has a default value.
+    default_val = param.default if has_default else None  # The default value from the function signature.
 
-    # Determine if the parameter is a boolean flag
-    is_flag = ptype is bool
-    # Check if the function signature provides a default value
-    has_func_default = param.default is not inspect._empty
-    param_default = param.default if has_func_default else None
+    # If generic `Param` metadata is provided and conditions for an option are met,
+    # convert it to an `Option` instance.
+    if isinstance(meta, Param) and get_origin(raw_anno) is Annotated and _should_use_option(meta, default_val):
+        meta = meta.as_option()
 
-    # If generic Param metadata is used with Annotated, convert to Option
-    if isinstance(meta, Param) and get_origin(raw_anno) is Annotated:
-        if _should_use_option(meta, param_default):
-            meta = meta.as_option()
+    origin = get_origin(raw_anno)  # Get the origin type for generic annotations (e.g., `list` from `list[str]`).
 
-    # Advanced type support: Enum and Path
-    # 1) enum.Enum → click.Choice([...])
+    # --- Type-specific parameter building ---
+
+    # 1) **Sequence Support**: Handles parameters annotated as `list` or `Sequence`.
+    # These are always created as Click options that can be specified multiple times.
+    if origin in (list, Sequence):
+        inner = get_args(raw_anno)[0]  # Get the type of elements within the sequence.
+        click_inner = _PRIMITIVE_MAP.get(inner, click.STRING)  # Map inner type to Click's type.
+        seq_default = [] if not has_default else param.default  # Default for sequence is an empty list.
+        return click.option(
+            f"--{pname.replace('_','-')}",  # Option name: snake_case to kebab-case.
+            type=click_inner,  # Type of individual elements.
+            multiple=True,  # Allows multiple occurrences of the option.
+            default=seq_default,  # Default sequence value.
+            show_default=True,  # Display default in help text.
+            help=help_text,
+        )(wrapper)
+
+    # 2) **Enum Support**: Handles parameters annotated with `Enum` types.
+    # These are always created as Click options with choices constrained by Enum members.
     if isinstance(ptype, type) and issubclass(ptype, Enum):
-        choices = [member.value for member in ptype]
-        ptype = click.Choice(choices)
+        choices = [m.value for m in ptype]  # Extract values from Enum members for Click choices.
+        enum_default = None
+        if has_default:
+            # If default is an Enum member, use its value; otherwise, use the raw default.
+            enum_default = param.default.value if isinstance(param.default, Enum) else param.default
+        return click.option(
+            f"--{pname.replace('_','-')}",
+            type=click.Choice(choices),  # Restrict input to defined Enum choices.
+            default=enum_default,
+            show_default=True,
+            help=help_text,
+        )(wrapper)
 
-    # 2) pathlib.Path → click.Path
+    # 3) **Path Support**: Transforms `pathlib.Path` annotations into `click.Path`.
     if ptype is Path:
         ptype = click.Path(exists=False, file_okay=True, dir_okay=True, resolve_path=True)
 
-    # Determine final default and required
-    has_meta_default = getattr(meta, "default", ...) is not ...
-    default = getattr(meta, "default", param_default)
-    required = getattr(meta, "required", not (has_func_default or has_meta_default))
-    help_text = getattr(meta, "help", help_text) or help_text
+    # 4) **UUID Support**: Transforms `uuid.UUID` annotations into `click.UUID`.
+    if ptype is UUID:
+        ptype = click.UUID
 
+    # 5) **Date Support**: Transforms `datetime.date` annotations into `click.DateTime`
+    # with a specific date format.
+    if ptype is date:
+        ptype = click.DateTime(formats=["%Y-%m-%d"])
+
+    # 6) **Datetime Support**: Transforms `datetime.datetime` annotations into `click.DateTime`.
+    if ptype is datetime:
+        ptype = click.DateTime()
+
+    # 7) **File IO Support**: Handles `typing.IO` or `click.File` annotations for file streams.
+    if raw_anno is IO or raw_anno is click.File:
+        ptype = click.File("r")  # Default to read mode for file handling.
+
+    # --- Fallback and Metadata-driven Parameter Building ---
+
+    # Determine the effective default value for the parameter.
+    has_meta = getattr(meta, "default", ...) is not ...  # Check if metadata explicitly provides a default.
+    default_final = getattr(meta, "default", default_val)  # Prioritize meta default, then function default.
+    # Convert Enum default values to their raw Python values for Click.
+    if isinstance(default_final, Enum):
+        default_final = default_final.value
+    # Convert date/datetime defaults to ISO format for Click's default display.
+    if isinstance(default_final, (date, datetime)):
+        default_final = default_final.isoformat()
+
+    # Determine if the parameter is required. It's required if no default is provided
+    # either by the function signature or by metadata.
+    required = getattr(meta, "required", not (has_default or has_meta))
+    help_text = getattr(meta, "help", help_text) or help_text  # Resolve the final help text.
+
+    # **Explicit Argument**: If metadata specifies `Argument`.
     if isinstance(meta, Argument):
-        wrapper = click.argument(pname, type=ptype, required=required, default=default)(wrapper)
-
+        wrapper = click.argument(pname, type=ptype, required=required, default=default_final)(wrapper)
+    # **Environment Variable**: If metadata specifies `Env`.
     elif isinstance(meta, Env):
-        env_default = os.getenv(meta.envvar, meta.default)
+        env_val = os.getenv(meta.envvar, meta.default)  # Get default from environment variable.
         wrapper = click.option(
             f"--{pname.replace('_','-')}",
             type=ptype,
-            default=env_default,
+            default=env_val,
             show_default=True,
             required=meta.required,
-            help=f"[env:{meta.envvar}] {help_text}",
+            help=f"[env:{meta.envvar}] {help_text}",  # Add environment variable info to help.
         )(wrapper)
-
+    # **Explicit Option**: If metadata specifies `Option`.
     elif isinstance(meta, Option):
         wrapper = click.option(
             f"--{pname.replace('_','-')}",
-            type=None if is_flag else ptype,
+            type=None if is_flag else ptype,  # Type is `None` for flags as Click handles them implicitly.
             is_flag=is_flag,
-            default=default,
+            default=default_final,
             required=required,
             show_default=True,
             help=help_text,
@@ -143,48 +295,39 @@ def _build_click_parameter(
             callback=meta.callback,
             envvar=meta.envvar,
         )(wrapper)
-
+    # **General Fallback Logic**: For parameters without explicit `sayer.params` metadata.
     else:
-        # Fallback for parameters without explicit metadata
-        if not has_func_default:
+        # If no default is provided, it's a required positional argument.
+        if not has_default:
             wrapper = click.argument(pname, type=ptype, required=True)(wrapper)
+        # If it's a boolean with a default, it's an optional flag option.
         elif is_flag and isinstance(param.default, bool):
             wrapper = click.option(
-                f"--{pname.replace('_','-')}",
-                is_flag=True,
-                default=param.default,
-                help=help_text,
+                f"--{pname.replace('_','-')}", is_flag=True, default=param.default,
+                show_default=True, help=help_text
             )(wrapper)
+        # If the default is a `Param` instance, treat it as an optional argument with its default.
         elif isinstance(param.default, Param):
-            # Parameter uses a Param instance as default
             wrapper = click.argument(
-                pname,
-                type=ptype,
-                required=False,
-                default=param.default.default,
+                pname, type=ptype, required=False, default=param.default.default
             )(wrapper)
+        # If the default is `None`, treat it as an optional option.
         elif param.default is None:
             wrapper = click.option(
-                f"--{pname.replace('_','-')}",
-                type=ptype,
-                default=None,
-                show_default=True,
-                help=help_text,
+                f"--{pname.replace('_','-')}", type=ptype, default=None,
+                show_default=True, help=help_text
             )(wrapper)
+        # Otherwise, it's an optional argument with its function default.
         else:
-            wrapper = click.argument(
-                pname,
-                type=ptype,
-                default=param.default,
-                required=False,
-            )(wrapper)
+            wrapper = click.argument(pname, type=ptype, default=param.default, required=False)(wrapper)
+            # Ensure the Click parameter correctly reflects its optional nature and default.
             for p in wrapper.params:
                 if p.name == pname:
                     p.required = False
                     p.default = param.default
                     break
 
-    # Ensure help text is attached
+    # Ensure the help text is attached to the Click parameter if it's still missing.
     for p in wrapper.params:
         if p.name == pname and not getattr(p, "help", None):
             p.help = help_text
@@ -206,95 +349,214 @@ def command(
     func: F | None = None, *, middleware: Sequence[str | Callable[..., Any]] = ()
 ) -> click.Command | Callable[[F], click.Command]:
     """
-    Registers a function as a CLI command using Click, respecting `sayer` parameter metadata
-    and allowing per-command middleware.
+    A decorator that transforms a standard Python function into a Click command,
+    seamlessly integrating `sayer`'s advanced parameter handling and middleware system.
+
+    This decorator automates the process of converting Python function parameters
+    into Click options and arguments, applies necessary type conversions, extracts
+    comprehensive help text, and wraps the command's execution with configurable
+    "before" and "after" middleware hooks.
+
+    It supports two primary modes of use:
+    1. **Direct decoration**: `@command` above a function, without parentheses, if
+       no additional arguments are needed.
+    2. **Configured decoration**: `@command(middleware=["my_middleware"])` when
+       specifying middleware or other options.
+
+    Args:
+        func: The function to be transformed into a Click command. This argument is
+              `None` when the decorator is used with keyword arguments (e.g.,
+              `@command(middleware=...)`), in which case it returns another callable
+              that expects the function.
+        middleware: An optional `Sequence` of middleware to apply. Each element can be
+                    a string representing a registered middleware name or a callable
+                    function that acts as a middleware. These middlewares run
+                    before and after the command's execution.
+
+    Returns:
+        If `func` is provided (direct decoration), returns a `click.Command` object.
+        If `func` is `None` (configured decoration), returns a callable that takes a
+        function and returns a `click.Command` object, allowing for decorator chaining.
     """
 
     def decorator(fn: F) -> click.Command:
-        name = fn.__name__.replace("_", "-")
-        sig = inspect.signature(fn)
-        cmd_help = _extract_command_help(sig, fn)
+        # Generate the command name by converting the function name from snake_case to kebab-case.
+        cmd_name = fn.__name__.replace("_", "-")
+        sig = inspect.signature(fn)  # Get the introspection signature of the decorated function.
+        help_txt = _extract_command_help(sig, fn)  # Extract the comprehensive help text for the command.
 
-        # Resolve middleware hooks
+        # Resolve the specified middleware into separate 'before' and 'after' hook lists.
         before_hooks, after_hooks = resolve_middleware(middleware)
 
-        @click.command(name=name, help=cmd_help)
+        @click.command(name=cmd_name, help=help_txt)
         @click.pass_context
         def wrapper(ctx: click.Context, **kwargs: Any):
-            bound_args: dict[str, Any] = {}
+            # This `wrapper` function is the actual Click command callback executed when
+            # the command is invoked from the command line.
+
+            bound_args: dict[str, Any] = {}  # Dictionary to store the arguments bound to the function.
             for p in sig.parameters.values():
+                # Get the raw value provided by Click from `kwargs`.
+                raw_anno = p.annotation if p.annotation is not inspect._empty else str
+                # Resolve the effective Python type, handling `Annotated` types.
+                ptype = get_args(raw_anno)[0] if get_origin(raw_anno) is Annotated else raw_anno
                 val = kwargs.get(p.name)
-                if p.annotation is not inspect._empty:
-                    val = _convert(val, p.annotation)
+
+                # Apply type conversion, but skip conversion for sequence types, as Click
+                # already handles their parsing into lists based on `multiple=True`.
+                if get_origin(raw_anno) not in (list, Sequence):
+                    val = _convert(val, ptype)
                 bound_args[p.name] = val
 
-            run_before(name, bound_args)
+            # Execute global "before" middleware hooks.
+            run_before(cmd_name, bound_args)
+            # Execute command-specific "before" middleware hooks.
             for hook in before_hooks:
-                hook(name, bound_args)
+                hook(cmd_name, bound_args)
 
+            # Call the original decorated function with the processed arguments.
             result = fn(**bound_args)
+            # If the original function is an asynchronous coroutine, run it using `anyio`.
             if inspect.iscoroutine(result):
                 result = anyio.run(lambda: result)
 
-            run_after(name, bound_args, result)
+            # Execute global "after" middleware hooks.
+            run_after(cmd_name, bound_args, result)
+            # Execute command-specific "after" middleware hooks.
             for hook in after_hooks:
-                hook(name, bound_args, result)
+                hook(cmd_name, bound_args, result)
 
             return result
 
-        wrapper._original_func = fn  # type: ignore
+        wrapper._original_func = fn  # type: ignore[attr-defined] # Store a reference to the original function for introspection.
+        current_wrapper = wrapper  # Initialize the current wrapper with the base Click command.
 
-        current = wrapper
+        # Iterate through each parameter of the original function's signature
+        # to build and attach corresponding Click parameters.
         for param in sig.parameters.values():
+            # Determine the raw annotation, defaulting to `str` if not explicitly typed.
             raw_anno = param.annotation if param.annotation is not inspect._empty else str
-            ptype = raw_anno if get_origin(raw_anno) is not Annotated else get_args(raw_anno)[0]
+            # Resolve the concrete Python type, unwrapping `Annotated` if present.
+            ptype = get_args(raw_anno)[0] if get_origin(raw_anno) is Annotated else raw_anno
 
-            meta: Param | Option | Argument | Env | None = None
-            help_text = ""
+            param_meta: Param | Option | Argument | Env | None = None  # Initialize parameter metadata.
+            param_help_txt = ""  # Initialize parameter help text.
+
+            # If the annotation uses `Annotated`, extract metadata and help text from it.
             if get_origin(raw_anno) is Annotated:
-                for a in get_args(raw_anno)[1:]:
-                    if isinstance(a, (Option, Argument, Env, Param)):
-                        meta = a
-                    elif isinstance(a, str):
-                        help_text = a
-            if isinstance(param.default, Param) and not meta:
-                meta = param.default
+                for meta_arg in get_args(raw_anno)[1:]:
+                    if isinstance(meta_arg, (Option, Argument, Env, Param)):
+                        param_meta = meta_arg
+                    elif isinstance(meta_arg, str):
+                        param_help_txt = meta_arg
+            # If no metadata was found in `Annotated`, check if the default value is a `Param` instance.
+            if isinstance(param.default, Param) and not param_meta:
+                param_meta = param.default
 
-            current = _build_click_parameter(param, raw_anno, ptype, meta, help_text, current)
+            # Build and attach the Click parameter (option or argument) to the current wrapper.
+            current_wrapper = _build_click_parameter(
+                param, raw_anno, ptype, param_meta, param_help_txt, current_wrapper
+            )
 
-        # Register command
+        # If the original function was marked as belonging to a specific Click group,
+        # add the newly created command to that group.
         if hasattr(fn, "__sayer_group__"):
-            fn.__sayer_group__.add_command(current)
+            fn.__sayer_group__.add_command(current_wrapper)
         else:
-            COMMANDS[name] = current
+            # Otherwise, register the command globally in the `COMMANDS` registry.
+            COMMANDS[cmd_name] = current_wrapper
 
-        return current
+        return current_wrapper
 
+    # If `func` is `None`, return the `decorator` function itself, allowing it to be
+    # called later with the function to decorate (e.g., `@command(middleware=[...])`).
+    # Otherwise, apply the decorator directly to the provided `func`.
     return decorator if func is None else decorator(func)
 
 
 def group(name: str, group_cls: type[click.Group] | None = None, help: str | None = None) -> click.Group:
     """
-    Registers or retrieves a Click group by name.
+    Registers and retrieves a Click group, ensuring that group instances are created
+    and reused efficiently.
+
+    If a Click group with the specified `name` already exists in the internal registry,
+    that existing instance is returned. Otherwise, a new Click group (or a custom
+    `group_cls` if provided) is created, registered, and then returned. This prevents
+    duplicate group definitions and allows commands to be added to existing groups.
+
+    Args:
+        name: The unique name for the Click group. This name will be used on the
+              command line to invoke commands within this group.
+        group_cls: An optional custom `click.Group` subclass to use when creating a
+                   new group. If `None`, `sayer.utils.ui.RichGroup` is used by default,
+                   providing enhanced display capabilities.
+        help: An optional string providing a brief description or help text for the group.
+              This text will be displayed in the CLI help messages.
+
+    Returns:
+        The `click.Group` instance corresponding to the given name.
     """
     if name not in _GROUPS:
-        cls = group_cls or RichGroup
-        _GROUPS[name] = cls(name=name, help=help)
+        # If the group doesn't exist, create a new one.
+        cls = group_cls or RichGroup  # Use `RichGroup` by default.
+        _GROUPS[name] = cls(name=name, help=help)  # Create and store the new group.
     return _GROUPS[name]
 
 
 def get_commands() -> dict[str, click.Command]:
+    """
+    Retrieves a dictionary of all globally registered Click commands.
+
+    This function provides access to the `COMMANDS` registry, which stores all
+    commands that have been defined using the `@command` decorator and are not
+    explicitly bound to a specific Click group.
+
+    Returns:
+        A `dict` where keys are the command names (strings) and values are the
+        corresponding `click.Command` objects.
+    """
     return COMMANDS
 
 
 def get_groups() -> dict[str, click.Group]:
+    """
+    Retrieves a dictionary of all registered Click groups.
+
+    This function provides access to the `_GROUPS` registry, which stores all
+    Click group instances that have been created using the `group()` function.
+
+    Returns:
+        A `dict` where keys are the group names (strings) and values are the
+        corresponding `click.Group` objects.
+    """
     return _GROUPS
 
 
-def bind_command(group: click.Group, func: F) -> click.Command:
-    func.__sayer_group__ = group  # type: ignore
-    return command(func)
+def bind_command(grp: click.Group, fn: F) -> click.Command:
+    """
+    Binds a decorated command function to a specific Click group.
+
+    This utility function is designed to be used by Click's monkey-patched `Group.command`
+    method. When a function is decorated with `@group_instance.command`, this function
+    intercepts the call, attaches a special `__sayer_group__` attribute to the function
+    indicating its intended group, and then processes the function using the main
+    `sayer.command` decorator. This ensures that the command is correctly added to
+    its parent group instead of being registered globally.
+
+    Args:
+        grp: The `click.Group` instance to which the command should be bound.
+        fn: The function that is being decorated as a command.
+
+    Returns:
+        The `click.Command` object resulting from processing the function with
+        the `sayer.command` decorator, now implicitly bound to the specified group.
+    """
+    fn.__sayer_group__ = grp  # type: ignore[attr-defined] # Attach the target group to the function.
+    return command(fn)  # Process the function with the main `command` decorator.
 
 
-# Monkey-patch Click Group to support binding
-click.Group.command = bind_command  # type: ignore
+# Monkey-patch Click's `Group.command` method.
+# This allows `sayer` to intercept `@group_instance.command` decorators and
+# automatically bind the command to the correct group, integrating `sayer`'s
+# parameter and middleware system into Click's group functionality.
+click.Group.command = bind_command  # type: ignore[method-assign]

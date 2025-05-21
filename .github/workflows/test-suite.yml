@@ -20,13 +20,14 @@ jobs:
     runs-on: "ubuntu-latest"
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: "actions/checkout@v4"
       - uses: "actions/setup-python@v5"
         with:
           python-version: "${{ matrix.python-version }}"
+          allow-prereleases: true
       - uses: actions/cache@v4
         id: cache
         with:
@@ -37,7 +38,9 @@ jobs:
         run: "pip install hatch"
 #      - name: "Run linting checks"
 #        run: "hatch run lint"
+#        if: ${{ matrix.python-version != '3.14' }}
 #      - name: "Run typing checks"
+#        if: ${{ matrix.python-version != '3.14' }}
 #        run: "hatch run test:check_types"
       - name: "Run tests"
         run: "hatch run test:test"

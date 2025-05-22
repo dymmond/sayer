@@ -15,41 +15,51 @@ class Color(Enum):
     GREEN = "green"
     BLUE = "blue"
 
+
 @command
 def paint(color: Color):
     click.echo(color)
+
 
 @command
 def paint_default(color: Color = Color.GREEN):  # default value
     click.echo(color)
 
+
 @command
 def show_path(p: Path):
     click.echo(str(p.resolve()))
+
 
 @command
 def sum_nums(nums: list[int]):
     click.echo(str(sum(nums)))
 
+
 @command
 def idcmd(identifier: uuid.UUID):
     click.echo(str(identifier))
+
 
 @command
 def when(d: date):
     click.echo(d.isoformat())
 
+
 @command
 def timestamp(dt: datetime):
     click.echo(dt.isoformat())
+
 
 @command
 def timestamp_default(dt: datetime = datetime(2025, 5, 20, 15, 30)):  # default datetime
     click.echo(dt.isoformat())
 
+
 @pytest.fixture
 def runner():
     return CliRunner()
+
 
 def test_enum_choice_success(runner):
     cmd = get_commands()["paint"]
@@ -58,6 +68,7 @@ def test_enum_choice_success(runner):
     assert result.exit_code == 0
     assert result.output.strip() == "red"
 
+
 def test_enum_choice_invalid(runner):
     cmd = get_commands()["paint"]
     result = runner.invoke(cmd, ["--color", "yellow"])
@@ -65,12 +76,14 @@ def test_enum_choice_invalid(runner):
     assert result.exit_code != 0
     assert "Invalid value for '--color'" in result.output
 
+
 def test_enum_default(runner):
     cmd = get_commands()["paint-default"]
     result = runner.invoke(cmd, [])
 
     assert result.exit_code == 0
     assert result.output.strip() == "green"
+
 
 def test_path_success(tmp_path, runner):
     file_path = tmp_path / "file.txt"
@@ -81,12 +94,14 @@ def test_path_success(tmp_path, runner):
     assert result.exit_code == 0
     assert result.output.strip().endswith("file.txt")
 
+
 def test_sequence_multiple_values(runner):
     cmd = get_commands()["sum-nums"]
     result = runner.invoke(cmd, ["--nums", "1", "--nums", "2", "--nums", "3"])
 
     assert result.exit_code == 0
     assert result.output.strip() == "6"
+
 
 def test_uuid_success(runner):
     cmd = get_commands()["idcmd"]
@@ -96,6 +111,7 @@ def test_uuid_success(runner):
     assert result.exit_code == 0
     assert result.output.strip() == str(uid)
 
+
 def test_date_parsing_success(runner):
     cmd = get_commands()["when"]
     result = runner.invoke(cmd, ["2025-05-20"])
@@ -103,11 +119,13 @@ def test_date_parsing_success(runner):
     assert result.exit_code == 0
     assert result.output.strip() == "2025-05-20"
 
+
 def test_date_parsing_invalid(runner):
     cmd = get_commands()["when"]
     result = runner.invoke(cmd, ["20/05/2025"])
 
     assert result.exit_code != 0
+
 
 def test_datetime_parsing_success(runner):
     cmd = get_commands()["timestamp"]
@@ -116,6 +134,7 @@ def test_datetime_parsing_success(runner):
 
     assert result.exit_code == 0
     assert result.output.strip().startswith(iso)
+
 
 def test_datetime_default(runner):
     cmd = get_commands()["timestamp-default"]

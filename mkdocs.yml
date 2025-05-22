@@ -1,6 +1,6 @@
 site_name: Sayer
 site_description: The click running on steroids.
-site_url: https://sayer.tarsild.io
+site_url: https://sayer.dymmond.com
 
 theme:
   name: "material"
@@ -35,7 +35,7 @@ theme:
     - navigation.path
     - navigation.tabs
 
-repo_name: tarsil/sayer
+repo_name: dymmond/sayer
 repo_url: https://github.com/tarsil/sayer
 edit_uri: ""
 plugins:

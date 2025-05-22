@@ -50,8 +50,8 @@ keywords = ["sayer"]
 
 [project.urls]
 Homepage = "https://github.com/tarsil/sayer"
-Documentation = "https://sayer.tarsild.io"
-Changelog = "https://sayer.tarsild.io/release-notes/"
+Documentation = "https://sayer.dymmond.com"
+Changelog = "https://sayer.dymmond.com/release-notes/"
 Funding = "https://github.com/sponsors/tarsil"
 Source = "https://github.com/tarsil/sayer"
 

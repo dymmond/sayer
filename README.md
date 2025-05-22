@@ -1,7 +1,7 @@
 # Sayer
 
 <p align="center">
-  <a href="https://sayer.tarsild.io"><img src="https://res.cloudinary.com/tarsild/image/upload/v1747661493/packages/Sayer/Logo/w8bq4nqcphyd99kns0wl.svg" alt='Sayer logo'></a>
+  <a href="https://sayer.dymmond.com"><img src="https://res.cloudinary.com/tarsild/image/upload/v1747661493/packages/Sayer/Logo/w8bq4nqcphyd99kns0wl.svg" alt='Sayer logo'></a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
 
 ---
 
-**Documentation**: [https://sayer.tarsild.io](https://sayer.tarsild.io) 📚
+**Documentation**: [https://sayer.dymmond.com](https://sayer.dymmond.com) 📚
 
 **Source Code**: [https://github.com/tarsil/sayer](https://github.com/tarsil/sayer)
 
@@ -138,7 +138,7 @@ pytest -v
 
 ## 📚 Documentation
 
-Full docs available at: [https://sayer.tarsild.io](https://sayer.tarsild.io)
+Full docs available at: [https://sayer.dymmond.com](https://sayer.dymmond.com)
 
 You’ll find:
 

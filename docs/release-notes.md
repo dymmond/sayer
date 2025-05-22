@@ -63,7 +63,7 @@ No more glue scripts. No more boilerplate. Just clean commands, smart params, an
 
 Extensive documentation available, including:
 
-- [Getting Started](https://sayer.tarsild.io)
-- [Commands & Params](https://sayer.tarsild.io/features/commands/)
-- [Encoders](https://sayer.tarsild.io/features/encoders/)
-- [Testing](https://sayer.tarsild.io/testing/)
+- [Getting Started](https://sayer.dymmond.com)
+- [Commands & Params](https://sayer.dymmond.com/features/commands/)
+- [Encoders](https://sayer.dymmond.com/features/encoders/)
+- [Testing](https://sayer.dymmond.com/testing/)

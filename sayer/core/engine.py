@@ -4,7 +4,18 @@ import os
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import IO, Annotated, Any, Callable, Sequence, TypeVar, get_args, get_origin, overload
+from typing import (
+    IO,
+    Annotated,
+    Any,
+    Callable,
+    Sequence,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+    overload,
+)
 from uuid import UUID
 
 import anyio
@@ -18,8 +29,11 @@ from sayer.utils.ui import RichGroup
 
 F = TypeVar("F", bound=Callable[..., Any])
 
+T = TypeVar("T")
+V = TypeVar("V")
 
-class _CommandRegistry(dict):
+
+class CommandRegistry(dict[T, V]):
     """
     A specialized dictionary for storing Click commands.
 
@@ -40,7 +54,7 @@ class _CommandRegistry(dict):
         ...
 
 
-COMMANDS: _CommandRegistry[str, click.Command] = _CommandRegistry()
+COMMANDS: CommandRegistry[str, click.Command] = CommandRegistry()
 _GROUPS: dict[str, click.Group] = {}
 
 # Primitive ↔ Click ParamType map
@@ -90,10 +104,10 @@ def _convert(value: Any, to_type: type) -> Any:
         # If the value is already of the target type, return it as is.
         return value
     # Attempt direct type casting as a fallback.
-    return to_type(value)
+    return to_type(value)  # type: ignore
 
 
-def _should_use_option(meta: Param, default_value: Any) -> bool:
+def _should_use_option(meta: Param, default_value: Any) -> str | bool:
     """
     Determines if a generic `Param` metadata suggests that a command-line
     parameter should be exposed as a **Click option** (`--param`) rather than
@@ -215,7 +229,11 @@ def _build_click_parameter(
     # Param(...) annotated as generic → Option if criteria met
     # If a generic `Param` metadata is provided via `Annotated` and
     # `_should_use_option` evaluates to True, it's re-cast as an `Option`.
-    if isinstance(meta, Param) and get_origin(raw_annotation) is Annotated and _should_use_option(meta, default_val):
+    if (
+        isinstance(meta, Param)
+        and get_origin(raw_annotation) is Annotated
+        and _should_use_option(meta, default_val)
+    ):
         meta = meta.as_option()
 
     origin = get_origin(raw_annotation)
@@ -262,7 +280,10 @@ def _build_click_parameter(
         meta is None
         and not skip_json
         and inspect.isclass(param_type)
-        and any(isinstance(enc, MoldingProtocol) and enc.is_type_structure(param_type) for enc in get_encoders())
+        and any(
+            isinstance(enc, MoldingProtocol) and enc.is_type_structure(param_type)
+            for enc in get_encoders()
+        )
     ):
         meta = JsonParam()  # If moldable and no explicit meta, treat as JSON.
 
@@ -313,7 +334,9 @@ def _build_click_parameter(
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
     if isinstance(meta, Argument):
-        return click.argument(name, type=param_type, required=required, default=final_default)(wrapper)
+        return click.argument(name, type=param_type, required=required, default=final_default)(
+            wrapper
+        )
 
     if isinstance(meta, Env):
         # For Env parameters, retrieve value from environment or use metadata default.
@@ -374,7 +397,9 @@ def _build_click_parameter(
 
     if isinstance(param.default, Param):
         # `Param` as a default value means it's an optional argument with a default.
-        return click.argument(name, type=param_type, required=False, default=param.default.default)(wrapper)
+        return click.argument(
+            name, type=param_type, required=False, default=param.default.default
+        )(wrapper)
 
     if param.default is None:
         # Parameters with a `None` default become optional options.
@@ -465,9 +490,9 @@ def command(
         # Check if `click.Context` is explicitly injected into the function's parameters.
         ctx_injected = any(p.annotation is click.Context for p in sig.parameters.values())
 
-        @click.command(name=cmd_name, help=help_txt)
+        @click.command(name=cmd_name, help=help_txt)  # type: ignore
         @click.pass_context
-        def wrapper(ctx: click.Context, **kwargs: Any):
+        def wrapper(ctx: click.Context, **kwargs: Any) -> Any:
             """
             The inner Click command wrapper function.
 
@@ -511,13 +536,15 @@ def command(
                             break
                 # If no metadata found in Annotated, check if the default value is metadata.
                 if param_meta is None and isinstance(p.default, (Option, Env)):
-                    param_meta = p.default  # type: ignore
+                    param_meta = p.default
 
                 # If metadata with a `default_factory` is found and no value was provided
                 # via the CLI, call the factory to get the default.
-                if isinstance(param_meta, (Option, Env)) and getattr(param_meta, "default_factory", None):
+                if isinstance(param_meta, (Option, Env)) and getattr(
+                    param_meta, "default_factory", None
+                ):
                     if not kwargs.get(p.name):
-                        kwargs[p.name] = param_meta.default_factory()  # type: ignore
+                        kwargs[p.name] = param_meta.default_factory()
 
             # --- Bind & convert arguments ---
             bound_args: dict[str, Any] = {}
@@ -571,8 +598,8 @@ def command(
             # --- After hooks ---
             # Run global and command-specific `after` middleware.
             run_after(cmd_name, bound_args, result)
-            for hook in after_hooks:
-                hook(cmd_name, bound_args, result)
+            for hook in after_hooks:  # type: ignore
+                hook(cmd_name, bound_args, result)  # type: ignore
 
             return result
 
@@ -602,11 +629,13 @@ def command(
                     elif isinstance(m, str):
                         param_help = m
             # If no metadata found in `Annotated`, check if the default value is metadata.
-            if param_meta is None and isinstance(param.default, (Param, Option, Argument, Env, JsonParam)):
-                param_meta = param.default  # type: ignore
+            if param_meta is None and isinstance(
+                param.default, (Param, Option, Argument, Env, JsonParam)
+            ):
+                param_meta = param.default
 
             # Build and apply the Click parameter decorator.
-            current = _build_click_parameter(
+            current = _build_click_parameter(  # type: ignore
                 param,
                 raw,
                 ptype,
@@ -619,7 +648,7 @@ def command(
         # Register the command.
         if hasattr(fn, "__sayer_group__"):
             # If the function is part of a `sayer` group, add it to that group.
-            fn.__sayer_group__.add_command(current)  # type: ignore
+            fn.__sayer_group__.add_command(current)
         else:
             # Otherwise, add it to the global command registry.
             COMMANDS[cmd_name] = current
@@ -668,7 +697,7 @@ def group(
         # Create the Click group instance.
         grp = cls(name=name, help=help)
 
-        def _grp_command(fn: F | None = None, **opts: Any):
+        def _grp_command(fn: F | None = None, **opts: Any) -> click.Command:
             """
             Internal helper that replaces `click.Group.command` to integrate
             `sayer`'s command decorator.
@@ -680,15 +709,15 @@ def group(
                 # If a function is provided directly, associate it with the group
                 # and apply `sayer.command`.
                 fn.__sayer_group__ = grp  # type: ignore # Mark the function as belonging to this group.
-                return command(fn, **opts)
+                return cast(click.Command, command(fn, **opts))
 
             def inner_decorator(f: F) -> click.Command:
                 # If used as `@group.command(...)`, return a decorator that
                 # first marks the function with the group, then applies `sayer.command`.
                 f.__sayer_group__ = grp  # type: ignore
-                return command(f, **opts)
+                return cast(click.Command, command(f, **opts))
 
-            return inner_decorator
+            return cast(click.Command, inner_decorator)
 
         # Monkey-patch the group's `command` method.
         grp.command = _grp_command  # type: ignore
@@ -744,7 +773,7 @@ def bind_command(grp: click.Group, fn: F) -> click.Command:
     # Mark the function as belonging to the specified group.
     fn.__sayer_group__ = grp  # type: ignore
     # Apply the `sayer.command` decorator to the function.
-    return command(fn)
+    return cast(click.Command, command(fn))
 
 
 # Monkey-patch Click so that all groups use Sayer’s binding logic:

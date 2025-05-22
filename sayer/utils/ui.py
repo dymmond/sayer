@@ -1,62 +1,200 @@
+from typing import Any, Callable, TypeVar, cast, overload
+
 import click
 from rich.panel import Panel
 from rich.text import Text
 
 from sayer.utils.console import console
 
+T = TypeVar("T", bound=Callable[..., Any])
+
 
 class RichGroup(click.Group):
-    def command(self, *args, **kwargs):
-        from sayer.core.engine import command
+    """
+    A custom `click.Group` subclass that enhances command registration and
+    error handling with Rich-based formatting.
 
-        def decorator(func):
+    This class ensures that all subcommands registered through its `command`
+    decorator use `sayer.core.engine.command` for enhanced Sayer-specific
+    command behavior and provides custom help and error rendering.
+    """
+
+    @overload
+    def command(self, f: T) -> T: ...
+
+    @overload
+    def command(self, *args: Any, **kwargs: Any) -> Callable[[T], T]: ...
+
+    def command(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Registers a function as a subcommand using the Sayer command engine.
+
+        This method acts as a decorator, similar to `click.Group.command`, but
+        it intercepts the command creation to ensure that the decorated function
+        is processed by `sayer.core.engine.command`. It also attaches a
+        reference to this `RichGroup` instance to the function, allowing
+        Sayer to associate commands with their parent groups.
+
+        Args:
+            *args: Positional arguments passed to the underlying `click.Group.command`.
+            **kwargs: Keyword arguments passed to the underlying `click.Group.command`.
+
+        Returns:
+            A decorator that registers the function as a command or the decorated
+            function itself if called directly without arguments.
+        """
+        from sayer.core.engine import command  # Lazily import to avoid circular dependencies
+
+        def decorator(func: T) -> T:
+            # Attach the current RichGroup instance to the function for later access.
             func.__sayer_group__ = self
-            return command(func)
+            # Delegate to the Sayer command function for custom command creation.
+            return cast(T, command(func))
 
         return decorator
 
-    def get_usage(self, ctx):
-        # Use default usage formatting
+    def get_usage(self, ctx: click.Context) -> str:
+        """
+        Retrieves the usage string for the command or group.
+
+        This method defers to the default Click `get_usage` method, ensuring
+        standard usage formatting is maintained.
+
+        Args:
+            ctx: The Click context object.
+
+        Returns:
+            A string representing the command's usage.
+        """
         return super().get_usage(ctx)
 
-    def resolve_command(self, ctx, args):
+    def resolve_command(self, ctx: click.Context, args: list[str]) -> tuple[str | None, click.Command]:
+        """
+        Resolves a command from the given arguments and handles usage errors
+        with Rich-based formatting.
+
+        This method attempts to resolve the command using Click's default
+        mechanism. If a `click.UsageError` occurs (e.g., an invalid command
+        or missing argument), it catches the error, formats a user-friendly
+        error message and usage information using Rich panels, prints it to
+        the console, and then exits the application with the appropriate code.
+
+        Args:
+            ctx: The Click context object.
+            args: A list of command-line arguments.
+
+        Returns:
+            A tuple containing the command name and the resolved `click.Command` object.
+
+        Raises:
+            click.UsageError: If the command cannot be resolved and is not handled
+                              by the custom error formatting.
+        """
         try:
-            return super().resolve_command(ctx, args)
+            # Attempt to resolve the command using the parent class's method.
+            return super().resolve_command(ctx, args)  # type: ignore
         except click.UsageError as e:
+            # Retrieve the usage string for display in the error panel.
             usage = self.get_usage(ctx)
-            body = f"[bold red]Error:[/] {e.format_message()}\n\n[bold cyan]Usage:[/]\n  {usage.strip()}"
+            # Construct the error message and usage string using Rich markup.
+            body = f"[bold red]Error:[/] {e.format_message()}\n\n" f"[bold cyan]Usage:[/]\n  {usage.strip()}"
+            # Create a Rich Panel to visually highlight the error.
             panel = Panel.fit(Text.from_markup(body), title="Error", border_style="red")
+            # Print the error panel to the console.
             console.print(panel)
+            # Exit the application with the error's exit code.
             ctx.exit(e.exit_code)
 
-    def format_help(self, ctx, formatter=None):
-        from sayer.core.help import render_help_for_command
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter | None = None) -> None:
+        """
+        Formats and renders the help message for the command or group using
+        Sayer's custom Rich help renderer.
 
-        # If no explicit help, infer from first subcommand's help
-        return render_help_for_command(ctx)
+        This method overrides Click's default help formatting. It delegates
+        the rendering process to `sayer.core.help.render_help_for_command`,
+        which is responsible for generating a richly formatted help output.
+
+        Args:
+            ctx: The Click context object.
+            formatter: An optional Click `HelpFormatter` instance (though ignored
+                       as Sayer uses its own rendering).
+        """
+        from sayer.core.help import (
+            render_help_for_command,
+        )
+
+        # Delegate the help rendering to Sayer's custom help function.
+        render_help_for_command(ctx)
 
 
-def echo(*args, **kwargs):
-    # rprint should ideally use the current sys.stdout,
-    # which CliRunner redirects. This might work without changes.
+def echo(*args: Any, **kwargs: Any) -> None:
+    """
+    Prints messages to the console using the Rich `console.print` method.
+
+    This function acts as a wrapper around `console.print`, allowing for rich
+    text formatting in CLI output. It uses the `console` instance managed
+    by `sayer.utils.console`.
+
+    Args:
+        *args: Positional arguments to be printed (e.g., strings, Rich renderables).
+        **kwargs: Keyword arguments passed directly to `console.print`
+                  (e.g., `style`, `justify`).
+    """
     console.print(*args, **kwargs)
 
 
-def error(message: str):
-    # Create Console locally
+def error(message: str) -> None:
+    """
+    Prints an error message to the console with a distinct red color and '✖' symbol.
+
+    This function formats the given message as an error, ensuring it stands out
+    in the console output, and prints it using the global Rich console.
+
+    Args:
+        message: The error message string to display.
+    """
+    # Print the error message with bold red styling and an '✖' prefix.
+    # highlight=False prevents Rich from attempting to highlight syntax within the message.
     console.print(f"[bold red]✖ {message}[/]", highlight=False)
 
 
-def success(message: str):
-    # Create Console locally
+def success(message: str) -> None:
+    """
+    Prints a success message to the console with a distinct green color and '✔' symbol.
+
+    This function formats the given message as a success indicator, making it
+    clear when an operation has completed successfully.
+
+    Args:
+        message: The success message string to display.
+    """
+    # Print the success message with bold green styling and a '✔' prefix.
     console.print(f"[bold green]✔ {message}[/]", highlight=False)
 
 
-def warning(message: str):
-    # Create Console locally
+def warning(message: str) -> None:
+    """
+    Prints a warning message to the console with a distinct yellow color and '⚠' symbol.
+
+    This function formats the given message as a warning, drawing attention to
+    potential issues or non-critical problems.
+
+    Args:
+        message: The warning message string to display.
+    """
+    # Print the warning message with bold yellow styling and a '⚠' prefix.
     console.print(f"[bold yellow]⚠ {message}[/]", highlight=False)
 
 
-def info(message: str):
-    # Create Console locally
+def info(message: str) -> None:
+    """
+    Prints an informational message to the console with a distinct blue color and 'ℹ' symbol.
+
+    This function formats the given message as general information, useful for
+    providing contextual updates or non-critical details to the user.
+
+    Args:
+        message: The informational message string to display.
+    """
+    # Print the info message with bold blue styling and an 'ℹ' prefix.
     console.print(f"[bold blue]ℹ {message}[/]", highlight=False)

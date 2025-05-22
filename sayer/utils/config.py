@@ -12,7 +12,7 @@ class SayerConfig:
     default value.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initializes a new SayerConfig instance with an empty internal configuration dictionary.
         """
@@ -36,7 +36,7 @@ class SayerConfig:
         """
         return self._config.get(key, os.getenv(key.upper(), default))
 
-    def set(self, key: str, value: Any):
+    def set(self, key: str, value: Any) -> None:
         """
         Sets a configuration value in the internal in-memory dictionary.
 

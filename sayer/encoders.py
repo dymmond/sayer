@@ -9,7 +9,7 @@ from enum import Enum
 from inspect import isclass
 from pathlib import PurePath
 from types import GeneratorType
-from typing import Annotated, Any, Protocol, TypeVar, get_args, get_origin, runtime_checkable
+from typing import Annotated, Any, Protocol, TypeVar, cast, get_args, get_origin, runtime_checkable
 
 T = TypeVar("T")
 
@@ -138,17 +138,17 @@ class Encoder:
     overriding `serialize` and/or `encode`.
     """
 
-    __type__: type | tuple[type, ...] | None = None
     # Specifies the Python type(s) this encoder/molder is designed to handle.
     # Can be a single type (e.g., `datetime.date`) or a tuple of types
     # (e.g., `(bytes, memoryview)`). If `None`, `is_type` and `is_type_structure`
     # will return `False` by default.
+    __type__: type | tuple[type, ...] | None = None
 
-    __encode__: bool = True
     # A flag indicating whether the `encode` method should be implemented by
     # subclasses. If `True` (the default), `encode` must be overridden. If
     # `False`, the base `encode` method will simply return the input `value`
     # as-is, implying no special decoding is necessary or possible for this type.
+    __encode__: bool = True
 
     def is_type(self, value: Any) -> bool:
         """
@@ -192,10 +192,10 @@ class Encoder:
         if not isclass(value):
             return False
         try:
-            return issubclass(value, self.__type__)
-        except TypeError:
             # Catch TypeError if `value` cannot be used with `issubclass` (e.g.,
             # it's a generic type or not a class).
+            return issubclass(value, self.__type__)
+        except TypeError:
             return False
 
     def serialize(self, value: Any) -> Any:
@@ -226,7 +226,7 @@ class Encoder:
         This method must be implemented by concrete subclasses that conform to
         `MoldingProtocol` if their `__encode__` attribute is set to `True`. If
         `__encode__` is `False`, the base implementation simply returns the
-        input `value` as-is, indicating no special decoding is needed.
+        input `value` as-is, implying no special decoding is necessary or possible for this type.
 
         Args:
             structure: The target Python type or class for molding.
@@ -253,22 +253,56 @@ class DataclassEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     serialization and reconstructs them from dictionaries during molding.
     """
 
-    __type__ = object  # Placeholder; actual check uses `is_dataclass` in methods.
+    # Placeholder; actual check uses `is_dataclass` in methods.
+    __type__ = object
 
     def is_type(self, v: Any) -> bool:
-        """Checks if the given value is an instance of a dataclass."""
-        return is_dataclass(v)
+        """
+        Checks if the given value is an instance of a dataclass.
+
+        Args:
+            v: The Python object to check.
+
+        Returns:
+            True if `v` is a dataclass instance; False otherwise.
+        """
+        return cast(bool, is_dataclass(v))
 
     def is_type_structure(self, v: Any) -> bool:
-        """Checks if the given value is a dataclass class (the type itself)."""
+        """
+        Checks if the given value is a dataclass class (the type itself).
+
+        Args:
+            v: The Python type or class to check.
+
+        Returns:
+            True if `v` is a dataclass class; False otherwise.
+        """
         return isclass(v) and is_dataclass(v)
 
-    def serialize(self, obj: Any) -> dict:
-        """Serializes a dataclass instance into a dictionary."""
+    def serialize(self, obj: Any) -> dict[str, Any]:
+        """
+        Serializes a dataclass instance into a dictionary.
+
+        Args:
+            obj: The dataclass instance to serialize.
+
+        Returns:
+            A dictionary representation of the dataclass.
+        """
         return asdict(obj)
 
-    def encode(self, cls: type, data: dict) -> Any:
-        """Molds a dictionary into an instance of the specified dataclass `cls`."""
+    def encode(self, cls: type[T], data: dict[str, Any]) -> T:
+        """
+        Molds a dictionary into an instance of the specified dataclass `cls`.
+
+        Args:
+            cls: The target dataclass type.
+            data: The dictionary containing data to populate the dataclass.
+
+        Returns:
+            An instance of `cls` initialized with `data`.
+        """
         return cls(**data)
 
 
@@ -282,26 +316,57 @@ class NamedTupleEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     """
 
     def is_type(self, v: Any) -> bool:
-        """Checks if the value is a namedtuple instance by verifying it's a
-        tuple with `_asdict`."""
+        """
+        Checks if the value is a namedtuple instance by verifying it's a
+        tuple with `_asdict`.
+
+        Args:
+            v: The Python object to check.
+
+        Returns:
+            True if `v` is a namedtuple instance; False otherwise.
+        """
         return isinstance(v, tuple) and hasattr(v, "_asdict")
 
     def is_type_structure(self, v: Any) -> bool:
-        """Checks if the value is a namedtuple class by verifying it's a tuple
-        subclass with `_asdict`."""
+        """
+        Checks if the value is a namedtuple class by verifying it's a tuple
+        subclass with `_asdict`.
+
+        Args:
+            v: The Python type or class to check.
+
+        Returns:
+            True if `v` is a namedtuple class; False otherwise.
+        """
         return isclass(v) and issubclass(v, tuple) and hasattr(v, "_asdict")
 
-    def serialize(self, obj: Any) -> dict:
-        """Serializes a namedtuple instance into a dictionary."""
-        return obj._asdict()
+    def serialize(self, obj: Any) -> dict[str, Any]:
+        """
+        Serializes a namedtuple instance into a dictionary.
 
-    def encode(self, cls: type, v: Any) -> Any:
+        Args:
+            obj: The namedtuple instance to serialize.
+
+        Returns:
+            A dictionary representation of the namedtuple.
+        """
+        return cast(dict[str, Any], obj._asdict())
+
+    def encode(self, cls: type[T], v: Any) -> T:
         """
         Molds a dictionary or an iterable into an instance of the specified
         namedtuple `cls`.
 
         If `v` is a dictionary, it uses keyword arguments; otherwise, it unpacks
         as positional.
+
+        Args:
+            cls: The target namedtuple type.
+            v: The dictionary or iterable containing data for the namedtuple.
+
+        Returns:
+            An instance of `cls` initialized with `v`.
         """
         if isinstance(v, dict):
             return cls(**v)
@@ -318,24 +383,57 @@ class ModelDumpEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     """
 
     def is_type(self, v: Any) -> bool:
-        """Checks if the value is a Pydantic v2+ model instance (has
-        `model_dump` method)."""
+        """
+        Checks if the value is a Pydantic v2+ model instance (has
+        `model_dump` method).
+
+        Args:
+            v: The Python object to check.
+
+        Returns:
+            True if `v` is a Pydantic model instance; False otherwise.
+        """
         return hasattr(v, "model_dump")
 
     def is_type_structure(self, v: Any) -> bool:
-        """Checks if the value is a Pydantic v2+ model class (has
-        `model_validate` method)."""
+        """
+        Checks if the value is a Pydantic v2+ model class (has
+        `model_validate` method).
+
+        Args:
+            v: The Python type or class to check.
+
+        Returns:
+            True if `v` is a Pydantic model class; False otherwise.
+        """
         return isclass(v) and hasattr(v, "model_validate")
 
-    def serialize(self, v: Any) -> dict:
-        """Serializes a Pydantic model instance to a dictionary using
-        `model_dump`."""
-        return v.model_dump()
+    def serialize(self, v: Any) -> dict[str, Any]:
+        """
+        Serializes a Pydantic model instance to a dictionary using
+        `model_dump`.
 
-    def encode(self, cls: type, v: Any) -> Any:
-        """Molds a dictionary into a Pydantic model instance using
-        `model_validate`."""
-        return cls.model_validate(v)
+        Args:
+            v: The Pydantic model instance to serialize.
+
+        Returns:
+            A dictionary representation of the Pydantic model.
+        """
+        return cast(dict[str, Any], v.model_dump())
+
+    def encode(self, cls: type[T], v: Any) -> T:
+        """
+        Molds a dictionary into a Pydantic model instance using
+        `model_validate`.
+
+        Args:
+            cls: The target Pydantic model class.
+            v: The dictionary containing data for the Pydantic model.
+
+        Returns:
+            An instance of `cls` initialized with `v`.
+        """
+        return cast(T, cls.model_validate(v))
 
 
 class EnumEncoder(Encoder, EncoderProtocol, MoldingProtocol):
@@ -346,16 +444,33 @@ class EnumEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     passing the value back to the Enum class constructor.
     """
 
-    __encode__ = True
-    __type__ = Enum
+    __encode__: bool = True
+    __type__: type = Enum
 
     def serialize(self, obj: Any) -> Any:
-        """Serializes an Enum member to its underlying value."""
+        """
+        Serializes an Enum member to its underlying value.
+
+        Args:
+            obj: The Enum member to serialize.
+
+        Returns:
+            The raw value of the Enum member.
+        """
         return obj.value
 
-    def encode(self, cls: type, v: Any) -> Any:
-        """Molds a value back into an Enum member of the specified `cls`."""
-        return cls(v)
+    def encode(self, cls: type[T], v: Any) -> T:
+        """
+        Molds a value back into an Enum member of the specified `cls`.
+
+        Args:
+            cls: The target Enum class.
+            v: The value to convert into an Enum member.
+
+        Returns:
+            An Enum member of `cls` corresponding to `v`.
+        """
+        return cls(v)  # type: ignore
 
 
 class PurePathEncoder(Encoder, EncoderProtocol, MoldingProtocol):
@@ -367,15 +482,32 @@ class PurePathEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     strings during molding.
     """
 
-    __type__ = PurePath
+    __type__: type = PurePath
 
     def serialize(self, obj: PurePath) -> str:
-        """Serializes a PurePath object to its string representation."""
+        """
+        Serializes a PurePath object to its string representation.
+
+        Args:
+            obj: The PurePath object to serialize.
+
+        Returns:
+            The string representation of the path.
+        """
         return str(obj)
 
-    def encode(self, cls: type, v: Any) -> PurePath:
-        """Molds a string into a PurePath object of the specified `cls`."""
-        return cls(v)
+    def encode(self, cls: type[T], v: Any) -> T:
+        """
+        Molds a string into a PurePath object of the specified `cls`.
+
+        Args:
+            cls: The target PurePath class (e.g., `pathlib.Path`, `pathlib.PurePosixPath`).
+            v: The string representation of the path.
+
+        Returns:
+            An instance of `cls` created from `v`.
+        """
+        return cls(v)  # type: ignore
 
 
 class DateEncoder(Encoder, EncoderProtocol, MoldingProtocol):
@@ -388,22 +520,37 @@ class DateEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     type (`date` or `datetime`) is returned based on the target `structure`.
     """
 
-    __type__ = date
+    __type__: type = date
 
     def serialize(self, obj: date | datetime) -> str:
-        """Serializes a date or datetime object to an ISO 8601 format string."""
+        """
+        Serializes a date or datetime object to an ISO 8601 format string.
+
+        Args:
+            obj: The date or datetime object to serialize.
+
+        Returns:
+            An ISO 8601 string representation of the date/datetime.
+        """
         return obj.isoformat()
 
-    def encode(self, cls: type, v: Any) -> date | datetime:
+    def encode(self, cls: type[T], v: Any) -> T:
         """
         Molds an ISO 8601 string into a `date` or `datetime` object.
 
         Returns a `date` if `cls` is `date` (and not `datetime` itself),
         otherwise a `datetime`.
+
+        Args:
+            cls: The target type (`datetime.date` or `datetime.datetime`).
+            v: The ISO 8601 string to convert.
+
+        Returns:
+            An instance of `cls` representing the parsed date/datetime.
         """
         dt = datetime.fromisoformat(v)
         # If the target class is `date` (and not `datetime`), return only the date part.
-        return dt.date() if issubclass(cls, date) and cls is not datetime else dt
+        return dt.date() if issubclass(cls, date) and cls is not datetime else dt  # type: ignore
 
 
 class BytesEncoder(Encoder, EncoderProtocol, MoldingProtocol):
@@ -415,24 +562,38 @@ class BytesEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     to `bytes` during molding.
     """
 
-    __type__ = (bytes, memoryview)
+    __type__: tuple[type, ...] = (bytes, memoryview)
 
     def serialize(self, obj: bytes | memoryview) -> str:
         """
         Serializes `bytes` or `memoryview` objects to a Base64 encoded UTF-8 string.
 
         Memoryview objects are converted to bytes before encoding.
+
+        Args:
+            obj: The bytes or memoryview object to serialize.
+
+        Returns:
+            A Base64 encoded string representing the binary data.
         """
         if isinstance(obj, memoryview):
-            obj = obj.tobytes()  # Convert memoryview to bytes.
+            # Convert memoryview to bytes.
+            obj = obj.tobytes()
         # Base64 encode bytes and then decode to UTF-8 string.
         return b64encode(obj).decode("utf-8")
 
-    def encode(self, cls: type, v: Any) -> bytes:
+    def encode(self, cls: type[bytes], v: Any) -> bytes:
         """
         Molds a Base64 encoded string back into a `bytes` object.
 
         The input string is first encoded to UTF-8 bytes, then Base64 decoded.
+
+        Args:
+            cls: The target type, expected to be `bytes`.
+            v: The Base64 encoded string to decode.
+
+        Returns:
+            A `bytes` object representing the decoded binary data.
         """
         # Encode string to bytes, then Base64 decode.
         return b64decode(v.encode("utf-8"))
@@ -448,13 +609,20 @@ class StructureEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     type from the input list or iterable.
     """
 
-    __type__ = (list, set, frozenset, GeneratorType, tuple, deque)
+    __type__: tuple[type, ...] = (list, set, frozenset, GeneratorType, tuple, deque)
 
     def is_type(self, v: Any) -> bool:
         """
         Checks if the `value` is an instance of a supported iterable type,
         explicitly excluding `str`, `bytes`, and `memoryview` to prevent
         unintended serialization of these primitives as collections.
+
+        Args:
+            v: The Python object to check.
+
+        Returns:
+            True if `v` is a supported iterable (excluding strings and binary data);
+            False otherwise.
         """
         return isinstance(v, Iterable) and not isinstance(v, (str, bytes, memoryview))
 
@@ -465,16 +633,30 @@ class StructureEncoder(Encoder, EncoderProtocol, MoldingProtocol):
 
         This method correctly handles generic type hints (e.g., `list[str]`) by
         resolving their origin type.
+
+        Args:
+            v: The Python type or type hint to check (e.g., `list`, `set[int]`).
+
+        Returns:
+            True if `v` represents a supported collection type; False otherwise.
         """
         # Get the base type for generics like list[str].
         origin = get_origin(v) or v
         return isclass(origin) and issubclass(origin, self.__type__)
 
-    def serialize(self, obj: Iterable) -> list:
-        """Serializes any supported iterable into a standard Python `list`."""
+    def serialize(self, obj: Iterable[Any]) -> list[Any]:
+        """
+        Serializes any supported iterable into a standard Python `list`.
+
+        Args:
+            obj: The iterable object to serialize.
+
+        Returns:
+            A `list` containing all elements from the iterable.
+        """
         return list(obj)
 
-    def encode(self, cls: type, v: Any) -> Any:
+    def encode(self, cls: type[T], v: Any) -> T | list[Any]:
         """
         Molds an iterable `v` into an instance of the specified collection type `cls`.
 
@@ -491,7 +673,7 @@ class StructureEncoder(Encoder, EncoderProtocol, MoldingProtocol):
             if `cls` cannot be directly constructed.
         """
         try:
-            return cls(v)
+            return cls(v)  # type: ignore
         except TypeError:
             # Fallback if the target class cannot be directly constructed from
             # the iterable (e.g., `GeneratorType` is not directly instantiable).
@@ -523,7 +705,9 @@ _DEFAULT_ENCODERS: tuple[EncoderProtocol | MoldingProtocol, ...] = (
 _ENCODERS: ContextVar[deque[EncoderProtocol | MoldingProtocol] | None] = ContextVar("ENCODERS", default=None)
 
 
-def register_encoder(enc: type | EncoderProtocol | MoldingProtocol) -> None:
+def register_encoder(
+    enc: type[EncoderProtocol | MoldingProtocol] | EncoderProtocol | MoldingProtocol,
+) -> None:
     """
     Registers a new encoder or molder, placing it at the front of the active
     registry.
@@ -572,10 +756,12 @@ def json_encode_default(value: Any) -> Any:
                    `value`. This is the standard exception expected by
                    `json.dumps` when an object is not JSON serializable.
     """
-    for enc in _ENCODERS.get():  # Iterate through the active encoders.
+    # Iterate through the active encoders.
+    for enc in get_encoders():
         # Check if it's an EncoderProtocol and can handle the type.
         if isinstance(enc, EncoderProtocol) and enc.is_type(value):
-            return enc.serialize(value)  # Serialize the value using the found encoder.
+            # Serialize the value using the found encoder.
+            return enc.serialize(value)
     # If no suitable encoder is found after checking all registered ones,
     # raise a TypeError. This aligns with the expected behavior of the
     # `default` argument in `json.dumps`.
@@ -601,8 +787,10 @@ def _get_type_from_annotation(annotation: Any) -> Any:
     """
     # Check if the annotation is an `Annotated` type.
     if get_origin(annotation) is Annotated:
-        return get_args(annotation)[0]  # Extract the first argument, which is the actual type.
-    return annotation  # For all other annotations, return them as is.
+        # Extract the first argument, which is the actual type.
+        return get_args(annotation)[0]
+    # For all other annotations, return them as is.
+    return annotation
 
 
 def apply_structure(structure: Any, value: Any) -> Any:
@@ -635,7 +823,8 @@ def apply_structure(structure: Any, value: Any) -> Any:
     # such as `Annotated[MyType, "some_metadata"]`.
     struct = _get_type_from_annotation(structure)
 
-    for enc in _ENCODERS.get():  # Iterate through the active list of registered encoders/molders.
+    # Iterate through the active list of registered encoders/molders.
+    for enc in get_encoders():
         # Check if the current object implements `MoldingProtocol` and can handle
         # the `resolved_structure` type.
         if isinstance(enc, MoldingProtocol) and enc.is_type_structure(struct):
@@ -645,7 +834,9 @@ def apply_structure(structure: Any, value: Any) -> Any:
             # typed data.
             try:
                 return enc.encode(struct, value)
-            except:
+            except Exception:
+                # If molding directly fails and the value is a dict or list,
+                # attempt to mold from its JSON string representation.
                 if isinstance(value, (dict, list)):
                     text = json.dumps(value)
                     return enc.encode(struct, text)
@@ -656,22 +847,23 @@ def apply_structure(structure: Any, value: Any) -> Any:
     return value
 
 
-def get_encoders() -> list[EncoderProtocol | MoldingProtocol]:
+def get_encoders() -> deque[EncoderProtocol | MoldingProtocol]:
     """
     Retrieves the current list of active encoders and molders.
 
     This function provides access to the registry of encoders and molders that
     `sayer` uses for serialization and deserialization operations. The returned
     list reflects any custom encoders that have been registered via
-    `register_encoder`.
+    `register_encoder`. If the encoders have not been initialized in the current
+    context, they are initialized with the `_DEFAULT_ENCODERS`.
 
     Returns:
-        A list of `EncoderProtocol` or `MoldingProtocol` instances, representing
+        A `deque` of `EncoderProtocol` or `MoldingProtocol` instances, representing
         the currently active encoders and molders in their priority order.
     """
     current_encoders = _ENCODERS.get()
     if current_encoders is None:
-        # 2. Initialize with a *copy* of _DEFAULT_ENCODERS if not already set
+        # Initialize with a *copy* of _DEFAULT_ENCODERS if not already set.
         current_encoders = deque(_DEFAULT_ENCODERS)
         _ENCODERS.set(current_encoders)
     return current_encoders

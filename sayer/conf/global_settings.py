@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sayer.__version__ import __version__  # noqa
 
@@ -64,7 +64,7 @@ class Settings:
     environments, such as when running in a terminal or redirecting output
     to a file.
     """
-    color_system: str | None = "auto"
+    color_system: Literal["auto", "standard", "256", "truecolor", "windows"] = "auto"
     """
     Specifies the color system to use for terminal output.
     If set to "auto", the application will automatically detect the

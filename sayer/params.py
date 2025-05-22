@@ -180,7 +180,7 @@ class Param:
         self.callback = callback
         self.default_factory = default_factory
 
-    def as_option(self):
+    def as_option(self) -> "Option":
         """
         Converts this Param instance into an Option instance.
 

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .params import Argument, JsonParam, Option, Param
     from .utils.config import get_config
     from .utils.loader import load_commands_from
+    from .utils.ui import echo, error, info, success, warning
     from .utils.ui_helpers import confirm, progress, table
 
 __version__ = get_version()
@@ -33,6 +34,11 @@ monkay: Monkay = Monkay(
         "Argument": ".params.Argument",
         "Settings": ".conf.global_settings.Settings",
         "settings": ".conf.settings",
+        "success": ".utils.ui.success",
+        "error": ".utils.ui.error",
+        "info": ".utils.ui.info",
+        "warning": ".utils.ui.warning",
+        "echo": ".utils.ui.echo",
     },
     skip_all_update=True,
     package="sayer",
@@ -53,4 +59,9 @@ __all__ = [
     "Settings",
     "settings",
     "JsonParam",
+    "success",
+    "error",
+    "info",
+    "warning",
+    "echo",
 ]

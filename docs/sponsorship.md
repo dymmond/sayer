@@ -2,9 +2,6 @@
 
 Do you like **Sayer** and would like to help Sayer, other user and the author?
 
-## 🐦 Follow Sayer on Twitter
-
-
 ## ⭐ Star **Sayer** on GitHub
 
 Giving a star to Sayer is very simple and helps promoting the work across the developers around the world.
@@ -21,8 +18,6 @@ Following the GitHub repo will allow you to "watch" for any new release of Sayer
 
 You can click on "***watch***" and select "***custom***" -> "***Releases***"or any other you may find particular
 interesting to you.
-
-## 💬 Join the official Sayer discord channel
 
 ## 🔥 Sponsor the author
 

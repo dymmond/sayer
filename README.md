@@ -1,11 +1,11 @@
-# 🚀 Sayer — The Modern Python CLI Framework
+# Sayer
 
 <p align="center">
-  <a href="https://sayer.tarsild.io"><img src="https://res.cloudinary.com/tarsild/image/upload/v1747661493/packages/Sayer/Logo/w8bq4nqcphyd99kns0wl.svg" alt='Esmerald'></a>
+  <a href="https://sayer.tarsild.io"><img src="https://res.cloudinary.com/tarsild/image/upload/v1747661493/packages/Sayer/Logo/w8bq4nqcphyd99kns0wl.svg" alt='Sayer logo'></a>
 </p>
 
 <p align="center">
-    <em>🚀 Highly scalable, performant, easy to learn, easy to code and for every application. 🚀</em>
+    <em>Fast. Scalable. Elegant. Command the CLI like a boss. 🧙‍♂️</em>
 </p>
 
 <p align="center">
@@ -32,72 +32,119 @@
 
 ---
 
-**Sayer** is a fast, powerful, and modern Python framework for building command-line interfaces — inspired by [Typer](https://typer.tiangolo.com/), but with more **scalability**, **middleware**, and **async-first design**.
+## 🤔 What is Sayer?
 
-If Typer is FastAPI for the CLI, **Sayer is FastAPI++ for serious CLI tools**.
+Sayer is a modern, async-native Python CLI framework built for developers who want more:
 
----
+- More structure.
+- More power.
+- More expressiveness.
 
-### ✅ Why Sayer?
+Less boilerplate. Less headache. Less "why doesn't this just work?"
 
-| Feature                           | Typer      | Sayer ✅       |
-| --------------------------------- | ---------- | ------------- |
-| Type hint–based commands          | ✅          | ✅             |
-| Async-native execution            | ⚠️ Basic   | ✅ First-class |
-| Middleware & Interceptors         | ❌          | ✅             |
-| Modular & scalable apps           | ⚠️ Clunky  | ✅ Clean       |
-| Command aliases                   | ❌          | ✅             |
-| CLI UI with `rich`                | ⚠️ Partial | ✅ Native      |
-| Dynamic command discovery         | ❌          | ✅             |
-| Testing support (CLI test client) | ❌          | ✅             |
+Designed to scale from weekend scripts to enterprise-grade CLI suites — with a touch of magic.
 
 ---
 
-### 🧪 Example
+## 📦 Installation
 
-```python
-from sayer import command, run
-
-
-@command
-def hello(name: str, loud: bool = False):
-    """Say hello to someone."""
-    message = f"Hello, {name}!"
-    print(message.upper() if loud else message)
-
-
-if __name__ == "__main__":
-    run()
-```
+**Using [pip](https://pip.pypa.io/):**
 
 ```bash
-$ python hello.py hello Alice
-Hello, Alice!
+pip install sayer
+```
 
-$ python hello.py hello Alice true
-HELLO, ALICE!
+**Or with [uv](https://github.com/astral-sh/uv) (blazing fast):**
+
+```bash
+uv pip install sayer
 ```
 
 ---
 
-### 🔥 Highlights
+## 🧩 Features
 
-* 🧠 **Type-hint based** CLI definition
-* 🕹️ **Interactive help** auto-generated from code
-* 🧩 **Middleware system** for context, logging, auth
-* 🌐 **Async-first**, built for concurrency
-* 🧪 **Testable** with CLI test client
-* 🎨 **Rich-powered output** out of the box
-* 📁 **Modular command discovery** and grouping
-* ⚡ **Lightning-fast DX**
+* ✅ Fully async support out-of-the-box
+* ✅ Param metadata via `Option(...)`, `Argument(...)`, `Env(...)` — inspired by the best
+* ✅ Declarative CLI building with decorators
+* ✅ Built-in middleware system (yes, for CLI!)
+* ✅ Shared app state and lifecycle management
+* ✅ Terminal-rich output via `rich`
+* ✅ Easy testing with `SayerTestClient`
+* ✅ Built-in shell completions (coming soon)
+* ✅ Flexible help and docs rendering
+* ✅ Clean project scaffolding, sensible defaults
+* ✅ 100% type annotated and battle-tested
 
 ---
 
-### 🧰 Perfect For:
+## 🔥 Why Sayer?
 
-* Developer tools
-* Task runners
-* Build systems
-* Automation scripts
-* CLI-based microservices
-* Anything that grows beyond a single script
+| Feature               | Sayer        | Notes                             |
+| --------------------- | ------------ | --------------------------------- |
+| Async Support         | ✅ Yes        | Truly async from top to bottom    |
+| Param Metadata        | ✅ Yes        | With rich options, env vars, etc. |
+| Middleware Support    | ✅ Yes        | Per-command, app-wide, scoped     |
+| Lifecycle Hooks       | ✅ Yes        | `on_startup`, `on_shutdown`       |
+| State Management      | ✅ Yes        | Like a Flask `g` but better       |
+| Testability           | ✅ Yes        | CLI client for unit tests         |
+| Output Styling        | ✅ Yes        | Built-in `rich` integration       |
+| Based on Modern Tools | ✅ Hatch + UV | Modern dev setup from day 1       |
+| Full Typing           | ✅ Yes        | Mypy + Ruff compliant             |
+| Fun to Use?           | 🕺 Extremely | Let the code dance with you       |
+
+---
+
+## 🚀 Getting Started
+
+Create your first CLI app:
+
+```python
+from sayer import Sayer, Option
+
+app = Sayer()
+
+@app.command()
+def hello(name: str = Option(..., help="Your name")):
+    """Say hello to someone"""
+    print(f"Hello, {name}!")
+
+if __name__ == "__main__":
+    app()
+```
+
+Run it:
+
+```bash
+$ python app.py hello --name Ada
+Hello, Ada!
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+hatch run test:test
+```
+
+Or with pytest:
+
+```bash
+pytest -v
+```
+
+---
+
+## 📚 Documentation
+
+Full docs available at: [https://sayer.tarsild.io](https://sayer.tarsild.io)
+
+You’ll find:
+
+* Full API reference
+* Command examples
+* Parameter deep dives
+* Middleware patterns
+* Configuration strategies
+* ... and some fun easter eggs 🐣

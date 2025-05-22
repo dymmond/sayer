@@ -36,7 +36,6 @@ class _CommandRegistry(dict):
 
 
 COMMANDS: _CommandRegistry[str, click.Command] = _CommandRegistry()  # Global registry for Click commands.
-
 _GROUPS: dict[str, click.Group] = {}  # Global dictionary to store registered Click groups.
 
 # Maps Python primitive types to their corresponding Click parameter types.
@@ -215,7 +214,7 @@ def _build_click_parameter(
     # 2) **Enum Support**: Handles parameters annotated with `Enum` types.
     # These are always created as Click options with choices constrained by Enum members.
     if isinstance(ptype, type) and issubclass(ptype, Enum):
-        choices = [m.value for m in ptype]  # Extract values from Enum members for Click choices.
+        choices = [e.value for e in ptype]  # Extract values from Enum members for Click choices.
         enum_default = None
         if has_default:
             # If default is an Enum member, use its value; otherwise, use the raw default.
@@ -303,19 +302,15 @@ def _build_click_parameter(
         # If it's a boolean with a default, it's an optional flag option.
         elif is_flag and isinstance(param.default, bool):
             wrapper = click.option(
-                f"--{pname.replace('_','-')}", is_flag=True, default=param.default,
-                show_default=True, help=help_text
+                f"--{pname.replace('_','-')}", is_flag=True, default=param.default, show_default=True, help=help_text
             )(wrapper)
         # If the default is a `Param` instance, treat it as an optional argument with its default.
         elif isinstance(param.default, Param):
-            wrapper = click.argument(
-                pname, type=ptype, required=False, default=param.default.default
-            )(wrapper)
+            wrapper = click.argument(pname, type=ptype, required=False, default=param.default.default)(wrapper)
         # If the default is `None`, treat it as an optional option.
         elif param.default is None:
             wrapper = click.option(
-                f"--{pname.replace('_','-')}", type=ptype, default=None,
-                show_default=True, help=help_text
+                f"--{pname.replace('_','-')}", type=ptype, default=None, show_default=True, help=help_text
             )(wrapper)
         # Otherwise, it's an optional argument with its function default.
         else:
@@ -355,7 +350,8 @@ def command(
     This decorator automates the process of converting Python function parameters
     into Click options and arguments, applies necessary type conversions, extracts
     comprehensive help text, and wraps the command's execution with configurable
-    "before" and "after" middleware hooks.
+    "before" and "after" middleware hooks. It also supports **dependency injection**
+    for `click.Context` objects into the decorated function.
 
     It supports two primary modes of use:
     1. **Direct decoration**: `@command` above a function, without parentheses, if
@@ -383,12 +379,15 @@ def command(
         # Generate the command name by converting the function name from snake_case to kebab-case.
         cmd_name = fn.__name__.replace("_", "-")
         sig = inspect.signature(fn)  # Get the introspection signature of the decorated function.
-        help_txt = _extract_command_help(sig, fn)  # Extract the comprehensive help text for the command.
+        cmd_help = _extract_command_help(sig, fn)  # Extract the comprehensive help text for the command.
+
+        # Detect if the function signature includes a `click.Context` parameter for injection.
+        has_ctx = any(p.annotation is click.Context for p in sig.parameters.values())
 
         # Resolve the specified middleware into separate 'before' and 'after' hook lists.
         before_hooks, after_hooks = resolve_middleware(middleware)
 
-        @click.command(name=cmd_name, help=help_txt)
+        @click.command(name=cmd_name, help=cmd_help)
         @click.pass_context
         def wrapper(ctx: click.Context, **kwargs: Any):
             # This `wrapper` function is the actual Click command callback executed when
@@ -396,6 +395,12 @@ def command(
 
             bound_args: dict[str, Any] = {}  # Dictionary to store the arguments bound to the function.
             for p in sig.parameters.values():
+                # **Dependency Injection**: If a parameter is type-hinted as `click.Context`,
+                # inject the Click context directly.
+                if p.annotation is click.Context:
+                    bound_args[p.name] = ctx
+                    continue  # Skip further processing for the context parameter.
+
                 # Get the raw value provided by Click from `kwargs`.
                 raw_anno = p.annotation if p.annotation is not inspect._empty else str
                 # Resolve the effective Python type, handling `Annotated` types.
@@ -434,8 +439,12 @@ def command(
         # Iterate through each parameter of the original function's signature
         # to build and attach corresponding Click parameters.
         for param in sig.parameters.values():
-            # Determine the raw annotation, defaulting to `str` if not explicitly typed.
             raw_anno = param.annotation if param.annotation is not inspect._empty else str
+
+            # Skip processing `click.Context` parameters as they are handled via injection.
+            if raw_anno is click.Context:
+                continue
+
             # Resolve the concrete Python type, unwrapping `Annotated` if present.
             ptype = get_args(raw_anno)[0] if get_origin(raw_anno) is Annotated else raw_anno
 
@@ -452,6 +461,17 @@ def command(
             # If no metadata was found in `Annotated`, check if the default value is a `Param` instance.
             if isinstance(param.default, Param) and not param_meta:
                 param_meta = param.default
+
+            # **New Logic**: If `click.Context` is present in the signature and a parameter
+            # has a literal default (not a `Param` instance), force it to be an `Option`.
+            # This prevents accidental positional arguments when Context is injected.
+            if (
+                has_ctx
+                and param_meta is None
+                and param.default is not inspect._empty
+                and not isinstance(param.default, Param)
+            ):
+                param_meta = Option(default=param.default)
 
             # Build and attach the Click parameter (option or argument) to the current wrapper.
             current_wrapper = _build_click_parameter(

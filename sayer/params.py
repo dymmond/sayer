@@ -202,3 +202,14 @@ class Param:
             callback=self.callback,
             default_factory=self.default_factory,
         )
+
+
+class JsonParam(Param):
+    """
+    Marks a parameter as JSON‐encoded.
+    The CLI will accept a JSON string and decode it into your target type
+    via the global encoders (dataclass, attrs, pydantic, msgspec, etc.).
+    """
+
+    default: Optional[str] = None
+    required: bool = True

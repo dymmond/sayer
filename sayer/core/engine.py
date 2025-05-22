@@ -11,6 +11,7 @@ import click
 
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, Option, Param
+from sayer.state import State, get_state_classes
 from sayer.utils.ui import RichGroup
 
 F = TypeVar("F", bound=Callable[..., Any])  # Type variable for CLI command functions.
@@ -158,6 +159,7 @@ def _build_click_parameter(
     meta: Param | Option | Argument | Env | None,
     help_text: str,
     wrapper: Callable,
+    ctx_injected: bool = False,
 ) -> Callable:
     """
     Constructs and attaches a Click parameter (either an option or an argument) to
@@ -178,6 +180,8 @@ def _build_click_parameter(
         help_text: The help string for the parameter, potentially extracted from annotations
                    or docstrings.
         wrapper: The current Click command function that this parameter decorator will wrap.
+        ctx_injected: A boolean indicating if `click.Context` is being injected into the
+                      command function. This influences default parameter behavior.
 
     Returns:
         The `wrapper` function, now decorated with the newly built Click parameter.
@@ -283,7 +287,7 @@ def _build_click_parameter(
     elif isinstance(meta, Option):
         wrapper = click.option(
             f"--{pname.replace('_','-')}",
-            type=None if is_flag else ptype,  # Type is `None` for flags as Click handles them implicitly.
+            type=(None if is_flag else ptype),  # Type is `None` for flags as Click handles them implicitly.
             is_flag=is_flag,
             default=default_final,
             required=required,
@@ -296,30 +300,65 @@ def _build_click_parameter(
         )(wrapper)
     # **General Fallback Logic**: For parameters without explicit `sayer.params` metadata.
     else:
-        # If no default is provided, it's a required positional argument.
+        # 1) If no default is provided, it's a required positional argument.
         if not has_default:
             wrapper = click.argument(pname, type=ptype, required=True)(wrapper)
-        # If it's a boolean with a default, it's an optional flag option.
+
+        # 2) If `click.Context` is injected, any defaulted non-flag parameter
+        #    without explicit `Param` metadata becomes an option. This prevents
+        #    positional arguments from interfering with context injection.
+        elif ctx_injected and not is_flag and has_default:
+            wrapper = click.option(
+                f"--{pname.replace('_','-')}",
+                type=ptype,
+                default=default_final,
+                required=required,
+                show_default=True,
+                help=help_text,
+            )(wrapper)
+
+        # 3) If it's a boolean with a default, it's an optional flag option.
         elif is_flag and isinstance(param.default, bool):
             wrapper = click.option(
-                f"--{pname.replace('_','-')}", is_flag=True, default=param.default, show_default=True, help=help_text
+                f"--{pname.replace('_','-')}",
+                is_flag=True,
+                default=param.default,
+                show_default=True,
+                help=help_text,
             )(wrapper)
-        # If the default is a `Param` instance, treat it as an optional argument with its default.
+
+        # 4) If the default is a `Param` instance, treat it as an optional argument with its default.
         elif isinstance(param.default, Param):
-            wrapper = click.argument(pname, type=ptype, required=False, default=param.default.default)(wrapper)
-        # If the default is `None`, treat it as an optional option.
+            wrapper = click.argument(
+                pname,
+                type=ptype,
+                required=False,
+                default=param.default.default,
+            )(wrapper)
+
+        # 5) If the default is `None`, treat it as an optional option.
         elif param.default is None:
             wrapper = click.option(
-                f"--{pname.replace('_','-')}", type=ptype, default=None, show_default=True, help=help_text
+                f"--{pname.replace('_','-')}",
+                type=ptype,
+                default=None,
+                show_default=True,
+                help=help_text,
             )(wrapper)
-        # Otherwise, it's an optional argument with its function default.
+
+        # 6) Final fallback: If it has a default and none of the above apply, treat it as an optional argument.
         else:
-            wrapper = click.argument(pname, type=ptype, default=param.default, required=False)(wrapper)
+            wrapper = click.argument(
+                pname,
+                type=ptype,
+                default=default_final,
+                required=False,
+            )(wrapper)
             # Ensure the Click parameter correctly reflects its optional nature and default.
             for p in wrapper.params:
                 if p.name == pname:
                     p.required = False
-                    p.default = param.default
+                    p.default = default_final
                     break
 
     # Ensure the help text is attached to the Click parameter if it's still missing.
@@ -345,13 +384,18 @@ def command(
 ) -> click.Command | Callable[[F], click.Command]:
     """
     A decorator that transforms a standard Python function into a Click command,
-    seamlessly integrating `sayer`'s advanced parameter handling and middleware system.
+    seamlessly integrating `sayer`'s advanced parameter handling, middleware system,
+    and **State dependency injection**.
 
     This decorator automates the process of converting Python function parameters
     into Click options and arguments, applies necessary type conversions, extracts
     comprehensive help text, and wraps the command's execution with configurable
-    "before" and "after" middleware hooks. It also supports **dependency injection**
-    for `click.Context` objects into the decorated function.
+    "before" and "after" middleware hooks. It also supports:
+    - **Click Context Injection**: Automatically injects the `click.Context` object
+      if a parameter is type-hinted as `click.Context`.
+    - **State Injection**: Automatically injects instances of `sayer.state.State`
+      subclasses. These state objects are typically singletons, initialized once
+      per command invocation and cached for reuse.
 
     It supports two primary modes of use:
     1. **Direct decoration**: `@command` above a function, without parentheses, if
@@ -382,7 +426,7 @@ def command(
         cmd_help = _extract_command_help(sig, fn)  # Extract the comprehensive help text for the command.
 
         # Detect if the function signature includes a `click.Context` parameter for injection.
-        has_ctx = any(p.annotation is click.Context for p in sig.parameters.values())
+        ctx_injected = any(p.annotation is click.Context for p in sig.parameters.values())
 
         # Resolve the specified middleware into separate 'before' and 'after' hook lists.
         before_hooks, after_hooks = resolve_middleware(middleware)
@@ -390,17 +434,39 @@ def command(
         @click.command(name=cmd_name, help=cmd_help)
         @click.pass_context
         def wrapper(ctx: click.Context, **kwargs: Any):
-            # This `wrapper` function is the actual Click command callback executed when
-            # the command is invoked from the command line.
+            # Instantiate all `State` subclasses once per command invocation.
+            # The state cache is stored on the Click context for efficiency and lifecycle management.
+            if not hasattr(ctx, "_sayer_state_cache"):
+                cache: dict[type[State], State] = {}
+                try:
+                    for state_cls in get_state_classes():
+                        # Initialize each state class. If `__init__` takes arguments,
+                        # this simple call might fail unless a custom `build` method
+                        # is used (not implemented here, but implied by `State`'s doc).
+                        cache[state_cls] = state_cls()
+                except Exception as e:
+                    # If state construction fails, raise a ClickException to gracefully
+                    # exit and inform the user.
+                    raise click.ClickException(f"Failed to initialize state: {e}") from e
+                ctx._sayer_state_cache = cache  # type: ignore[attr-defined] # Cache the initialized states.
 
             bound_args: dict[str, Any] = {}  # Dictionary to store the arguments bound to the function.
             for p in sig.parameters.values():
-                # **Dependency Injection**: If a parameter is type-hinted as `click.Context`,
+                # 1) **Context Injection**: If a parameter is type-hinted as `click.Context`,
                 # inject the Click context directly.
                 if p.annotation is click.Context:
                     bound_args[p.name] = ctx
                     continue  # Skip further processing for the context parameter.
 
+                # 2) **State Injection**: If a parameter is type-hinted as a `State` subclass,
+                # inject the cached instance of that state.
+                if isinstance(p.annotation, type) and issubclass(p.annotation, State):
+                    # Retrieve the state instance from the cache. This assumes all required
+                    # state classes have been instantiated and cached.
+                    bound_args[p.name] = ctx._sayer_state_cache[p.annotation]  # type: ignore[attr-defined]
+                    continue  # Skip further processing for state parameters.
+
+                # 3) **Regular Parameters**: For all other parameters (CLI options/arguments).
                 # Get the raw value provided by Click from `kwargs`.
                 raw_anno = p.annotation if p.annotation is not inspect._empty else str
                 # Resolve the effective Python type, handling `Annotated` types.
@@ -439,12 +505,15 @@ def command(
         # Iterate through each parameter of the original function's signature
         # to build and attach corresponding Click parameters.
         for param in sig.parameters.values():
-            raw_anno = param.annotation if param.annotation is not inspect._empty else str
-
-            # Skip processing `click.Context` parameters as they are handled via injection.
-            if raw_anno is click.Context:
+            # Skip `click.Context` and `State` parameters as they are handled via injection,
+            # not as explicit Click options/arguments.
+            if param.annotation is click.Context:
+                continue
+            if isinstance(param.annotation, type) and issubclass(param.annotation, State):
                 continue
 
+            # Determine the raw annotation, defaulting to `str` if not explicitly typed.
+            raw_anno = param.annotation if param.annotation is not inspect._empty else str
             # Resolve the concrete Python type, unwrapping `Annotated` if present.
             ptype = get_args(raw_anno)[0] if get_origin(raw_anno) is Annotated else raw_anno
 
@@ -462,11 +531,12 @@ def command(
             if isinstance(param.default, Param) and not param_meta:
                 param_meta = param.default
 
-            # **New Logic**: If `click.Context` is present in the signature and a parameter
+            # **New Logic**: If `click.Context` is being injected into the command, and a parameter
             # has a literal default (not a `Param` instance), force it to be an `Option`.
-            # This prevents accidental positional arguments when Context is injected.
+            # This is a critical adjustment to prevent unintended positional arguments
+            # when context injection shifts argument parsing.
             if (
-                has_ctx
+                ctx_injected
                 and param_meta is None
                 and param.default is not inspect._empty
                 and not isinstance(param.default, Param)
@@ -475,7 +545,7 @@ def command(
 
             # Build and attach the Click parameter (option or argument) to the current wrapper.
             current_wrapper = _build_click_parameter(
-                param, raw_anno, ptype, param_meta, param_help_txt, current_wrapper
+                param, raw_anno, ptype, param_meta, param_help_txt, current_wrapper, ctx_injected
             )
 
         # If the original function was marked as belonging to a specific Click group,
@@ -496,13 +566,18 @@ def command(
 
 def group(name: str, group_cls: type[click.Group] | None = None, help: str | None = None) -> click.Group:
     """
-    Registers and retrieves a Click group, ensuring that group instances are created
-    and reused efficiently.
+    Registers or retrieves a Click group, ensuring its `.command` API is
+    compatible with `sayer`'s command binding logic.
 
     If a Click group with the specified `name` already exists in the internal registry,
     that existing instance is returned. Otherwise, a new Click group (or a custom
     `group_cls` if provided) is created, registered, and then returned. This prevents
     duplicate group definitions and allows commands to be added to existing groups.
+
+    Crucially, this function **monkey-patches** the `.command` method of the created
+    or retrieved group. This override ensures that when `@my_group.command` is used,
+    `sayer`'s `command` decorator is invoked internally, correctly binding the command
+    to its parent group and applying `sayer`'s advanced parameter and middleware handling.
 
     Args:
         name: The unique name for the Click group. This name will be used on the
@@ -517,9 +592,29 @@ def group(name: str, group_cls: type[click.Group] | None = None, help: str | Non
         The `click.Group` instance corresponding to the given name.
     """
     if name not in _GROUPS:
-        # If the group doesn't exist, create a new one.
         cls = group_cls or RichGroup  # Use `RichGroup` by default.
-        _GROUPS[name] = cls(name=name, help=help)  # Create and store the new group.
+        grp = cls(name=name, help=help)  # Create the new group.
+
+        # Override this group's .command method to seamlessly integrate with `sayer.command`.
+        def _grp_command(fn: F | None = None, **cmd_kwargs: Any) -> click.Command | Callable[[F], click.Command]:
+            # This inner function handles both `@grp.command` (no parentheses)
+            # and `@grp.command(...)` (with parentheses).
+
+            # Case 1: `@grp.command` (no parentheses) - `fn` is the decorated function.
+            if fn is not None and callable(fn):
+                fn.__sayer_group__ = grp  # type: ignore[attr-defined] # Mark the function for this group.
+                return command(fn, **cmd_kwargs)  # Process with `sayer.command`.
+
+            # Case 2: `@grp.command(...)` (with parentheses) - returns a decorator.
+            def decorator(f: F) -> click.Command:
+                f.__sayer_group__ = grp  # type: ignore[attr-defined] # Mark the function for this group.
+                return command(f, **cmd_kwargs)  # Process with `sayer.command`.
+
+            return decorator
+
+        grp.command = _grp_command  # Assign the custom command method to the group.
+        _GROUPS[name] = grp  # Store the new group in the registry.
+
     return _GROUPS[name]
 
 
@@ -557,11 +652,12 @@ def bind_command(grp: click.Group, fn: F) -> click.Command:
     Binds a decorated command function to a specific Click group.
 
     This utility function is designed to be used by Click's monkey-patched `Group.command`
-    method. When a function is decorated with `@group_instance.command`, this function
-    intercepts the call, attaches a special `__sayer_group__` attribute to the function
-    indicating its intended group, and then processes the function using the main
-    `sayer.command` decorator. This ensures that the command is correctly added to
-    its parent group instead of being registered globally.
+    method (see the global monkey-patching below). When a function is decorated with
+    `@group_instance.command`, this function intercepts the call, attaches a special
+    `__sayer_group__` attribute to the function indicating its intended group, and
+    then processes the function using the main `sayer.command` decorator. This ensures
+    that the command is correctly added to its parent group instead of being registered
+    globally.
 
     Args:
         grp: The `click.Group` instance to which the command should be bound.
@@ -575,8 +671,9 @@ def bind_command(grp: click.Group, fn: F) -> click.Command:
     return command(fn)  # Process the function with the main `command` decorator.
 
 
-# Monkey-patch Click's `Group.command` method.
-# This allows `sayer` to intercept `@group_instance.command` decorators and
-# automatically bind the command to the correct group, integrating `sayer`'s
-# parameter and middleware system into Click's group functionality.
+# Monkey-patch Click's `Group.command` method globally as a safety net.
+# This ensures that if any `click.Group` instance's `.command` method is called
+# directly (e.g., from a Click extension or another library), it still routes
+# through `sayer`'s binding mechanism, allowing `sayer`'s parameter handling and
+# middleware to apply. This is an important integration point.
 click.Group.command = bind_command  # type: ignore[method-assign]

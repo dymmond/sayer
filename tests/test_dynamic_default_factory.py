@@ -15,9 +15,8 @@ def runner():
     return CliRunner()
 
 
-# 1) datetime.utcnow factory
 @command
-def now(ts: datetime = Option(default_factory=datetime.utcnow)):
+def now(ts: datetime = Option(default_factory=datetime.now)):
     click.echo(ts.isoformat())
 
 
@@ -41,7 +40,6 @@ def test_now_override_with_explicit(runner):
     assert result.output.strip() == iso
 
 
-# 2) incremental integer factory
 counter = {"n": 0}
 
 
@@ -77,7 +75,6 @@ def test_count_override(runner):
     assert result.output.strip() == "42"
 
 
-# 3) string factory
 def make_greeting():
     return "hello-" + uuid.uuid4().hex[:6]
 
@@ -108,7 +105,6 @@ def test_greet_override(runner):
     assert result.output.strip() == "Alice"
 
 
-# 4) UUID factory
 @command
 def ident(u: uuid.UUID = Option(default_factory=uuid.uuid4)):
     click.echo(str(u))
@@ -137,9 +133,8 @@ def test_ident_override(runner):
     assert result.output.strip() == str(uid)
 
 
-# 5) Mixed with context injection
 @command
-def show_time(ctx: click.Context, ts: datetime = Option(default_factory=datetime.utcnow)):
+def show_time(ctx: click.Context, ts: datetime = Option(default_factory=datetime.now)):
     click.echo(f"{ctx.info_name}:{ts.isoformat()}")
 
 
@@ -166,11 +161,8 @@ def test_show_time_override(runner):
     assert result.output.strip() == f"show-time:{iso}"
 
 
-# 6) Combined multiple default_factory parameters
 @command
-def combo(
-    a: int = Option(default_factory=lambda: 10), b: str = Option(default_factory=lambda: "X")
-):
+def combo(a: int = Option(default_factory=lambda: 10), b: str = Option(default_factory=lambda: "X")):
     click.echo(f"{a}-{b}")
 
 

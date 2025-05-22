@@ -38,9 +38,7 @@ class _CommandRegistry(dict):
         pass
 
 
-COMMANDS: _CommandRegistry[str, click.Command] = (
-    _CommandRegistry()
-)  # Global registry for Click commands.
+COMMANDS: _CommandRegistry[str, click.Command] = _CommandRegistry()  # Global registry for Click commands.
 _GROUPS: dict[str, click.Group] = {}  # Global dictionary to store registered Click groups.
 
 # Maps Python primitive types to their corresponding Click parameter types.
@@ -220,9 +218,7 @@ def _build_click_parameter(
         choices = [e.value for e in param_type]
         enum_default = None
         if has_func_default:
-            enum_default = (
-                param.default.value if isinstance(param.default, Enum) else param.default
-            )
+            enum_default = param.default.value if isinstance(param.default, Enum) else param.default
         return click.option(
             f"--{param_name.replace('_','-')}",
             type=click.Choice(choices),
@@ -256,9 +252,7 @@ def _build_click_parameter(
 
     # --- Explicit metadata cases ---
     if isinstance(meta, Argument):
-        wrapper = click.argument(
-            param_name, type=param_type, required=required, default=final_default
-        )(wrapper)
+        wrapper = click.argument(param_name, type=param_type, required=required, default=final_default)(wrapper)
     elif isinstance(meta, Env):
         env_val = os.getenv(meta.envvar, meta.default)
         # If `default_factory` is present, let the wrapper handle injection at runtime.
@@ -332,9 +326,7 @@ def _build_click_parameter(
             )(wrapper)
         # 6) Final fallback: Optional positional argument.
         else:
-            wrapper = click.argument(
-                param_name, type=param_type, default=final_default, required=False
-            )(wrapper)
+            wrapper = click.argument(param_name, type=param_type, default=final_default, required=False)(wrapper)
             # Ensure the Click parameter correctly reflects its optional nature and default.
             for p in wrapper.params:
                 if p.name == param_name:
@@ -450,9 +442,7 @@ def command(
                     param_meta = param.default  # type: ignore[assignment]
 
                 # If a `default_factory` is defined and no value was provided via CLI, call the factory.
-                if isinstance(param_meta, (Option, Env)) and getattr(
-                    param_meta, "default_factory", None
-                ):
+                if isinstance(param_meta, (Option, Env)) and getattr(param_meta, "default_factory", None):
                     if kwargs.get(param.name) is None:
                         kwargs[param.name] = param_meta.default_factory()  # type: ignore[operator]
 
@@ -470,9 +460,7 @@ def command(
 
                 # Process regular parameters.
                 raw_anno = param.annotation if param.annotation is not inspect._empty else str
-                target_type = (
-                    get_args(raw_anno)[0] if get_origin(raw_anno) is Annotated else raw_anno
-                )
+                target_type = get_args(raw_anno)[0] if get_origin(raw_anno) is Annotated else raw_anno
                 value = kwargs.get(param.name)
                 # Convert value, skipping sequence types as Click handles their parsing.
                 if get_origin(raw_anno) not in (list, Sequence):
@@ -581,9 +569,7 @@ def group(
         cls = group_cls or RichGroup
         grp = cls(name=name, help=help)
 
-        def _grp_command(
-            fn: F | None = None, **cmd_kwargs: Any
-        ) -> click.Command | Callable[[F], click.Command]:
+        def _grp_command(fn: F | None = None, **cmd_kwargs: Any) -> click.Command | Callable[[F], click.Command]:
             """
             Custom `.command` method for the group, integrating `sayer`'s command decorator.
             Handles both `@grp.command` and `@grp.command(...)` usage.

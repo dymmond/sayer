@@ -108,7 +108,7 @@ def render_help_for_command(ctx: click.Context) -> None:
             Text("Parameters", style="bold cyan"),
             Padding(param_table, (0, 0, 0, 2)),
             Text("\nCommands", style="bold cyan"),
-            Padding(cmd_table, (1, 0, 0, 2)),
+            Padding(cmd_table, (0, 0, 0, 2)),
         )
     else:
         content = Group(

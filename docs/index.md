@@ -1,11 +1,16 @@
-# 🚀 Sayer — The Modern Python CLI Framework
+---
+hide:
+  - navigation
+---
+
+# Sayer
 
 <p align="center">
-  <a href="https://sayer.tarsild.io"><img src="https://res.cloudinary.com/tarsild/image/upload/v1747661493/packages/Sayer/Logo/w8bq4nqcphyd99kns0wl.svg" alt='Esmerald'></a>
+  <a href="https://sayer.tarsild.io"><img src="https://res.cloudinary.com/tarsild/image/upload/v1747661493/packages/Sayer/Logo/w8bq4nqcphyd99kns0wl.svg" alt='Sayer logo'></a>
 </p>
 
 <p align="center">
-    <em>🚀 Highly scalable, performant, easy to learn, easy to code and for every application. 🚀</em>
+    <em>Fast. Scalable. Elegant. Command the CLI like a boss. 🧙‍♂️</em>
 </p>
 
 <p align="center">
@@ -32,72 +37,80 @@
 
 ---
 
-**Sayer** is a fast, powerful, and modern Python framework for building command-line interfaces — inspired by [Typer](https://typer.tiangolo.com/), but with more **scalability**, **middleware**, and **async-first design**.
+# Motivation
 
-If Typer is FastAPI for the CLI, **Sayer is FastAPI++ for serious CLI tools**.
-
----
-
-### ✅ Why Sayer?
-
-| Feature                           | Typer      | Sayer ✅       |
-| --------------------------------- | ---------- | ------------- |
-| Type hint–based commands          | ✅          | ✅             |
-| Async-native execution            | ⚠️ Basic   | ✅ First-class |
-| Middleware & Interceptors         | ❌          | ✅             |
-| Modular & scalable apps           | ⚠️ Clunky  | ✅ Clean       |
-| Command aliases                   | ❌          | ✅             |
-| CLI UI with `rich`                | ⚠️ Partial | ✅ Native      |
-| Dynamic command discovery         | ❌          | ✅             |
-| Testing support (CLI test client) | ❌          | ✅             |
+Sayer is a **modern, async-native, parameter-rich Python CLI framework** designed for real-world usage.
+Whether you’re building a one-liner or a suite of enterprise commands, Sayer’s declarative, testable, and elegant approach to CLI building will help you ship faster and with less boilerplate.
 
 ---
 
-### 🧪 Example
+## 🚀 Why Sayer?
 
-```python
-from sayer import command, run
+Sayer was built from the ground up with three things in mind:
 
+* **Structure**: Make it easy to build large CLIs.
+* **Power**: Expose async support, middleware, state, metadata, and configuration.
+* **Simplicity**: Lower the barrier to entry while embracing modern Python.
 
-@command
-def hello(name: str, loud: bool = False):
-    """Say hello to someone."""
-    message = f"Hello, {name}!"
-    print(message.upper() if loud else message)
-
-
-if __name__ == "__main__":
-    run()
-```
+You can go from:
 
 ```bash
-$ python hello.py hello Alice
-Hello, Alice!
+python mytool.py run --env production
+```
 
-$ python hello.py hello Alice true
-HELLO, ALICE!
+To building complex pipelines, nested commands, and testable apps with shared state.
+
+---
+
+## 📦 Installation
+
+You can install Sayer using either `pip` or the ultra-fast `uv`.
+
+### Using pip:
+
+```bash
+pip install sayer
+```
+
+### Using uv (recommended):
+
+```bash
+uv pip install sayer
 ```
 
 ---
 
-### 🔥 Highlights
+## ✨ Quick Example
 
-* 🧠 **Type-hint based** CLI definition
-* 🕹️ **Interactive help** auto-generated from code
-* 🧩 **Middleware system** for context, logging, auth
-* 🌐 **Async-first**, built for concurrency
-* 🧪 **Testable** with CLI test client
-* 🎨 **Rich-powered output** out of the box
-* 📁 **Modular command discovery** and grouping
-* ⚡ **Lightning-fast DX**
+```python
+from sayer import Sayer, Option
+
+app = Sayer()
+
+@app.command()
+def hello(name: str = Option(..., help="Your name")):
+    """Say hello to someone."""
+    print(f"Hello, {name}!")
+
+if __name__ == "__main__":
+    app()
+```
+
+Run it with:
+
+```bash
+python app.py hello --name Ada
+```
 
 ---
 
-### 🧰 Perfect For:
+## 📚 Where to Next?
 
-* Developer tools
-* Task runners
-* Build systems
-* Automation scripts
-* CLI-based microservices
-* Anything that grows beyond a single script
+* [Getting Started](./getting-started.md)
+* [Defining Commands](./features/commands.md)
+* [Using Parameters](./features/params.md)
+* [Adding Middleware](./features/middleware.md)
+* [Working with State](./features/state.md)
+* [Testing Your CLI](./features/testing.md)
+
+Dive in — the CLI magic awaits! 🧙

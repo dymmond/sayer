@@ -6,15 +6,16 @@ from sayer.params import Argument
 from sayer.utils.ui import error, success
 
 TEMPLATE: dict[str, str] = {
-    "main.py": """from sayer import run, load_commands_from, echo
+    "main.py": """from sayer import command, success
 
-load_commands_from("commands")
 
-if __name__ == "__main__":
-    run()
+@command
+def welcome(name: str = "World") -> None:
+    success(f"Hello, {name}!")
+
 """,
     "commands/__init__.py": "",
-    "commands/hello.py": """from sayer import command
+    "commands/hello.py": """from sayer import command, echo
 
 @command
 def hello(name: str = "World"):

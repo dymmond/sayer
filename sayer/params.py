@@ -21,6 +21,7 @@ class Option:
         show_default: bool = True,
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
+        default_factory: Callable[[], Any] | None = None
     ):
         """
         Initializes a new Option instance.
@@ -45,8 +46,13 @@ class Option:
         self.confirmation_prompt = confirmation_prompt
         self.hide_input = hide_input
         self.show_default = show_default
-        self.required = required if required is not None else default is ...
+
+        has_static = default is not ...
+        has_factory = default_factory is not None
+        self.required = required if required is not None else not (has_static or has_factory)
+
         self.callback = callback
+        self.default_factory = default_factory
 
 
 class Argument:
@@ -63,6 +69,7 @@ class Argument:
         help: str | None = None,
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
+        default_factory: Callable[[], Any] | None = None
     ):
         """
         Initializes a new Argument instance.
@@ -76,8 +83,13 @@ class Argument:
         """
         self.default = default
         self.help = help
-        self.required = required if required is not None else default is ...
+
+        has_static = default is not ...
+        has_factory = default_factory is not None
+        self.required = required if required is not None else not (has_static or has_factory)
+
         self.callback = callback
+        self.default_factory = default_factory
 
 
 class Env:
@@ -87,7 +99,13 @@ class Env:
     Stores the environment variable name, default value, and required status.
     """
 
-    def __init__(self, envvar: str, default: Any = ..., required: Optional[bool] = None):
+    def __init__(
+        self,
+        envvar: str,
+        default: Any = ...,
+        required: Optional[bool] = None,
+        default_factory: Callable[[], Any] | None = None,
+    ):
         """
         Initializes a new Env instance.
 
@@ -101,7 +119,12 @@ class Env:
         """
         self.envvar = envvar
         self.default = default
-        self.required = required if required is not None else default is ...
+
+        has_static = default is not ...
+        has_factory = default_factory is not None
+        self.required = required if required is not None else not (has_static or has_factory)
+
+        self.default_factory = default_factory
 
 
 class Param:
@@ -124,6 +147,7 @@ class Param:
         show_default: bool = True,
         required: bool | None = None,
         callback: Callable[[Any], Any] | None = None,
+        default_factory: Callable[[], Any] | None = None
     ):
         """
         Initializes a new Param instance.
@@ -148,8 +172,13 @@ class Param:
         self.confirmation_prompt = confirmation_prompt
         self.hide_input = hide_input
         self.show_default = show_default
-        self.required = required if required is not None else default is ...
+
+        has_static = default is not ...
+        has_factory = default_factory is not None
+        self.required = required if required is not None else not (has_static or has_factory)
+
         self.callback = callback
+        self.default_factory = default_factory
 
     def as_option(self):
         """
@@ -171,4 +200,5 @@ class Param:
             show_default=self.show_default,
             required=self.required,
             callback=self.callback,
+            default_factory=self.default_factory,
         )

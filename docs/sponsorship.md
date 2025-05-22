@@ -8,7 +8,7 @@ Giving a star to Sayer is very simple and helps promoting the work across the de
 
 The button is located at the top right.
 
-[https://github.com/tarsil/sayer](https://github.com/tarsil/sayer).
+[https://github.com/dymmond/sayer](https://github.com/dymmond/sayer).
 
 This will help spreading the word about the tool and how helpful has been.
 

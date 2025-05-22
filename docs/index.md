@@ -31,7 +31,7 @@ hide:
 
 **Documentation**: [https://sayer.dymmond.com](https://sayer.dymmond.com) 📚
 
-**Source Code**: [https://github.com/tarsil/sayer](https://github.com/tarsil/sayer)
+**Source Code**: [https://github.com/dymmond/sayer](https://github.com/dymmond/sayer)
 
 **The official supported version is always the latest released**.
 

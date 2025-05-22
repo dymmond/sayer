@@ -49,11 +49,11 @@ dependencies = [
 keywords = ["sayer"]
 
 [project.urls]
-Homepage = "https://github.com/tarsil/sayer"
+Homepage = "https://github.com/dymmond/sayer"
 Documentation = "https://sayer.dymmond.com"
 Changelog = "https://sayer.dymmond.com/release-notes/"
 Funding = "https://github.com/sponsors/tarsil"
-Source = "https://github.com/tarsil/sayer"
+Source = "https://github.com/dymmond/sayer"
 
 [tool.hatch.version]
 path = "sayer/__version__.py"

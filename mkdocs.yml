@@ -36,7 +36,7 @@ theme:
     - navigation.tabs
 
 repo_name: dymmond/sayer
-repo_url: https://github.com/tarsil/sayer
+repo_url: https://github.com/dymmond/sayer
 edit_uri: ""
 plugins:
   - search

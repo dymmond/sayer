@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from .conf import settings
     from .conf.global_settings import Settings
     from .core.engine import command, group
-    from .params import Argument, Option, Param
+    from .params import Argument, JsonParam, Option, Param
     from .utils.config import get_config
     from .utils.loader import load_commands_from
     from .utils.ui_helpers import confirm, progress, table
@@ -28,6 +28,7 @@ monkay: Monkay = Monkay(
         "table": ".utils.ui_helpers.table",
         "get_config": ".utils.config.get_config",
         "Param": ".params.Param",
+        "JsonParam": ".params.JsonParam",
         "Option": ".params.Option",
         "Argument": ".params.Argument",
         "Settings": ".conf.global_settings.Settings",
@@ -51,4 +52,5 @@ __all__ = [
     "Argument",
     "Settings",
     "settings",
+    "JsonParam",
 ]

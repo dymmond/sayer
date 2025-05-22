@@ -80,7 +80,7 @@ class SayerTestClient:
 
         return SayerTestResult(result)
 
-    def isolated_filesystem(self, **kwargs: Any):
+    def isolated_filesystem(self, **kwargs: Any) -> Any:
         """
         Proxy to CliRunner.isolated_filesystem(), for filesystem isolation.
         """

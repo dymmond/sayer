@@ -16,7 +16,7 @@ class StateMeta(type):
     `State` class itself is not registered.
     """
 
-    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]):
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> type:
         """
         Creates a new class and registers it if it's a subclass of `State`.
 
@@ -33,7 +33,7 @@ class StateMeta(type):
 
         # Do not register the base `State` class itself, only its subclasses.
         if name != "State":
-            _STATE_REGISTRY.append(cls)
+            _STATE_REGISTRY.append(cls)  # type: ignore
         return cls
 
 

@@ -46,7 +46,19 @@ dependencies = [
   "typing_extensions>=4.13.2"
 ]
 
-keywords = ["sayer"]
+keywords     = [
+  "cli",
+  "click",
+  "command-line",
+  "serialization",
+  "json",
+  "dataclass",
+  "pydantic",
+  "attrs",
+  "msgspec",
+  "sayer",
+  "rich"
+]
 
 [project.urls]
 Homepage = "https://github.com/tarsil/sayer"

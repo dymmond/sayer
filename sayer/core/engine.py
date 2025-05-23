@@ -21,11 +21,11 @@ from uuid import UUID
 import anyio
 import click
 
+from sayer.core.groups import SayerGroup
 from sayer.encoders import MoldingProtocol, apply_structure, get_encoders
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State, get_state_classes
-from sayer.utils.ui import SayerGroup
 
 F = TypeVar("F", bound=Callable[..., Any])
 

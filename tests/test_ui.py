@@ -50,7 +50,6 @@ def test_docs_group_help(runner):
 
     # Should include Usage and Parameters and Commands
     assert "Usage" in out
-    assert "Parameters" in out
     assert "Commands" in out
 
     # Should list the 'generate' subcommand

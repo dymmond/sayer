@@ -5,10 +5,11 @@ from monkay import Monkay
 from .__version__ import get_version
 
 if TYPE_CHECKING:
-    from .app import Sayer
+    from .app import Sayer, SayerCommand
     from .conf import settings
     from .conf.global_settings import Settings
     from .core.engine import command, group
+    from .core.groups import SayerGroup
     from .params import Argument, JsonParam, Option, Param
     from .utils.config import get_config
     from .utils.loader import load_commands_from
@@ -21,6 +22,7 @@ monkay: Monkay = Monkay(
     globals(),
     lazy_imports={
         "Sayer": ".app.Sayer",
+        "SayerCommand": ".core.commands.SayerCommand",
         "command": ".core.engine.command",
         "group": ".core.engine.group",
         "load_commands_from": ".utils.loader.load_commands_from",
@@ -39,6 +41,7 @@ monkay: Monkay = Monkay(
         "info": ".utils.ui.info",
         "warning": ".utils.ui.warning",
         "echo": ".utils.ui.echo",
+        "SayerGroup": ".core.groups.SayerGroup",
     },
     skip_all_update=True,
     package="sayer",
@@ -64,4 +67,6 @@ __all__ = [
     "info",
     "warning",
     "echo",
+    "SayerGroup",
+    "SayerCommand",
 ]

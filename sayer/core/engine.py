@@ -571,10 +571,10 @@ def command(
                 bound_args[p.name] = val
 
             # --- Before hooks ---
-            # Run global and command-specific `before` middleware.
-            run_before(cmd_name, bound_args)
             for hook in before_hooks:
                 hook(cmd_name, bound_args)
+            # Run global and command-specific `before` middleware.
+            run_before(cmd_name, bound_args)
 
             # --- Execute command ---
             result = fn(**bound_args)
@@ -583,10 +583,10 @@ def command(
                 result = anyio.run(lambda: result)
 
             # --- After hooks ---
-            # Run global and command-specific `after` middleware.
-            run_after(cmd_name, bound_args, result)
             for hook in after_hooks:  # type: ignore
                 hook(cmd_name, bound_args, result)  # type: ignore
+            # Run global and command-specific `after` middleware.
+            run_after(cmd_name, bound_args, result)
 
             return result
 

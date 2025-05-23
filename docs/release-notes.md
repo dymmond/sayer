@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.2.0
+
+### Fixed
+
+- Fixed async middleware order `before` and `after` execution.
+
 ## 0.1.0 – First Release
 
 We're proud to announce the **first official release of Sayer**, a modern,

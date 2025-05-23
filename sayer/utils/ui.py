@@ -68,9 +68,7 @@ class SayerGroup(click.Group):
         """
         return super().get_usage(ctx)
 
-    def resolve_command(
-        self, ctx: click.Context, args: list[str]
-    ) -> tuple[str | None, click.Command]:
+    def resolve_command(self, ctx: click.Context, args: list[str]) -> tuple[str | None, click.Command]:
         """
         Resolves a command from the given arguments and handles usage errors
         with Rich-based formatting.
@@ -99,10 +97,7 @@ class SayerGroup(click.Group):
             # Retrieve the usage string for display in the error panel.
             usage = self.get_usage(ctx)
             # Construct the error message and usage string using Rich markup.
-            body = (
-                f"[bold red]Error:[/] {e.format_message()}\n\n"
-                f"[bold cyan]Usage:[/]\n  {usage.strip()}"
-            )
+            body = f"[bold red]Error:[/] {e.format_message()}\n\n" f"[bold cyan]Usage:[/]\n  {usage.strip()}"
             # Create a Rich Panel to visually highlight the error.
             panel = Panel.fit(Text.from_markup(body), title="Error", border_style="red")
             # Print the error panel to the console.
@@ -110,9 +105,7 @@ class SayerGroup(click.Group):
             # Exit the application with the error's exit code.
             ctx.exit(e.exit_code)
 
-    def format_help(
-        self, ctx: click.Context, formatter: click.HelpFormatter | None = None
-    ) -> None:
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter | None = None) -> None:
         """
         Formats and renders the help message for the command or group using
         Sayer's custom Rich help renderer.

@@ -3,6 +3,16 @@ hide:
   - navigation
 ---
 
+## 0.2.1
+
+### Added
+
+- Pass custom context and context class into a Sayer app.
+
+### Fixed
+
+- Wrapping Sayer apps it was not adding the native SayerGroup.
+
 ## 0.2.0
 
 ### Fixed

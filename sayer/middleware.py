@@ -1,6 +1,8 @@
 import inspect
 from typing import Any, Callable, Sequence
 
+import anyio
+
 # Global registry for named middleware sets.
 # Stores middleware functions categorized into 'before' and 'after' lists
 # for easy retrieval by a given name.
@@ -136,7 +138,11 @@ def run_before(cmd_name: str, args: dict[str, Any]) -> None:
               parameters.
     """
     for hook in _GLOBAL_BEFORE:
-        hook(cmd_name, args)
+        if inspect.iscoroutinefunction(hook):
+            fn = hook(cmd_name, args)
+            anyio.run(lambda: fn)  # noqa
+        else:
+            hook(cmd_name, args)
 
 
 def run_after(cmd_name: str, args: dict[str, Any], result: Any) -> None:
@@ -154,4 +160,8 @@ def run_after(cmd_name: str, args: dict[str, Any], result: Any) -> None:
         result: The value returned by the command function after its execution.
     """
     for hook in _GLOBAL_AFTER:
-        hook(cmd_name, args, result)
+        if inspect.iscoroutinefunction(hook):
+            fn = hook(cmd_name, args, result)
+            anyio.run(lambda: fn)  # noqa
+        else:
+            hook(cmd_name, args, result)

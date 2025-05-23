@@ -25,7 +25,7 @@ from sayer.encoders import MoldingProtocol, apply_structure, get_encoders
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State, get_state_classes
-from sayer.utils.ui import RichGroup
+from sayer.utils.ui import SayerGroup
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -229,7 +229,11 @@ def _build_click_parameter(
     # Param(...) annotated as generic → Option if criteria met
     # If a generic `Param` metadata is provided via `Annotated` and
     # `_should_use_option` evaluates to True, it's re-cast as an `Option`.
-    if isinstance(meta, Param) and get_origin(raw_annotation) is Annotated and _should_use_option(meta, default_val):
+    if (
+        isinstance(meta, Param)
+        and get_origin(raw_annotation) is Annotated
+        and _should_use_option(meta, default_val)
+    ):
         meta = meta.as_option()
 
     origin = get_origin(raw_annotation)
@@ -276,7 +280,10 @@ def _build_click_parameter(
         meta is None
         and not skip_json
         and inspect.isclass(param_type)
-        and any(isinstance(enc, MoldingProtocol) and enc.is_type_structure(param_type) for enc in get_encoders())
+        and any(
+            isinstance(enc, MoldingProtocol) and enc.is_type_structure(param_type)
+            for enc in get_encoders()
+        )
     ):
         meta = JsonParam()  # If moldable and no explicit meta, treat as JSON.
 
@@ -327,7 +334,9 @@ def _build_click_parameter(
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
     if isinstance(meta, Argument):
-        return click.argument(name, type=param_type, required=required, default=final_default)(wrapper)
+        return click.argument(name, type=param_type, required=required, default=final_default)(
+            wrapper
+        )
 
     if isinstance(meta, Env):
         # For Env parameters, retrieve value from environment or use metadata default.
@@ -388,7 +397,9 @@ def _build_click_parameter(
 
     if isinstance(param.default, Param):
         # `Param` as a default value means it's an optional argument with a default.
-        return click.argument(name, type=param_type, required=False, default=param.default.default)(wrapper)
+        return click.argument(
+            name, type=param_type, required=False, default=param.default.default
+        )(wrapper)
 
     if param.default is None:
         # Parameters with a `None` default become optional options.
@@ -529,7 +540,9 @@ def command(
 
                 # If metadata with a `default_factory` is found and no value was provided
                 # via the CLI, call the factory to get the default.
-                if isinstance(param_meta, (Option, Env)) and getattr(param_meta, "default_factory", None):
+                if isinstance(param_meta, (Option, Env)) and getattr(
+                    param_meta, "default_factory", None
+                ):
                     if not kwargs.get(p.name):
                         kwargs[p.name] = param_meta.default_factory()
 
@@ -616,7 +629,9 @@ def command(
                     elif isinstance(m, str):
                         param_help = m
             # If no metadata found in `Annotated`, check if the default value is metadata.
-            if param_meta is None and isinstance(param.default, (Param, Option, Argument, Env, JsonParam)):
+            if param_meta is None and isinstance(
+                param.default, (Param, Option, Argument, Env, JsonParam)
+            ):
                 param_meta = param.default
 
             # Build and apply the Click parameter decorator.
@@ -659,7 +674,7 @@ def group(
     inheriting all its advanced features (type handling, metadata, state, etc.).
 
     If a group with the given `name` already exists, the existing group is
-    returned. Otherwise, a new group is created, defaulting to `RichGroup` for
+    returned. Otherwise, a new group is created, defaulting to `SayerGroup` for
     enhanced formatting if no `group_cls` is specified. The `command` method
     of the created group is monkey-patched to use `sayer.command`.
 
@@ -667,7 +682,7 @@ def group(
         name: The name of the Click group. This will be the name used to invoke
               the group from the command line.
         group_cls: An optional custom Click group class to use. If `None`,
-                   `sayer.utils.ui.RichGroup` is used by default.
+                   `sayer.utils.ui.SayerGroup` is used by default.
         help: An optional help string for the group, displayed when `--help`
               is invoked on the group.
 
@@ -677,8 +692,8 @@ def group(
     """
     # Check if the group already exists to avoid re-creating it.
     if name not in _GROUPS:
-        # Determine the group class to use; default to `RichGroup`.
-        cls = group_cls or RichGroup
+        # Determine the group class to use; default to `SayerGroup`.
+        cls = group_cls or SayerGroup
         # Create the Click group instance.
         grp = cls(name=name, help=help)
 

@@ -3,12 +3,12 @@ from typing import Any, Callable, TypeVar, overload
 import click
 
 from sayer.core.help import render_help_for_command
-from sayer.utils.ui import RichGroup
+from sayer.utils.ui import SayerGroup
 
 T = TypeVar("T", bound=Callable[..., Any])
 
 
-class RichCommand(click.Command):
+class SayerCommand(click.Command):
     """
     A custom click.Command that renders help via Sayer's rich help renderer.
     """
@@ -26,8 +26,8 @@ class RichCommand(click.Command):
 
 class Sayer:
     """
-    A Sayer application object that wraps a RichGroup and ensures all
-    commands use RichCommand for help rendering.
+    A Sayer application object that wraps a SayerGroup and ensures all
+    commands use SayerCommand for help rendering.
     """
 
     def __init__(
@@ -38,8 +38,8 @@ class Sayer:
         context_settings: dict | None = None,
         add_version_option: bool = False,
         version: str | None = None,
-        group_class: type[click.Group] = RichGroup,
-        command_class: type[click.Command] = RichCommand,
+        group_class: type[click.Group] = SayerGroup,
+        command_class: type[click.Command] = SayerCommand,
         **group_attrs: Any,
     ) -> None:
         # Prepare group attributes
@@ -52,9 +52,9 @@ class Sayer:
             attrs["context_settings"] = context_settings
         attrs.update(group_attrs)
 
-        # Instantiate the RichGroup
+        # Instantiate the SayerGroup
         group = group_class(name=name, **attrs)
-        # Ensure every subcommand uses RichCommand
+        # Ensure every subcommand uses SayerCommand
         group.command_class = command_class
 
         # Optionally add a --version flag
@@ -77,7 +77,7 @@ class Sayer:
     def command(self, *args: Any, **kwargs: Any) -> Any:
         """
         A decorator to register a function as a subcommand.
-        Uses the underlying RichGroup.command(), so RichCommand is applied.
+        Uses the underlying SayerGroup.command(), so SayerCommand is applied.
         """
         return self._group.command(*args, **kwargs)
 
@@ -106,12 +106,6 @@ class Sayer:
     @property
     def cli(self) -> click.Group:
         """
-        Access the underlying RichGroup instance.
+        Access the underlying SayerGroup instance.
         """
         return self._group
-
-    def complete(self, ctx: click.Context, incomplete: str) -> list[str]:
-        """
-        Get shell completion suggestions.
-        """
-        return list(self._group.complete(ctx, incomplete))

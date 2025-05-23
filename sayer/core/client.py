@@ -1,6 +1,6 @@
 import sayer.cli.docs  # noqa
 from sayer.__version__ import get_version
-from sayer.app import RichCommand, Sayer
+from sayer.app import SayerCommand, Sayer
 from sayer.core.engine import get_commands, get_groups
 
 app = Sayer(
@@ -12,7 +12,7 @@ app = Sayer(
 
 # 1️⃣ Wrap and add all *top-level* commands
 for cmd in get_commands().values():
-    cmd_cls = RichCommand(
+    cmd_cls = SayerCommand(
         name=cmd.name,
         callback=cmd.callback,
         params=cmd.params,
@@ -22,7 +22,7 @@ for cmd in get_commands().values():
 
 # 2️⃣ For each group, rewrap *its* subcommands before adding the group itself
 for alias, group_cmd in get_groups().items():
-    # Ensure the group itself is using RichGroup
+    # Ensure the group itself is using SayerGroup
     group_cmd.cls = app.cli.__class__
 
     # Capture existing subcommands
@@ -31,9 +31,9 @@ for alias, group_cmd in get_groups().items():
     for name, _ in original:
         group_cmd.commands.pop(name)
 
-    # Re-add each as RichCommand
+    # Re-add each as SayerCommand
     for name, cmd in original:
-        wrapped = RichCommand(
+        wrapped = SayerCommand(
             name=cmd.name,
             callback=cmd.callback,
             params=cmd.params,

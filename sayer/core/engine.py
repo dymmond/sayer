@@ -343,11 +343,15 @@ def _build_click_parameter(
         )(wrapper)
 
     if isinstance(meta, Option):
-        # For Option parameters, handle specific option attributes.
+        # figure out default
         opt_def = None if getattr(meta, "default_factory", None) else final_default
+
+        # if it's not required and default is None, we want Click to skip parsing
+        # entirely and just hand us None, so we *don't* accidentally interpret
+        # the option name as its own value.
         return click.option(
-            f"--{name.replace('_','-')}",
-            type=None if is_flag else param_type,  # Flag options don't need a type.
+            f"--{name.replace('_', '-')}",
+            type=None if is_flag else param_type,
             is_flag=is_flag,
             default=opt_def,
             required=required,

@@ -80,8 +80,7 @@ def test_missing_required_option_errors():
     app = Sayer(help="TestApp", add_version_option=False, invoke_without_command=True)
 
     @app.callback()
-    def root(name: Annotated[str, Option("--name", required=True)]):
-        pass
+    def root(name: Annotated[str, Option(required=True)]): ...
 
     client = SayerTestClient(app)
     result = client.invoke([])
@@ -94,13 +93,12 @@ def test_callback_optional_option_defaults_to_none():
     app = Sayer(help="TestApp", add_version_option=False, invoke_without_command=True)
 
     @app.callback()
-    def root(count: Annotated[int, Option("--count", required=False)]):
+    def root(count: Annotated[int, Option(required=False)]):
         received["count"] = count
 
     client = SayerTestClient(app)
     result = client.invoke([])
 
-    print(result.output)
     assert result.exit_code == 0
     assert received["count"] is None
 

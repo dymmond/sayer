@@ -44,14 +44,14 @@ class Sayer:
         invoke_without_command: bool = False,
         no_args_is_help: bool = False,
         **group_attrs: Any,
-    ):
+    ) -> None:
         self._initial_obj = context
         self._context_class = context_class
 
-        # ←—— where we’ll store ALL callbacks, in reg‐order
+        # where we store ALL callbacks in registration order
         self._callbacks: list[Callable[..., Any]] = []
 
-        # Build up the kwargs for our Group
+        # build kwargs for our Group
         attrs: dict[str, Any] = {}
         if help is not None:
             attrs["help"] = help
@@ -63,31 +63,38 @@ class Sayer:
             ctx_settings["obj"] = context
         attrs["context_settings"] = ctx_settings
 
-        # Respect init‐time flags (you can also override per‐callback)
+        # respect init-time flags (can override per-callback too)
         attrs["invoke_without_command"] = invoke_without_command
         attrs["no_args_is_help"] = no_args_is_help
         attrs.update(group_attrs)
 
-        # Instantiate the Group
+        # instantiate the Group
         group = group_class(name=name, **attrs)
         group.context_class = context_class
         group.command_class = command_class
 
-        # Add version option if requested
+        # add version option if requested
         if add_version_option:
             if not version:
                 raise ValueError("`version` must be provided with `add_version_option=True`")
             group = click.version_option(version, "--version", "-V")(group)
 
-        # Wrap the Group.invoke so we can fire callbacks first
+        # wrap the Group.invoke so we can fire callbacks first
         original_invoke = group.invoke
 
         def invoke_with_callbacks(ctx: click.Context) -> Any:
-            # If there's a subcommand *and* invoke_without_command=False, skip callbacks
-            if not group.invoke_without_command and getattr(ctx, "protected_args", []):
+            # 1) if there's a subcommand AND invoke_without_command=False, skip ALL callbacks
+            if not group.invoke_without_command and not group.invoke_without_command:
                 return original_invoke(ctx)
 
-            # Otherwise, run every callback in registration order
+            # 2) enforce any required callback options up front
+            for cb in self._callbacks:
+                for param_obj in getattr(cb, "__click_params__", []):
+                    if isinstance(param_obj, click.Option) and param_obj.required:
+                        if ctx.params.get(param_obj.name) is None:
+                            raise click.MissingParameter(param_obj, ctx)  # type: ignore
+
+            # 3) run each callback in registration order
             for cb in self._callbacks:
                 sig = inspect.signature(cb)
                 hints = get_type_hints(cb, include_extras=True)
@@ -98,12 +105,16 @@ class Sayer:
                         bound[name] = ctx
                     else:
                         val = ctx.params.get(name)
-                        # If Annotated[..., JsonParam], parse JSON
-                        if get_origin(ann) is Annotated and any(isinstance(m, JsonParam) for m in get_args(ann)[1:]):
-                            val = json.loads(val)
+                        # JSON parse if JsonParam
+                        if (
+                            get_origin(ann) is Annotated and any(isinstance(m, JsonParam) for m in get_args(ann)[1:])
+                        ) or isinstance(param.default, JsonParam):
+                            if isinstance(val, str):
+                                val = json.loads(val)
                         bound[name] = val
                 cb(**bound)
 
+            # 4) proceed with normal click dispatch
             return original_invoke(ctx)
 
         group.invoke = invoke_with_callbacks  # type: ignore
@@ -111,8 +122,8 @@ class Sayer:
 
     def _apply_param_logic(self, fn: Callable[..., Any]) -> Callable[..., Any]:
         """
-        Stamp a function (command *or* callback) with ALL of your Annotated[…]
-        metadata by calling into the same _build_click_parameter logic
+        Stamp a function (command *or* callback) with ALL Annotated[…]
+        metadata by invoking the same _build_click_parameter logic
         that @app.command uses.
         """
         sig = inspect.signature(fn)
@@ -120,17 +131,16 @@ class Sayer:
         wrapped = fn
         ctx_injected = any(hints.get(p.name, p.annotation) is click.Context for p in sig.parameters.values())
 
+        # apply in reverse so decorators nest properly
         for param in reversed(sig.parameters.values()):
             ann = hints.get(param.name, param.annotation)
-            # Skip ctx or State injections
             if ann is click.Context or (isinstance(ann, type) and issubclass(ann, State)):
                 continue
 
             raw = ann if ann is not inspect._empty else str
             param_type = get_args(raw)[0] if get_origin(raw) is Annotated else raw
 
-            # Pull out any Option/Argument/etc metadata + help text
-            meta = None
+            meta: Param | Option | Argument | Env | JsonParam | None = None
             help_txt = ""
             if get_origin(raw) is Annotated:
                 for m in get_args(raw)[1:]:
@@ -139,7 +149,7 @@ class Sayer:
                     elif isinstance(m, str):
                         help_txt = m
 
-            # Fallback to default‐based metadata
+            # fallback to default-based metadata
             if meta is None and isinstance(param.default, (Option, Argument, Env, Param, JsonParam)):
                 meta = param.default
 
@@ -155,34 +165,33 @@ class Sayer:
 
     def callback(self, *args: Any, **kwargs: Any) -> Any:
         """
-        Register a root‐level callback with full Sayer‐style params,
-        plus optional Click flags `invoke_without_command` and `no_args_is_help`.
+        Register a root-level callback with full Sayer-style params
+        (Option/Argument/JsonParam) and optional flags
+        `invoke_without_command`/`no_args_is_help`.
         """
         invoke = kwargs.pop("invoke_without_command", None)
         no_args = kwargs.pop("no_args_is_help", None)
 
         def decorator(fn: T) -> T:
-            # 1) Stamp it with Annotated[...Option/Argument/JsonParam] logic
+            # 1) stamp it with Annotated[…Option/Argument/JsonParam]
             stamped = self._apply_param_logic(fn)
 
-            # 2) Apply any per‐callback flags
+            # 2) apply any per-callback flags
             if invoke is not None:
                 self._group.invoke_without_command = invoke
             if no_args is not None:
                 self._group.no_args_is_help = no_args
 
-            # 3) Copy *all* of the Click parameters we built onto the group
+            # 3) copy all click-Params onto the group up front
             for p in getattr(stamped, "__click_params__", []):
-                # Normalize Ellipsis → None so Click enforces 'required' correctly
-                if getattr(p, "default", None) is Ellipsis:
+                if isinstance(p, click.Option) and p.default is ...:
                     p.default = None
-                self._group.params.append(p)
+                self._group.params.insert(0, p)
 
-            # 4) Remember it for the pre‐invoke hook
+            # 4) remember it for our invoke hook
             self._callbacks.append(stamped)
             return fn
 
-        # Support both @app.callback and @app.callback(...)
         if args and callable(args[0]) and not kwargs:
             return decorator(args[0])
         return decorator
@@ -195,37 +204,36 @@ class Sayer:
 
     def command(self, *args: Any, **kwargs: Any) -> Any:
         """
-        A decorator to register a function as a subcommand.
-        Uses the underlying SayerGroup.command(), so SayerCommand is applied.
+        Decorator to register a function as a subcommand
+        (using SayerCommand underneath).
         """
         return self._group.command(*args, **kwargs)
 
     def add_app(self, alias: str, app: "Sayer") -> None:
-        """
-        Nest another Sayer app under this as a sub-group.
-        """
+        """Alias for add_sayer()."""
         self.add_sayer(alias, app)
 
     def add_sayer(self, alias: str, app: "Sayer") -> None:
         """
-        Mount another Sayer under this one.
+        Mount another Sayer under this one, re-wrapping all of its
+        commands/groups through SayerGroup/SayerCommand.
         """
 
-        def rewrap_group(orig_group: click.Group) -> click.Group:
-            WrappedGroup = type(self._group)
-            new_grp = WrappedGroup(
-                name=orig_group.name,
-                help=orig_group.help,
-                epilog=getattr(orig_group, "epilog", None),
+        def rewrap_group(orig: click.Group) -> click.Group:
+            Wrapped = type(self._group)
+            new = Wrapped(
+                name=orig.name,
+                help=orig.help,
+                epilog=getattr(orig, "epilog", None),
                 context_settings=self._group.context_settings.copy(),
             )
-            new_grp.context_class = self._group.context_class
-            new_grp.command_class = self._group.command_class
+            new.context_class = self._group.context_class
+            new.command_class = self._group.command_class
 
-            for name, cmd in list(orig_group.commands.items()):
+            for nm, cmd in list(orig.commands.items()):
                 if isinstance(cmd, click.Group):
-                    wrapped_sub = rewrap_group(cmd)
-                    new_grp.add_command(wrapped_sub, name=name)
+                    sub = rewrap_group(cmd)
+                    new.add_command(sub, name=nm)
                 else:
                     wrapped_cmd = SayerCommand(
                         name=cmd.name,
@@ -233,14 +241,15 @@ class Sayer:
                         params=cmd.params,
                         help=cmd.help,
                     )
-                    new_grp.add_command(wrapped_cmd, name=name)
-            return new_grp
+                    new.add_command(wrapped_cmd, name=nm)
+
+            return new
 
         wrapped = rewrap_group(app._group)
         self._group.add_command(wrapped, name=alias)
 
     def run(self, args: list[str] | None = None) -> Any:
-        """Invoke the CLI application."""
+        """Invoke the CLI."""
         self._group(prog_name=self._group.name, args=args)
 
     def __call__(self, args: list[str] | None = None) -> Any:
@@ -248,5 +257,5 @@ class Sayer:
 
     @property
     def cli(self) -> click.Group:
-        """Access the underlying SayerGroup instance."""
+        """Access the underlying SayerGroup."""
         return self._group

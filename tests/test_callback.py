@@ -100,6 +100,7 @@ def test_callback_optional_option_defaults_to_none():
     client = SayerTestClient(app)
     result = client.invoke([])
 
+    print(result.output)
     assert result.exit_code == 0
     assert received["count"] is None
 

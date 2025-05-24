@@ -1,4 +1,5 @@
 import inspect
+import json
 from typing import (
     Annotated,
     Any,
@@ -83,7 +84,7 @@ class Sayer:
 
         def invoke_with_callbacks(ctx: click.Context) -> Any:
             # If there's a subcommand *and* invoke_without_command=False, skip callbacks
-            if not group.invoke_without_command and ctx.invoked_subcommand:
+            if not group.invoke_without_command and getattr(ctx, "protected_args", []):
                 return original_invoke(ctx)
 
             # Otherwise, run every callback in registration order
@@ -96,13 +97,16 @@ class Sayer:
                     if ann is click.Context:
                         bound[name] = ctx
                     else:
-                        bound[name] = ctx.params.get(name)
+                        val = ctx.params.get(name)
+                        # If Annotated[..., JsonParam], parse JSON
+                        if get_origin(ann) is Annotated and any(isinstance(m, JsonParam) for m in get_args(ann)[1:]):
+                            val = json.loads(val)
+                        bound[name] = val
                 cb(**bound)
 
             return original_invoke(ctx)
 
         group.invoke = invoke_with_callbacks  # type: ignore
-
         self._group = group
 
     def _apply_param_logic(self, fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -169,7 +173,9 @@ class Sayer:
 
             # 3) Copy *all* of the Click parameters we built onto the group
             for p in getattr(stamped, "__click_params__", []):
-                # Insert at front so they appear before subcommands
+                # Normalize Ellipsis → None so Click enforces 'required' correctly
+                if getattr(p, "default", None) is Ellipsis:
+                    p.default = None
                 self._group.params.append(p)
 
             # 4) Remember it for the pre‐invoke hook
@@ -196,60 +202,45 @@ class Sayer:
 
     def add_app(self, alias: str, app: "Sayer") -> None:
         """
-        Nest another Sayer app under this as a sub-group. This is just an alias
-        to add_sayer() for clarity.
+        Nest another Sayer app under this as a sub-group.
         """
         self.add_sayer(alias, app)
 
     def add_sayer(self, alias: str, app: "Sayer") -> None:
         """
-        Mount another Sayer under this one, automatically rewrapping
-        *all* of its commands (and nested groups) through RichCommand
-        + our main Group class so help always renders with Rich.
+        Mount another Sayer under this one.
         """
 
         def rewrap_group(orig_group: click.Group) -> click.Group:
-            # 1) force it to use *our* Group class
-            WrappedGroup = type(self._group)  # e.g. RichGroup or DirectiveGroup
+            WrappedGroup = type(self._group)
             new_grp = WrappedGroup(
                 name=orig_group.name,
                 help=orig_group.help,
                 epilog=getattr(orig_group, "epilog", None),
                 context_settings=self._group.context_settings.copy(),
             )
-            # carry over the same ctx.class + command_class
             new_grp.context_class = self._group.context_class
             new_grp.command_class = self._group.command_class
 
-            # 2) rip out every original sub‐entry
-            items = list(orig_group.commands.items())
-            for name, cmd in items:
-                # if it’s a subgroup, recurse
+            for name, cmd in list(orig_group.commands.items()):
                 if isinstance(cmd, click.Group):
-                    # rewrap its entire subtree
                     wrapped_sub = rewrap_group(cmd)
                     new_grp.add_command(wrapped_sub, name=name)
                 else:
-                    # rebuild this command as a RichCommand
                     wrapped_cmd = SayerCommand(
                         name=cmd.name,
                         callback=cmd.callback,
                         params=cmd.params,
                         help=cmd.help,
-                        # you can pass epilog=cmd.epilog if you have it
                     )
                     new_grp.add_command(wrapped_cmd, name=name)
-
             return new_grp
 
-        # now mount:
         wrapped = rewrap_group(app._group)
         self._group.add_command(wrapped, name=alias)
 
-    def run(self, args: list[str] | None = None) -> Any:  # click.Group returns Any
-        """
-        Invoke the CLI application.
-        """
+    def run(self, args: list[str] | None = None) -> Any:
+        """Invoke the CLI application."""
         self._group(prog_name=self._group.name, args=args)
 
     def __call__(self, args: list[str] | None = None) -> Any:
@@ -257,7 +248,5 @@ class Sayer:
 
     @property
     def cli(self) -> click.Group:
-        """
-        Access the underlying SayerGroup instance.
-        """
+        """Access the underlying SayerGroup instance."""
         return self._group

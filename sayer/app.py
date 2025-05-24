@@ -13,7 +13,7 @@ from typing import (
 import click
 
 from sayer.core.commands import SayerCommand
-from sayer.core.engine import _build_click_parameter
+from sayer.core.engine import _build_click_parameter  # noqa
 from sayer.core.groups import SayerGroup
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State
@@ -25,6 +25,7 @@ class Sayer:
     """
     A Sayer application object that wraps a SayerGroup and ensures all
     commands use SayerCommand for help rendering.
+    Supports multiple callbacks executed before any command or subcommand.
     """
 
     def __init__(
@@ -39,98 +40,108 @@ class Sayer:
         command_class: type[click.Command] = SayerCommand,
         context: Any = None,
         context_class: type[click.Context] = click.Context,
+        invoke_without_command: bool = False,
+        no_args_is_help: bool = False,
         **group_attrs: Any,
-    ) -> None:
+    ):
         self._initial_obj = context
         self._context_class = context_class
 
-        # build up the kwargs for our group
+        # ←—— where we’ll store ALL callbacks, in reg‐order
+        self._callbacks: list[Callable[..., Any]] = []
+
+        # Build up the kwargs for our Group
         attrs: dict[str, Any] = {}
         if help is not None:
             attrs["help"] = help
         if epilog is not None:
             attrs["epilog"] = epilog
 
-        # click expects a dict called "context_settings"
         ctx_settings = context_settings.copy() if context_settings else {}
         if context is not None:
             ctx_settings["obj"] = context
-
-        # tell Click which Context *class* to instantiate
         attrs["context_settings"] = ctx_settings
 
-        # any other group attrs (like invoke_without_command, etc.)
+        # Respect init‐time flags (you can also override per‐callback)
+        attrs["invoke_without_command"] = invoke_without_command
+        attrs["no_args_is_help"] = no_args_is_help
         attrs.update(group_attrs)
 
-        # now build our RichGroup and wire up our RichCommand class
+        # Instantiate the Group
         group = group_class(name=name, **attrs)
         group.context_class = context_class
         group.command_class = command_class
 
-        # version flag if you asked for it
+        # Add version option if requested
         if add_version_option:
             if not version:
                 raise ValueError("`version` must be provided with `add_version_option=True`")
             group = click.version_option(version, "--version", "-V")(group)
 
+        # Wrap the Group.invoke so we can fire callbacks first
+        original_invoke = group.invoke
+
+        def invoke_with_callbacks(ctx: click.Context) -> Any:
+            # If there's a subcommand *and* invoke_without_command=False, skip callbacks
+            if not group.invoke_without_command and ctx.invoked_subcommand:
+                return original_invoke(ctx)
+
+            # Otherwise, run every callback in registration order
+            for cb in self._callbacks:
+                sig = inspect.signature(cb)
+                hints = get_type_hints(cb, include_extras=True)
+                bound: dict[str, Any] = {}
+                for name, param in sig.parameters.items():
+                    ann = hints.get(name, param.annotation)
+                    if ann is click.Context:
+                        bound[name] = ctx
+                    else:
+                        bound[name] = ctx.params.get(name)
+                cb(**bound)
+
+            return original_invoke(ctx)
+
+        group.invoke = invoke_with_callbacks  # type: ignore
+
         self._group = group
 
     def _apply_param_logic(self, fn: Callable[..., Any]) -> Callable[..., Any]:
         """
-        Apply Sayer’s full Option/Argument/Env/Param/JsonParam logic to `fn`
-        by resolving any forward‐ref/string annotations and then wrapping it
-        in Click parameter decorators exactly as @app.command does.
+        Stamp a function (command *or* callback) with ALL of your Annotated[…]
+        metadata by calling into the same _build_click_parameter logic
+        that @app.command uses.
         """
         sig = inspect.signature(fn)
         hints = get_type_hints(fn, include_extras=True)
-
-        decorated_fn = fn
+        wrapped = fn
         ctx_injected = any(hints.get(p.name, p.annotation) is click.Context for p in sig.parameters.values())
 
-        # Iterate in reverse so parameters nest correctly
         for param in reversed(sig.parameters.values()):
-            # Pull the resolved annotation (or fall back to the raw one)
             ann = hints.get(param.name, param.annotation)
-
-            # Skip click.Context and State injections
+            # Skip ctx or State injections
             if ann is click.Context or (isinstance(ann, type) and issubclass(ann, State)):
                 continue
 
-            # 1) Figure out the “raw” annotation (or default to str)
-            raw_annotation = ann if ann is not inspect._empty else str
+            raw = ann if ann is not inspect._empty else str
+            param_type = get_args(raw)[0] if get_origin(raw) is Annotated else raw
 
-            # 2) Unwrap Annotated[T, …] → T
-            if get_origin(raw_annotation) is Annotated:
-                param_type = get_args(raw_annotation)[0]
-            else:
-                param_type = raw_annotation
-
-            # 3) Extract any Option/Argument/etc metadata + help text
+            # Pull out any Option/Argument/etc metadata + help text
             meta = None
-            help_text = ""
-            if get_origin(raw_annotation) is Annotated:
-                for m in get_args(raw_annotation)[1:]:
+            help_txt = ""
+            if get_origin(raw) is Annotated:
+                for m in get_args(raw)[1:]:
                     if isinstance(m, (Option, Argument, Env, Param, JsonParam)):
                         meta = m
                     elif isinstance(m, str):
-                        help_text = m
+                        help_txt = m
 
-            # 4) Fall back to default-based metadata, e.g. fn(x=Option(...))
+            # Fallback to default‐based metadata
             if meta is None and isinstance(param.default, (Option, Argument, Env, Param, JsonParam)):
                 meta = param.default
 
-            # 5) Call the engine’s builder with the **exact** signature it expects
-            decorated_fn = _build_click_parameter(
-                param,
-                raw_annotation,
-                param_type,
-                meta,
-                help_text,
-                decorated_fn,
-                ctx_injected,
-            )
+            wrapped = _build_click_parameter(param, raw, param_type, meta, help_txt, wrapped, ctx_injected)
 
-        return decorated_fn
+        return wrapped
 
     @overload
     def callback(self, f: T) -> T: ...
@@ -140,43 +151,32 @@ class Sayer:
 
     def callback(self, *args: Any, **kwargs: Any) -> Any:
         """
-        Register a root‐level callback with full Sayer-style params
-        (Option/Argument/Param) *and* allow Click’s invoke_without_command,
-        no_args_is_help, replace flags.
-
-        Usage:
-
-            @app.callback(invoke_without_command=True, no_args_is_help=True)
-            @click.option("--foo", help="…")
-            @click.pass_context
-            def main(ctx, foo: str):
-                …
+        Register a root‐level callback with full Sayer‐style params,
+        plus optional Click flags `invoke_without_command` and `no_args_is_help`.
         """
-        # Extract Click‐specific group flags
         invoke = kwargs.pop("invoke_without_command", None)
-        no_args_help = kwargs.pop("no_args_is_help", None)
-        replace = kwargs.pop("replace", False)
+        no_args = kwargs.pop("no_args_is_help", None)
 
         def decorator(fn: T) -> T:
-            # 1) apply Sayer’s parameter logic
+            # 1) Stamp it with Annotated[...Option/Argument/JsonParam] logic
             stamped = self._apply_param_logic(fn)
 
-            # 2) remember this for when we run
-            self._callback_fn = stamped
-
-            # 3) configure the group’s behavior
+            # 2) Apply any per‐callback flags
             if invoke is not None:
                 self._group.invoke_without_command = invoke
-            if no_args_help is not None:
-                self._group.no_args_is_help = no_args_help
+            if no_args is not None:
+                self._group.no_args_is_help = no_args
 
-            # 4) register as the group’s result_callback
-            self._group.result_callback(replace=replace)(stamped)
+            # 3) Copy *all* of the Click parameters we built onto the group
+            for p in getattr(stamped, "__click_params__", []):
+                # Insert at front so they appear before subcommands
+                self._group.params.append(p)
 
-            # 5) return the original function (so help/introspection still sees it)
+            # 4) Remember it for the pre‐invoke hook
+            self._callbacks.append(stamped)
             return fn
 
-        # allow both @app.callback and @app.callback(...)
+        # Support both @app.callback and @app.callback(...)
         if args and callable(args[0]) and not kwargs:
             return decorator(args[0])
         return decorator

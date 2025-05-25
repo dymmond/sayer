@@ -8,12 +8,10 @@ hide:
 ### Added
 
 - Pass custom context and context class into a Sayer app.
-- Callback integration for easy use.
 
 ### Fixed
 
 - Wrapping Sayer apps it was not adding the native SayerGroup.
-- SayerGroup and command split.
 
 ## 0.2.0
 

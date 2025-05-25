@@ -144,9 +144,8 @@ class Sayer:
                     else:
                         parameter_value = ctx.params.get(param_name)
                         # JSON parameters get parsed here
-                        is_json_param_annotated = (
-                            get_origin(annotation) is Annotated
-                            and any(isinstance(meta, JsonParam) for meta in get_args(annotation)[1:])
+                        is_json_param_annotated = get_origin(annotation) is Annotated and any(
+                            isinstance(meta, JsonParam) for meta in get_args(annotation)[1:]
                         )
                         is_json_param_default = isinstance(param_info.default, JsonParam)
 
@@ -178,8 +177,9 @@ class Sayer:
         type_hints = get_type_hints(target_function, include_extras=True)
         wrapped_function = target_function
         # Check if click.Context is injected, to pass to _build_click_parameter
-        context_param_injected = any(type_hints.get(p.name, p.annotation) is click.Context
-                                     for p in function_signature.parameters.values())
+        context_param_injected = any(
+            type_hints.get(p.name, p.annotation) is click.Context for p in function_signature.parameters.values()
+        )
 
         # Decorate in reverse order so the parameters nest correctly as per Click's design
         for param_obj in reversed(function_signature.parameters.values()):
@@ -222,12 +222,10 @@ class Sayer:
         return wrapped_function
 
     @overload
-    def callback(self, f: T) -> T:
-        ...
+    def callback(self, f: T) -> T: ...
 
     @overload
-    def callback(self, *args: Any, **kwargs: Any) -> Callable[[T], T]:
-        ...
+    def callback(self, *args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
     def callback(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -267,11 +265,15 @@ class Sayer:
                 if isinstance(param_config, click.Option):
                     # If a required option has an implicit default (Ellipsis or _empty),
                     # normalize it to None to ensure Click's MissingParameter logic triggers reliably.
-                    if param_config.required and (param_config.default is ... or param_config.default is _EMPTY_PARAMETER_SENTINEL):
+                    if param_config.required and (
+                        param_config.default is ... or param_config.default is _EMPTY_PARAMETER_SENTINEL
+                    ):
                         param_config.default = None
                     # If an optional option has an implicit default, normalize it to None
                     # so it correctly resolves to Python's None if not provided.
-                    elif (not param_config.required) and (param_config.default is ... or param_config.default is _EMPTY_PARAMETER_SENTINEL):
+                    elif (not param_config.required) and (
+                        param_config.default is ... or param_config.default is _EMPTY_PARAMETER_SENTINEL
+                    ):
                         param_config.default = None
 
                     # Fallback logic for inferring 'required' if it was somehow None.
@@ -280,7 +282,11 @@ class Sayer:
                     elif param_config.required is None:
                         # If a default value is explicitly provided (not None, Ellipsis, or _empty),
                         # it's considered optional. Otherwise, default to optional.
-                        if param_config.default is not None and param_config.default is not ... and param_config.default is not _EMPTY_PARAMETER_SENTINEL:
+                        if (
+                            param_config.default is not None
+                            and param_config.default is not ...
+                            and param_config.default is not _EMPTY_PARAMETER_SENTINEL
+                        ):
                             param_config.required = False
                         else:
                             param_config.required = False  # Defaulting to optional
@@ -298,12 +304,10 @@ class Sayer:
         return decorator
 
     @overload
-    def command(self, f: T) -> T:
-        ...
+    def command(self, f: T) -> T: ...
 
     @overload
-    def command(self, *args: Any, **kwargs: Any) -> Callable[[T], T]:
-        ...
+    def command(self, *args: Any, **kwargs: Any) -> Callable[[T], T]: ...
 
     def command(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -353,8 +357,8 @@ class Sayer:
             new_wrapped_group = WrappedGroupType(
                 name=original_group.name,
                 help=original_group.help,
-                epilog=getattr(original_group, "epilog", None), # Safely retrieve epilog
-                context_settings=self._group.context_settings.copy(), # Copy context settings
+                epilog=getattr(original_group, "epilog", None),  # Safely retrieve epilog
+                context_settings=self._group.context_settings.copy(),  # Copy context settings
             )
             new_wrapped_group.context_class = self._group.context_class
             new_wrapped_group.command_class = self._group.command_class

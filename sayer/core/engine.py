@@ -328,9 +328,21 @@ def _build_click_parameter(
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
     if isinstance(parameter_metadata, Argument):
-        return click.argument(
-            parameter_name, type=parameter_base_type, required=is_required, default=final_default_value
+        # build the argument decorator
+        wrapped = click.argument(
+            parameter_name,
+            type=parameter_base_type,
+            required=is_required,
+            default=final_default_value,
         )(click_wrapper_function)
+        # manually attach our help text onto the click.Argument
+        help_text = getattr(parameter_metadata, "help", "")
+
+        if hasattr(wrapped, "params"):
+            for param in wrapped.params:
+                if isinstance(param, click.Argument) and param.name == parameter_name:
+                    param.help = help_text
+        return wrapped
 
     if isinstance(parameter_metadata, Env):
         # For Env parameters, retrieve value from environment or use metadata default.

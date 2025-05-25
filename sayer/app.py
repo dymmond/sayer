@@ -362,6 +362,13 @@ class Sayer:
                 epilog=getattr(original_group, "epilog", None),  # Safely retrieve epilog
                 context_settings=self._group.context_settings.copy(),  # Copy context settings
             )
+
+            if new_wrapped_group.invoke_without_command:
+                new_wrapped_group.invoke_without_command = original_group.invoke_without_command
+
+            if new_wrapped_group.no_args_is_help:
+                new_wrapped_group.no_args_is_help = original_group.no_args_is_help
+
             new_wrapped_group.context_class = self._group.context_class
             new_wrapped_group.command_class = self._group.command_class
 

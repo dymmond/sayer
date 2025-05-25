@@ -334,7 +334,7 @@ def _build_click_parameter(
             type=parameter_base_type,
             required=is_required,
             default=final_default_value,
-            **parameter_metadata.options
+            **parameter_metadata.options,
         )(click_wrapper_function)
         # manually attach our help text onto the click.Argument
         help_text = getattr(parameter_metadata, "help", "")
@@ -356,7 +356,7 @@ def _build_click_parameter(
             show_default=True,
             required=parameter_metadata.required,
             help=f"[env:{parameter_metadata.envvar}] {effective_help_text}",
-            **parameter_metadata.options
+            **parameter_metadata.options,
         )(click_wrapper_function)
 
     if isinstance(parameter_metadata, Option):
@@ -378,7 +378,7 @@ def _build_click_parameter(
             hide_input=parameter_metadata.hide_input,
             callback=parameter_metadata.callback,
             envvar=parameter_metadata.envvar,
-            **parameter_metadata.options
+            **parameter_metadata.options,
         )(click_wrapper_function)
 
     # --- General fallback logic ---

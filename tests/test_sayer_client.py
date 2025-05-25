@@ -62,3 +62,16 @@ def test_sayer_client_command_docs_help():
 
     # test description
     assert "Generate Markdown documentation for all Sayer commands and groups." in out
+
+
+def test_sayer_client_command_docs_generate_options_display():
+    client = SayerTestClient(app)
+    result = client.invoke(["docs", "generate", "--help"])
+
+    assert result.exit_code == 0, result.output
+
+    out = result.output
+
+    # test name
+    assert "--output/-o" in out
+    assert "--force/-f" in out

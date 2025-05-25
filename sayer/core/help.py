@@ -86,7 +86,7 @@ def render_help_for_command(ctx: click.Context) -> None:
             else:
                 default_str = str(real_default)
 
-            label = f"--{param.name}" if isinstance(param, click.Option) else f"<{param.name}>"
+            label = "/".join(param.opts) if isinstance(param, click.Option) else f"<{param.name}>"
             help_text = getattr(param, "help", "") or ""
             param_table.add_row(label, typestr, required, default_str, help_text)
 

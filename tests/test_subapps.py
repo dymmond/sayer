@@ -1,4 +1,3 @@
-# tests/test_subapps.py
 import click
 import pytest
 

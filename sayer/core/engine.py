@@ -360,12 +360,12 @@ def _build_click_parameter(
     if isinstance(parameter_metadata, Option):
         # figure out default
         option_default = None if getattr(parameter_metadata, "default_factory", None) else final_default_value
-
         # if it's not required and default is None, we want Click to skip parsing
         # entirely and just hand us None, so we *don't* accidentally interpret
         # the option name as its own value.
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
+            *parameter_metadata.param_decls,
             type=None if is_boolean_flag else parameter_base_type,
             is_flag=is_boolean_flag,
             default=option_default,

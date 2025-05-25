@@ -6,7 +6,7 @@ import click
 
 from sayer.core.engine import group
 from sayer.params import Option
-from sayer.utils.ui import success
+from sayer.utils.ui import error, success
 
 # Create the 'docs' subgroup
 docs = group(
@@ -83,9 +83,19 @@ def generate(
     output: Annotated[
         Path,
         Option(
-            default=Path("docs"),
+            Path("docs"),
+            "-o",
             show_default=True,
             help="Output directory for generated Markdown docs",
+        ),
+    ],
+    force: Annotated[
+        bool,
+        Option(
+            False,
+            "-f",
+            show_default=True,
+            help="Forces the override of an existing folder",
         ),
     ],
 ) -> None:
@@ -96,6 +106,11 @@ def generate(
 
     # Ensure output directory
     output = output.expanduser()
+
+    if output.exists() and not force:
+        error(f"Output directory '{output}' already exists. Use `--force` to overwrite.")
+        return
+
     commands_dir = output / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
 

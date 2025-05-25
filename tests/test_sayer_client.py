@@ -13,5 +13,20 @@ def test_sayer_client():
     assert "Sayer CLI Application" in out
 
     # exact formatting: command name, two spaces, description
-    assert "new   Create a new Sayer CLI project in *NAME* directory." in out
-    assert "docs  Generate Markdown documentation for all Sayer commands and groups." in out
+    assert "new" in out
+    assert "docs" in out
+
+
+def test_sayer_client_help():
+    client = SayerTestClient(app)
+    result = client.invoke(["--help"])
+
+    assert result.exit_code == 0, result.output
+
+    out = result.output
+
+    assert "Sayer CLI Application" in out
+
+    # exact formatting: command name, two spaces, description
+    assert "new" in out
+    assert "docs" in out

@@ -12,7 +12,7 @@ class Option:
     def __init__(
         self,
         default: Any = ...,
-        *,
+        *param_decls: str,
         help: str | None = None,
         envvar: str | None = None,
         prompt: bool | str = False,
@@ -46,6 +46,7 @@ class Option:
         self.confirmation_prompt = confirmation_prompt
         self.hide_input = hide_input
         self.show_default = show_default
+        self.param_decls = param_decls
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -138,7 +139,7 @@ class Param:
     def __init__(
         self,
         default: Any = ...,
-        *,
+        *param_decls: str,
         help: str | None = None,
         envvar: str | None = None,
         prompt: bool | str = False,
@@ -172,6 +173,7 @@ class Param:
         self.confirmation_prompt = confirmation_prompt
         self.hide_input = hide_input
         self.show_default = show_default
+        self.param_decls = param_decls
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -192,6 +194,7 @@ class Param:
         """
         return Option(
             default=self.default,
+            *self.param_decls,
             help=self.help,
             envvar=self.envvar,
             prompt=self.prompt,

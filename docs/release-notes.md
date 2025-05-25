@@ -10,6 +10,7 @@ hide:
 - Pass custom context and context class into a Sayer app.
 - Callback integration for easy use.
 - Invoke without command on a Sayer level.
+- Parameter declarations for Option and display
 
 ### Fixed
 

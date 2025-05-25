@@ -84,8 +84,8 @@ class Sayer:
 
         def invoke_with_callbacks(ctx: click.Context) -> Any:
             # 1) if there's a subcommand AND invoke_without_command=False, skip callbacks
-            #    (use ctx.protected_args so we're compatible with Click 8 & 9)
-            if not self._group.invoke_without_command and ctx.invoked_subcommand:
+            #    (use ctx.invoked_subcommand to accurately check for subcommand presence)
+            if not self._group.invoke_without_command and ctx.invoked_subcommand is None:
                 return original_invoke(ctx)
 
             # 2) enforce any required callback options up front

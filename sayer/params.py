@@ -22,6 +22,7 @@ class Option:
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
+        **options: Any,
     ):
         """
         Initializes a new Option instance.
@@ -54,6 +55,7 @@ class Option:
 
         self.callback = callback
         self.default_factory = default_factory
+        self.options = options if options is not None else {}
 
 
 class Argument:
@@ -71,6 +73,7 @@ class Argument:
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
+        **options: Any,
     ):
         """
         Initializes a new Argument instance.
@@ -91,6 +94,7 @@ class Argument:
 
         self.callback = callback
         self.default_factory = default_factory
+        self.options = options if options is not None else {}
 
 
 class Env:
@@ -106,6 +110,7 @@ class Env:
         default: Any = ...,
         required: Optional[bool] = None,
         default_factory: Callable[[], Any] | None = None,
+        **options: Any,
     ):
         """
         Initializes a new Env instance.
@@ -126,6 +131,7 @@ class Env:
         self.required = required if required is not None else not (has_static or has_factory)
 
         self.default_factory = default_factory
+        self.options = options if options is not None else {}
 
 
 class Param:
@@ -149,6 +155,7 @@ class Param:
         required: bool | None = None,
         callback: Callable[[Any], Any] | None = None,
         default_factory: Callable[[], Any] | None = None,
+        **options: Any,
     ):
         """
         Initializes a new Param instance.
@@ -181,6 +188,7 @@ class Param:
 
         self.callback = callback
         self.default_factory = default_factory
+        self.options = options if options is not None else {}
 
     def as_option(self) -> "Option":
         """
@@ -204,6 +212,7 @@ class Param:
             required=self.required,
             callback=self.callback,
             default_factory=self.default_factory,
+            options=self.options,
         )
 
 

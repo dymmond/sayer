@@ -91,8 +91,12 @@ class Sayer:
         group_initialization_attributes["context_settings"] = resolved_context_settings
 
         # Apply init-time flags; these can be overridden per-callback later
-        group_initialization_attributes["invoke_without_command"] = invoke_without_command
-        group_initialization_attributes["no_args_is_help"] = no_args_is_help
+        if invoke_without_command:
+            group_initialization_attributes["invoke_without_command"] = invoke_without_command
+
+        if no_args_is_help:
+            group_initialization_attributes["no_args_is_help"] = no_args_is_help
+
         group_initialization_attributes.update(group_attrs)
 
         # Instantiate the Click group
@@ -125,9 +129,7 @@ class Sayer:
                 for parameter_object in getattr(callback_handler, "__click_params__", []):
                     # The print statements are retained to match original behavior,
                     # though they are unusual for production code.
-                    print("param_obj: ", parameter_object.name)
                     if isinstance(parameter_object, click.Option) and parameter_object.required:
-                        print("HERE: ", parameter_object.name)
                         if ctx.params.get(parameter_object.name) is None:
                             # Raise the same MissingParameter Click would
                             raise click.MissingParameter(parameter_object, ctx)  # type: ignore

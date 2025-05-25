@@ -9,11 +9,13 @@ hide:
 
 - Pass custom context and context class into a Sayer app.
 - Callback integration for easy use.
+- Invoke without command on a Sayer level.
 
 ### Fixed
 
 - Wrapping Sayer apps it was not adding the native SayerGroup.
 - SayerGroup and command split.
+- Display of help messages was not properly tested.
 
 ## 0.2.0
 

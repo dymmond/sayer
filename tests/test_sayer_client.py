@@ -33,6 +33,7 @@ def test_sayer_client_help():
     assert "new" in out
     assert "docs" in out
 
+
 def test_sayer_client_command_new_help():
     client = SayerTestClient(app)
     result = client.invoke(["new", "--help"])
@@ -46,6 +47,7 @@ def test_sayer_client_command_new_help():
 
     # test description
     assert "The name given for the new cli project" in out
+
 
 def test_sayer_client_command_docs_help():
     client = SayerTestClient(app)

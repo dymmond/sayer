@@ -120,7 +120,7 @@ class Sayer:
             """
             # If there's a subcommand AND invoke_without_command is False, skip root callbacks
             # ctx.invoked_subcommand accurately checks for subcommand presence
-            if not self._group.invoke_without_command and ctx.invoked_subcommand is None:
+            if not cli_group.invoke_without_command and ctx.invoked_subcommand is None:
                 return original_group_invoke(ctx)
 
             # Enforce any required callback options upfront
@@ -363,14 +363,42 @@ class Sayer:
                 context_settings=self._group.context_settings.copy(),  # Copy context settings
             )
 
-            if new_wrapped_group.invoke_without_command:
-                new_wrapped_group.invoke_without_command = original_group.invoke_without_command
-
-            if new_wrapped_group.no_args_is_help:
-                new_wrapped_group.no_args_is_help = original_group.no_args_is_help
-
+            new_wrapped_group.invoke_without_command = original_group.invoke_without_command
+            new_wrapped_group.no_args_is_help = original_group.no_args_is_help
             new_wrapped_group.context_class = self._group.context_class
             new_wrapped_group.command_class = self._group.command_class
+
+            original = new_wrapped_group.invoke
+
+            def invoke_with_callbacks(ctx: click.Context) -> Any:
+                # skip if it has its own subcommand
+                if not new_wrapped_group.invoke_without_command and ctx.invoked_subcommand:
+                    return original(ctx)
+
+                # enforce missing‐required for sub-app callbacks
+                for callback in app._callbacks:
+                    for param in getattr(callback, "__click_params__", []):
+                        if isinstance(param, click.Option) and param.required and ctx.params.get(param.name) is None:
+                            raise click.MissingParameter(param, ctx)  # type: ignore
+
+                # run sub-app callbacks
+                for callback in app._callbacks:
+                    sig = inspect.signature(callback)
+                    hints = get_type_hints(callback, include_extras=True)
+
+                    bound: dict[str, Any] = {}
+
+                    for name, param in sig.parameters.items():
+                        ann = hints.get(name, param.annotation)
+                        if ann is click.Context:
+                            bound[name] = ctx
+                        else:
+                            bound[name] = ctx.params.get(name)
+                    callback(**bound)
+
+                return original(ctx)
+
+            new_wrapped_group.invoke = invoke_with_callbacks  # type: ignore
 
             # Iterate through commands and recursively re-wrap them
             for command_name, command_object in list(original_group.commands.items()):

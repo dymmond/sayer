@@ -114,6 +114,82 @@ from sayer.utils.loader import load_commands_from
 load_commands_from("myapp.commands")
 ```
 
+### The decorator `@command`
+
+## sayer `@command` decorator enhancements
+
+Recent updates allow you to specify the command name both as a positional string argument *or* via the `name=` keyword, without interfering with signature
+introspection and type inference.
+
+### Usage Patterns
+
+| Style                                   | Resulting CLI name        | Behavior                               |
+| --------------------------------------- | ------------------------- | -------------------------------------- |
+| `@command`                              | `func-name` → `func-name` | Defaults to function name, snake→kebab |
+| `@command("custom-name")`               | `custom-name`             | Positional override                    |
+| `@command(name="custom-name")`          | `custom-name`             | Keyword override                       |
+| `@command(hidden=True, short_help="…")` | `func-name`, hidden       | Passes any Click attrs through         |
+
+```python
+from sayer.core.engine import command
+
+# default: snake_case name → kebab-case
+@command
+def show_ctx_simple(ctx: click.Context):
+    """Show context"""
+    click.echo(ctx)
+
+# positional name override
+@command("list-things", help="List all things")
+def list_things():
+    ...
+
+# keyword name + extra Click attrs
+@command(name="push", hidden=True)
+def do_push():
+    """Push changes"""
+    ...
+```
+
+Behind the scenes, `command()` now:
+
+1. Peels off a first-positional `str` as the `name` override.
+2. Falls back to `name=func.__name__.replace('_', '-')` if no override.
+3. Pops `help=` from attrs or uses `func.__doc__`.
+4. Forwards **all** other `**attrs` (e.g. `hidden`, `short_help`) into `@click.command(...)`.
+5. Still inspects the **real** function to build parameters via `inspect.signature`.
+
+---
+
+## `Sayer.add_command` improvements
+
+When mounting sub-apps or groups, the behavior now distinguishes three cases:
+
+1. **`Sayer` instance**: Automatically unwraps and mounts its internal `SayerGroup`.
+2. **`click.Group` (or `SayerGroup`)**: Mounted *as-is*, preserving nested subcommands and rich help.
+3. **Leaf commands**: Any other `click.Command` is wrapped in `SayerCommand` to render rich help.
+
+```python
+from sayer import Sayer
+import click
+
+root = Sayer(name="root")
+sub  = Sayer(name="sub")
+
+@sub.command("run")
+def run():
+    """Run something"""
+    pass
+
+# mounts the sub-app under 'sub'
+root.add_command(sub)
+```
+
+* `root sub --help` now shows `run` under `sub`.
+* `root run` remains a rich `SayerCommand`.
+
+This ensures that nested apps retain their full group behavior and rich help formatting.
+
 ## Comprehensive Best Practices
 
 * ✅ Use clear docstrings and parameter annotations for help output.

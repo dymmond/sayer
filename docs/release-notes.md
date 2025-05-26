@@ -7,13 +7,22 @@ hide:
 
 ### Added
 
-- New `add_command` method to `Sayer` for adding commands dynamically.
+- **Positional & Keyword Naming**: `@command` now accepts a first-positional string or name= kwarg to override CLI names without affecting signature introspection.
+- **Kebab-case Defaults**: Functions named in snake_case are automatically converted to kebab-case CLI commands by default.
+- **Click Attr Forwarding**: All extra Click attributes (hidden, short_help, short_help, etc.) passed to @command are forwarded directly into @click.command(...).
+- **Enhanced add_command**: `Sayer.add_command` now distinguishes between Sayer instances (unwrap → SayerGroup), any click.Group (mounted as-is),
+and leaf commands (wrapped in SayerCommand).
 
 ### Fixed
 
 - When using `from __future__ import annotations` this was not parsing the annotations correctly.
 - Union types were not being parsed correctly.
 - Argument conflicts were not being handled properly.
+- **Nested Sub-app Support**: Sub-apps maintain their nested commands and rich help panels when mounted under a root app.
+
+### Changed
+
+- **Error Handling**: Eliminated AttributeError when using string-based names in @command.
 
 ## 0.2.1
 

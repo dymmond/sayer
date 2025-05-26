@@ -43,7 +43,6 @@ def test_mount_and_invoke_subapp_command(main_app: Sayer, sub_app: Sayer):
 
     # --help on root should list 'sub' and 'hello'
     res = client.invoke(["--help"])
-
     assert res.exit_code == 0
 
     assert "hello" in res.output

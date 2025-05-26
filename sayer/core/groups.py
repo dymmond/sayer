@@ -46,10 +46,20 @@ class SayerGroup(click.Group):
         from sayer.core.engine import command  # Lazily import to avoid circular dependencies
 
         def decorator(func: T) -> T:
-            # Attach the current SayerGroup instance to the function for later access.
+            # If the user wrote @sayer.command("foo", help="…"),
+            # then args[0] is the name and func is really the function.
+            name_from_pos = args[0] if args and isinstance(args[0], str) else None
+
             func.__sayer_group__ = self
-            # Delegate to the Sayer command function for custom command creation.
-            return cast(T, command(func, **kwargs))
+            # Pass along both forms of name, plus any other attrs.
+            return cast(
+                T,
+                command(
+                    func,
+                    name=name_from_pos,
+                    **kwargs,
+                ),
+            )
 
         return decorator
 

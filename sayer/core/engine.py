@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+import types
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -11,9 +12,11 @@ from typing import (
     Callable,
     Sequence,
     TypeVar,
+    Union,
     cast,
     get_args,
     get_origin,
+    get_type_hints,
     overload,
 )
 from uuid import UUID
@@ -216,6 +219,14 @@ def _build_click_parameter(
         argument or option.
     """
     parameter_name = parameter.name
+    origin = get_origin(parameter_base_type)
+    if origin in (Union, types.UnionType):
+        args = get_args(parameter_base_type)
+        non_none = [t for t in args if t is not type(None)]
+        if len(non_none) == 1:
+            # If the parameter is a Union with only one non-None type, use that type.
+            parameter_base_type = non_none[0]
+
     is_boolean_flag = parameter_base_type is bool
     has_default_value = parameter.default is not inspect._empty
     resolved_default_value = parameter.default if has_default_value else None
@@ -504,6 +515,8 @@ def command(
         command_name = function_to_decorate.__name__.replace("_", "-")
         # Inspect the function's signature to get parameter information.
         function_signature = inspect.signature(function_to_decorate)
+        # Get type hints for the function parameters, resolving any `Annotated` types.
+        type_hints = get_type_hints(function_to_decorate, include_extras=True)
         # Extract help text for the command from various sources.
         command_help_text = _extract_command_help_text(function_signature, function_to_decorate)
         # Resolve before and after middleware hooks.
@@ -642,8 +655,9 @@ def command(
                 continue
 
             # Determine the raw annotation and the primary parameter type.
-            raw_annotation_for_param = (
-                param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str
+            raw_annotation_for_param = type_hints.get(
+                param_inspect_obj.name,
+                param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str,
             )
             param_base_type = (
                 get_args(raw_annotation_for_param)[0]

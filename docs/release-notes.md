@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.2.2
+
+### Fixed
+
+- When using `from __future__ import annotations` this was not parsing the annotations correctly.
+
 ## 0.2.1
 
 ### Added

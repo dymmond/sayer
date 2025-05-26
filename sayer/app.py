@@ -386,17 +386,23 @@ class Sayer:
                   uses cmd.name (or sub-app’s own name).
         """
         # If they passed in a Sayer instance, pull out its internal group:
+        # if they gave us a Group (SayerGroup or vanilla), add it as a group
+        if isinstance(cmd, click.Group):
+            self._group.add_command(cmd, name=name)
+            return
+
+        # if they gave us a nested Sayer, unwrap it
         if isinstance(cmd, Sayer):
             cmd = cmd._group
 
-        # Delegate to the underlying Click group:
-        command = SayerCommand(
+        # otherwise it’s a “leaf” command, so wrap in SayerCommand
+        wrapped = SayerCommand(
             name=cmd.name,
             callback=cmd.callback,
             params=cmd.params,
             help=cmd.help,
         )
-        self._group.add_command(command, name=name)
+        self._group.add_command(wrapped, name=name)
 
     def __call__(self, args: list[str] | None = None) -> Any:
         """

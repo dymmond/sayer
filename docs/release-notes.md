@@ -5,10 +5,15 @@ hide:
 
 ## 0.2.2
 
+### Added
+
+- New `add_command` method to `Sayer` for adding commands dynamically.
+
 ### Fixed
 
 - When using `from __future__ import annotations` this was not parsing the annotations correctly.
 - Union types were not being parsed correctly.
+- Argument conflicts were not being handled properly.
 
 ## 0.2.1
 

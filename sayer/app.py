@@ -210,7 +210,7 @@ class Sayer:
             parameter_help_text = ""
             if get_origin(raw_type_annotation) is Annotated:
                 for metadata_item in get_args(raw_type_annotation)[1:]:
-                    if isinstance(metadata_item, (Option, Argument, Env, Param, JsonParam)):
+                    if isinstance(metadata_item, (Option, Env, Param, Argument, JsonParam)):
                         parameter_metadata = metadata_item
                     elif isinstance(metadata_item, str):
                         parameter_help_text = metadata_item

@@ -1,184 +1,99 @@
 # Encoders
 
-Sayer provides a powerful **encoder system** that allows you to serialize and deserialize complex data structures from and into CLI arguments — automatically.
+This document provides an in-depth guide to Sayer's encoders system.
 
-This system is used behind the scenes when using features like:
+## Overview
 
-- `JsonParam(...)` for complex input objects
-- Annotated CLI parameters with structured types
-- Data validation using Pydantic, attrs, dataclasses, msgspec, or custom types
+Sayer’s encoders handle how data is serialized and deserialized within CLI commands, particularly for JSON and complex types.
 
----
+## Key Features of Sayer Encoders
 
-## 🧠 What Are Encoders?
+* **Automatic serialization and deserialization** using built-in encoders.
+* **Support for complex data types** including dataclasses, namedtuples, pydantic models, enums, paths, dates, and more.
+* **Custom encoder and molder registration** for user-defined types.
 
-Encoders are **plug-and-play serializers and deserializers** that Sayer uses to:
+## Understanding Encoders and Molders
 
-- Convert complex Python types → JSON-friendly dicts (serialization)
-- Convert JSON input from CLI → Python objects (molding/decoding)
+An encoder converts a Python object into a JSON-compatible representation. A molder (deserializer) converts JSON-compatible data back into Python objects.
 
-They follow a set of protocols:
-
-| Protocol           | Role                                      |
-|--------------------|-------------------------------------------|
-| `EncoderProtocol`  | Can this value be serialized?             |
-| `MoldingProtocol`  | Can this structure be parsed/deserialized?|
-
----
-
-## 🧩 Built-in Encoders
-
-Sayer includes encoders for:
-
-- **dataclasses**
-
-These are registered globally via `register_encoder(...)` and work out-of-the-box.
-
----
-
-## ✨ Example: Using `JsonParam`
+## Using Built-in Encoders
 
 ```python
-from dataclasses import dataclass
-from sayer.params import JsonParam
-from sayer import command
+from sayer.encoders import apply_structure, json_encode_default
+from typing import NamedTuple
+
+class User(NamedTuple):
+    name: str
+    age: int
+
+user = User("Alice", 30)
+json_data = json_encode_default(user)
+print(json_data)  # {'name': 'Alice', 'age': 30}
+
+restored_user = apply_structure(json_data, User)
+print(restored_user)  # User(name='Alice', age=30)
+```
+
+## Registering Custom Encoders
+
+```python
+from sayer.encoders import register_encoder
+
+class MyType:
+    def to_dict(self):
+        return {"value": 42}
+    @staticmethod
+    def from_dict(data):
+        return MyType()
+
+register_encoder(MyType)
+```
+
+## Using Encoders in Commands
+
+```python
+from sayer import Sayer, command, JsonParam
 from typing import Annotated
 
-@dataclass
-class Coordinates:
-    x: int
-    y: int
+app = Sayer()
 
-@command
-def print_coords(obj: Annotated[Coordinates, JsonParam()]):
-    print(obj.x, obj.y)
+@app.command()
+def handle(data: Annotated[dict, JsonParam()]):
+    print(data)
 ```
+
+Run:
 
 ```bash
-python app.py print-coords --obj '{"x": 1, "y": 2}'
-# Output: 1 2
+python main.py handle --data '{"key": "value"}'
 ```
 
-This works because Sayer detects the dataclass and uses its registered encoder to parse the JSON input.
+## Advanced Use Cases
 
----
+* Combine encoders with middleware to pre-process data.
+* Use encoders for validating complex nested structures.
+* Extend encoder support for custom types used in your app.
 
-## 🧬 Encoder Protocols (API)
+## Best Practices
 
-### `EncoderProtocol`
+* ✅ Use built-in encoders for common types.
+* ✅ Register custom encoders early in app setup.
+* ✅ Validate complex data during deserialization.
+* ❌ Avoid unnecessary overwrites of default encoders.
+* ❌ Ensure custom encoders are well-tested.
 
-```python
-class EncoderProtocol(Protocol):
-    def is_type(self, value: Any) -> bool:
-        ...
-    def serialize(self, value: Any) -> Any:
-        ...
+## Visual Diagram
+
+```mermaid
+graph TD
+  Encoder[Encoder] --> Json[JSON Serialization]
+  Molder[Molder] --> Python[Python Object]
+  Custom[Custom Encoder]
+  Json --> Molder
+  Custom --> Encoder
 ```
 
-### `MoldingProtocol`
+## API Reference
 
-```python
-class MoldingProtocol(Protocol):
-    def is_type_structure(self, target_type: Any) -> bool:
-        ...
-    def encode(self, structure: Any, data: Any) -> Any:
-        ...
-```
-
----
-
-## 🔧 Writing Your Own Encoder
-
-You can register custom types:
-
-```python
-from sayer.encoders import Encoder, register_encoder
-
-class CustomStruct:
-    def __init__(self, val: int):
-        self.val = val
-
-class CustomEncoder(Encoder):
-    __type__ = CustomStruct
-
-    def serialize(self, obj):
-        return {"val": obj.val}
-
-    def encode(self, structure, data):
-        return CustomStruct(**data)
-
-register_encoder(CustomEncoder())
-```
-
-You can also use the [settings](./settings.md) system to manage complex configurations and setup register your encoders.
-
----
-
-## 🔍 How Sayer Resolves Encoders
-
-1. Parameter uses `Annotated[MyType, JsonParam()]`
-2. Sayer inspects `MyType` and input value
-3. It matches against all registered encoders
-4. If `is_type()` and `is_type_structure()` succeed:
-
-   * Calls `encode()` to build object
-   * Passes object to command
-
-If no encoder matches, Sayer raises a descriptive error.
-
----
-
-## 🧪 Example from Tests
-
-```python
-@attrs.define
-class Item:
-    id: int
-    name: str
-
-@command
-def echo_item(obj: Annotated[Item, JsonParam()]):
-    print(obj.name)
-```
-
-```bash
-python app.py echo-item --obj '{"id": 123, "name": "Cool"}'
-# Output: Cool
-```
-
-Tested structures also include:
-
-* `@dataclass`
-* `attrs.define`
-* `pydantic.BaseModel`
-* `msgspec.Struct`
-
----
-
-## 🛠 Advanced Features
-
-* Encoders are **pluggable** — you can add support for any custom format
-* You can override existing encoders for advanced control
-* Serialization via `serialize()` is useful for logging or snapshotting
-
----
-
-## ⚠️ Notes and Limitations
-
-* Encoder matching is **based on type inspection**, not duck typing
-* You must use `Annotated[Type, JsonParam()]` for it to trigger
-* Encoders do **not** do CLI parsing; they only handle structure transformation
-
----
-
-## 🧰 Recap
-
-| Concept            | Description                                    |
-| ------------------ | ---------------------------------------------- |
-| EncoderProtocol    | Defines serialization behavior                 |
-| MoldingProtocol    | Defines deserialization behavior               |
-| `register_encoder` | Globally adds a new encoder                    |
-| `JsonParam()`      | Activates encoding for complex CLI params      |
-| Built-in support   | Works with dataclass, attrs, Pydantic, msgspec |
-
----
+* [Params](../api-reference/params.md)
+* [Encoders](../api-reference/encoders.md)

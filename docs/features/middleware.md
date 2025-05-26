@@ -1,142 +1,95 @@
 # Middleware
 
-Middleware in Sayer lets you hook into the execution lifecycle of commands using **named sets** or **global logic**.
+This document provides an in-depth guide to Sayer’s middleware system, complete with explanations, examples, and how-to usage.
 
-It’s a clean, scalable way to:
+## Overview
 
-* Run logic before or after a command
-* Inject validation, authentication, logging
-* Reuse behavior across multiple commands
+Middleware in Sayer allows you to insert logic before and after command execution. This can be used for:
 
-Unlike class-based web middleware, **Sayer uses named sets and function-based hooks**.
+* Logging and monitoring.
+* Input validation.
+* Context management.
+* Security and authentication.
 
----
+## Key Concepts
 
-## 🧩 Global Middleware
+* **Global Middleware**: Applies to all commands.
+* **Named Middleware Sets**: Reusable sets for specific commands.
+* **`before` Hooks**: Run before command execution.
+* **`after` Hooks**: Run after command execution.
+* Supports both sync and async functions.
 
-Global middleware affects **every command** — registered with:
+## Registering Global Middleware
 
 ```python
 from sayer.middleware import add_before_global, add_after_global
 
-add_before_global(lambda name, args: print("[GLOBAL BEFORE]", name, args))
-add_after_global(lambda name, args, result: print("[GLOBAL AFTER]", result))
+async def before_hook(ctx):
+    print(f"Before command: {ctx.command.name}")
+
+async def after_hook(ctx):
+    print(f"After command: {ctx.command.name}")
+
+add_before_global(before_hook)
+add_after_global(after_hook)
 ```
 
-Good for universal hooks like logging or telemetry.
-
----
-
-## 🔖 Named Middleware Sets
-
-Sayer lets you **register named sets of hooks**, and attach them to specific commands using the `@command()` decorator.
+## Creating and Registering Named Middleware
 
 ```python
 from sayer.middleware import register
-from sayer.core.engine import command
 
-# Register a middleware set called 'auth'
-def auth_check(name, args):
-    if args.get("user") != "admin":
-        raise Exception("Access denied")
+async def before_cmd(ctx):
+    print(f"Starting: {ctx.command.name}")
 
-register("auth", before=[auth_check])
+async def after_cmd(ctx):
+    print(f"Finished: {ctx.command.name}")
 
-@command(middleware=["auth"])
-def restricted(user: str):
-    print("Welcome admin")
+register("logger", before=[before_cmd], after=[after_cmd])
 ```
 
----
-
-## 🧠 How It Works
-
-When you define a command using `@command(...)`, Sayer collects:
-
-* The command name
-* The argument mapping
-* Any middleware names from `middleware=[...]`
-
-Then, when the command runs:
-
-1. Global before middleware runs (in order registered)
-2. All named middleware `before` hooks run
-3. The command function is invoked
-4. All named middleware `after` hooks run
-5. Global after middleware runs
-
-Each middleware hook receives:
-
-* `cmd_name: str`
-* `args: dict[str, Any]`
-* (and for after hooks) `result: Any`
-
----
-
-## ✅ Full Example
+Use it in a command:
 
 ```python
-from sayer.middleware import register, add_before_global, add_after_global
-from sayer.core.engine import command
-
-# Global hooks
-add_before_global(lambda name, args: print("[before]", name))
-add_after_global(lambda name, args, result: print("[after]", result))
-
-# Middleware set for safety checks
-def safety_check(name, args):
-    if not args.get("confirm"):
-        raise Exception("Must confirm deletion")
-
-register("safety", before=[safety_check])
-
-@command(middleware=["safety"])
-def delete(confirm: bool = False):
-    print("DELETED!")
+from sayer.middleware import resolve
+before_hooks, after_hooks = resolve("logger")
 ```
 
-```bash
-$ python app.py delete
-Exception: Must confirm deletion
-
-$ python app.py delete --confirm
-DELETED!
-```
-
----
-
-## 🧪 Middleware Testing
-
-You can test middleware like any other logic:
+## Combining with Commands
 
 ```python
-from sayer.core.engine import command, get_commands
-from sayer.middleware import register
-
-called = []
-
-register("trace", before=[lambda name, args: called.append(name)])
-
-@command(middleware=["trace"])
-def hello():
-    return "hi"
-
-assert get_commands()["hello"]() == "hi"
-assert called == ["hello"]
+@app.command(middleware=["logger"])
+def greet():
+    print("Hello!")
 ```
 
----
+## Advanced Techniques
 
-## 🧰 Recap
+* Combine middleware with encoders for pre-processing.
+* Use middleware for access control by checking context.
+* Chain multiple named middlewares.
+* Implement retry logic or performance logging.
 
-| Type              | Use                                     | Applies to          |
-| ----------------- | --------------------------------------- | ------------------- |
-| Global Middleware | `add_before_global`, `add_after_global` | All commands        |
-| Named Sets        | `register("name", before=...)`          | Attached by command |
-| Per Command       | `@command(middleware=[...])`            | Specific commands   |
+## Best Practices
 
-Sayer middleware is **simple, composable, and robust** — built for full CLI lifecycle control.
+* ✅ Use async middleware for I/O-bound tasks.
+* ✅ Keep middleware fast to avoid delaying CLI response.
+* ✅ Test middleware hooks independently.
+* ❌ Avoid long-running tasks inside middleware.
+* ❌ Don’t rely on global state within middleware.
 
-Next up: share data globally with **Application State**.
+## Visual Diagram
 
-👉 [Working with State](./state.md)
+```mermaid
+graph TD
+  Command[Command] --> Before[Before Hook]
+  Command --> After[After Hook]
+  Before --> CommandExec[Command Execution]
+  CommandExec --> After
+```
+
+## API Reference
+
+* [Engine](../api-reference/core/engine.md)
+* [Commands](./commands.md)
+* [Encoders](./encoders.md)

@@ -37,80 +37,118 @@ hide:
 
 ---
 
-# Motivation
+This comprehensive guide will help you set up and understand Sayer.
 
-Sayer is a **modern, async-native, parameter-rich Python CLI framework** designed for real-world usage.
-Whether you’re building a one-liner or a suite of enterprise commands, Sayer’s declarative, testable, and elegant approach to CLI building will help you ship faster and with less boilerplate.
+We’ll walk you through installation, project creation, and writing your first commands, all with explanations, examples, and common pitfalls.
 
----
+## Prerequisites
 
-## 🚀 Why Sayer?
+Before you begin, ensure you have:
 
-Sayer was built from the ground up with three things in mind:
+* Python 3.8 or higher installed.
+* A terminal/command prompt.
+* A basic understanding of Python and CLI concepts.
 
-* **Structure**: Make it easy to build large CLIs.
-* **Power**: Expose async support, middleware, state, metadata, and configuration.
-* **Simplicity**: Lower the barrier to entry while embracing modern Python.
+## Installation
 
-You can go from:
-
-```bash
-python mytool.py run --env production
-```
-
-To building complex pipelines, nested commands, and testable apps with shared state.
-
----
-
-## 📦 Installation
-
-You can install Sayer using either `pip` or the ultra-fast `uv`.
-
-### Using pip:
+Install Sayer using pip:
 
 ```bash
 pip install sayer
 ```
 
-### Using uv (recommended):
+If you encounter permission errors, try:
 
 ```bash
-uv pip install sayer
+pip install --user sayer
 ```
 
----
+Or use a virtual environment:
 
-## ✨ Quick Example
+```bash
+python -m venv env
+source env/bin/activate  # On Windows: env\Scripts\activate
+pip install sayer
+```
+
+## Creating a New CLI Project
+
+Sayer can scaffold a complete project structure with one command:
+
+```bash
+sayer new myapp
+```
+
+This creates the following structure:
+
+```
+myapp/
+├── main.py            # Entry point for your CLI
+├── commands/          # Directory for your custom commands
+│   └── __init__.py
+├── pyproject.toml     # Project metadata
+├── README.md
+└── .gitignore
+```
+
+**What to do:**
+
+* Edit `main.py` to define your commands.
+* Add new modules under `commands/` to organize functionality.
+
+**What NOT to do:**
+
+* Don’t modify `pyproject.toml` unless you understand Python packaging.
+* Avoid hardcoding absolute paths inside your CLI; use dynamic paths.
+
+## Writing Your First Command
+
+Open `main.py` and add a basic command:
 
 ```python
-from sayer import Sayer, Option
+from sayer import Sayer, command
 
 app = Sayer()
 
 @app.command()
-def hello(name: str = Option(..., help="Your name")):
-    """Say hello to someone."""
+def hello(name: str):
+    """Say hello to a user by name."""
     print(f"Hello, {name}!")
 
 if __name__ == "__main__":
     app()
 ```
 
-Run it with:
+Run it:
 
 ```bash
-python app.py hello --name Ada
+python main.py hello --name Alice
 ```
 
----
+Output:
 
-## 📚 Where to Next?
+```
+Hello, Alice!
+```
 
-* [Getting Started](./getting-started.md)
-* [Defining Commands](./features/commands.md)
-* [Using Parameters](./features/params.md)
-* [Adding Middleware](./features/middleware.md)
-* [Working with State](./features/state.md)
-* [Testing Your CLI](./features/testing.md)
+## Understanding the Code
 
-Dive in — the CLI magic awaits! 🧙
+* `Sayer()` creates the CLI app.
+* `@app.command()` decorates the `hello` function to expose it as a CLI command.
+* The `name` parameter is automatically parsed from `--name`.
+* `if __name__ == "__main__": app()` runs the CLI when the script is executed.
+
+## Best Practices
+
+* ✅ Use clear and concise help strings (docstrings) for commands.
+* ✅ Test your commands with various argument combinations.
+* ❌ Avoid complex logic inside commands; delegate to helper functions.
+* ❌ Don’t assume `name` will always be provided – consider adding defaults.
+
+## Next Steps
+
+* Explore [API Reference](./api-reference/sayer.md) for detailed module docs.
+* Learn about [Middleware](./features/middleware.md) for hooks and validation.
+* Add complex parameters and encoders for advanced use cases.
+
+With Sayer, you’re not just writing a CLI – you’re building a robust, maintainable, and user-friendly command-line application. Let’s get started!

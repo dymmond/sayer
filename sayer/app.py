@@ -372,6 +372,38 @@ class Sayer:
         # Call the underlying Click group's run method
         return self._group(prog_name=self._group.name, args=args)
 
+    def add_command(
+        self,
+        cmd: click.Command | Any,
+        name: str | None = None,
+    ) -> None:
+        """
+        Add a Click Command (or a whole Sayer sub-app) to this Sayer application.
+
+        Args:
+            cmd: Either a Click Command/Group, or another Sayer instance.
+            name: Optional name under which to register it; if omitted,
+                  uses cmd.name (or sub-app’s own name).
+        """
+        # If they passed in a Sayer instance, pull out its internal group:
+        if isinstance(cmd, Sayer):
+            cmd = cmd._group  # now cmd is a click.Group
+
+        # If it's a Group (vanilla or SayerGroup), mount it directly so it
+        # subcommands survive:
+        if isinstance(cmd, click.Group):
+            self._group.add_command(cmd, name=name)
+            return
+
+        # Otherwise it's a leaf command: wrap it in SayerCommand
+        wrapped = SayerCommand(
+            name=cmd.name,
+            callback=cmd.callback,
+            params=cmd.params,
+            help=cmd.help,
+        )
+        self._group.add_command(wrapped, name=name)
+
     def __call__(self, args: list[str] | None = None) -> Any:
         """
         Makes the Sayer instance callable, providing a convenient shorthand for `run()`.

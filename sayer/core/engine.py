@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+import types
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -11,9 +12,11 @@ from typing import (
     Callable,
     Sequence,
     TypeVar,
+    Union,
     cast,
     get_args,
     get_origin,
+    get_type_hints,
     overload,
 )
 from uuid import UUID
@@ -135,7 +138,7 @@ def _should_parameter_use_option_style(meta_param: Param, default_value: Any) ->
     )
 
 
-def _extract_command_help_text(signature: inspect.Signature, func: Callable) -> str:  #
+def _extract_command_help_text(signature: inspect.Signature, func: Callable, attrs: Any) -> str:  #
     """
     Extracts the comprehensive help text for a Click command from various
     sources, prioritized as follows:
@@ -152,7 +155,8 @@ def _extract_command_help_text(signature: inspect.Signature, func: Callable) -> 
         The extracted help text string, or an empty string if no help text
         is found.
     """
-    command_help_text = inspect.getdoc(func) or ""
+    attrs_help = attrs.pop("help", None)
+    command_help_text = attrs_help or inspect.getdoc(func) or ""
     if command_help_text:
         return command_help_text
 
@@ -216,6 +220,14 @@ def _build_click_parameter(
         argument or option.
     """
     parameter_name = parameter.name
+    origin = get_origin(parameter_base_type)
+    if origin in (Union, types.UnionType):
+        args = get_args(parameter_base_type)
+        non_none = [t for t in args if t is not type(None)]
+        if len(non_none) == 1:
+            # If the parameter is a Union with only one non-None type, use that type.
+            parameter_base_type = non_none[0]
+
     is_boolean_flag = parameter_base_type is bool
     has_default_value = parameter.default is not inspect._empty
     resolved_default_value = parameter.default if has_default_value else None
@@ -329,11 +341,22 @@ def _build_click_parameter(
     # Apply specific Click decorators based on the explicit metadata type.
 
     if isinstance(parameter_metadata, Argument):
+        parameter_type = parameter_metadata.options.pop("type", None) or parameter_base_type
+        parameter_metadata.options.update(
+            {
+                "default": final_default_value,
+                "required": is_required,
+            }
+        )
+
+        if "nargs" in parameter_metadata.options and parameter_metadata.options["nargs"] == -1:
+            # If nargs is -1, it means this is a variadic argument (accepts multiple values).
+            # Click will handle this as a tuple.
+            parameter_metadata.options.pop("default", None)
+
         wrapped = click.argument(
             parameter_name,
-            type=parameter_base_type,
-            required=is_required,
-            default=final_default_value,
+            type=parameter_type,
             **parameter_metadata.options,
         )(click_wrapper_function)
 
@@ -447,15 +470,17 @@ def command(func: F) -> click.Command: ...
 @overload
 def command(
     func: F | None = None,
-    *,
-    middleware: Sequence[str | Callable[..., Any]] = (),
+    *args: Any,
+    middleware: Sequence[str | Callable[..., Any]] | None = None,
+    **attrs: Any,
 ) -> click.Command | Callable[[F], click.Command]: ...
 
 
 def command(
     func: F | None = None,
-    *,
-    middleware: Sequence[str | Callable[..., Any]] = (),
+    *args: Any,
+    middleware: Sequence[str | Callable[..., Any]] | None = None,
+    **attrs: Any,
 ) -> click.Command | Callable[[F], click.Command]:
     """
     A powerful decorator that transforms a Python function into a Click command,
@@ -498,20 +523,35 @@ def command(
         If `func` is `None` (i.e., used with parentheses), returns a callable
         that takes the function as an argument and returns a `click.Command`.
     """
+    if middleware is None:
+        middleware = ()
+
+    name_from_pos: str | None = None
+    if args and isinstance(args[0], str):
+        name_from_pos, args = args[0], args[1:]
 
     def command_decorator(function_to_decorate: F) -> click.Command:
         # Convert function name to a kebab-case command name (e.g., "my_command" -> "my-command").
-        command_name = function_to_decorate.__name__.replace("_", "-")
+        default_name = function_to_decorate.__name__.replace("_", "-")
+        command_name = attrs.pop("name", name_from_pos) or default_name
         # Inspect the function's signature to get parameter information.
         function_signature = inspect.signature(function_to_decorate)
+        # Get type hints for the function parameters, resolving any `Annotated` types.
+        type_hints = get_type_hints(function_to_decorate, include_extras=True)
         # Extract help text for the command from various sources.
-        command_help_text = _extract_command_help_text(function_signature, function_to_decorate)
+        command_help_text = _extract_command_help_text(function_signature, function_to_decorate, attrs)
         # Resolve before and after middleware hooks.
         before_execution_hooks, after_execution_hooks = resolve_middleware(middleware)
         # Check if `click.Context` is explicitly injected into the function's parameters.
         is_context_param_injected = any(p.annotation is click.Context for p in function_signature.parameters.values())
 
-        @click.command(name=command_name, help=command_help_text)  # type: ignore
+        click_cmd_kwargs = {
+            "name": command_name,
+            "help": command_help_text,
+            **attrs,
+        }
+
+        @click.command(**click_cmd_kwargs)  # type: ignore
         @click.pass_context
         def click_command_wrapper(ctx: click.Context, **kwargs: Any) -> Any:
             """
@@ -629,7 +669,7 @@ def command(
 
             return execution_result
 
-        click_command_wrapper._original_func = function_to_decorate  # type: ignore
+        click_command_wrapper._original_func = function_to_decorate
         current_wrapper = click_command_wrapper
 
         # Attach parameters to the Click command.
@@ -642,8 +682,9 @@ def command(
                 continue
 
             # Determine the raw annotation and the primary parameter type.
-            raw_annotation_for_param = (
-                param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str
+            raw_annotation_for_param = type_hints.get(
+                param_inspect_obj.name,
+                param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str,
             )
             param_base_type = (
                 get_args(raw_annotation_for_param)[0]
@@ -667,7 +708,7 @@ def command(
                 param_metadata_for_build = param_inspect_obj.default
 
             # Build and apply the Click parameter decorator.
-            current_wrapper = _build_click_parameter(  # type: ignore
+            current_wrapper = _build_click_parameter(
                 param_inspect_obj,
                 raw_annotation_for_param,
                 param_base_type,
@@ -685,7 +726,7 @@ def command(
             # Otherwise, add it to the global command registry.
             COMMANDS[command_name] = current_wrapper
 
-        return current_wrapper
+        return cast(click.Command, current_wrapper)
 
     # If `func` is provided (i.e., `@command` without parentheses), apply the decorator immediately.
     # Otherwise, return the `command_decorator` function for later application (i.e., `@command(...)`).
@@ -786,7 +827,7 @@ def get_groups() -> dict[str, click.Group]:
     return _GROUPS
 
 
-def bind_command_to_group(group_instance: click.Group, function_to_bind: F) -> click.Command:
+def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *args: Any, **attrs: Any) -> click.Command:
     """
     Binds a function to a specific Click group using `sayer`'s command decorator.
 
@@ -802,10 +843,14 @@ def bind_command_to_group(group_instance: click.Group, function_to_bind: F) -> c
         A `click.Command` object, decorated by `sayer.command` and associated
         with the provided group.
     """
-    # Mark the function as belonging to the specified group.
-    function_to_bind.__sayer_group__ = group_instance  # type: ignore
-    # Apply the `sayer.command` decorator to the function.
-    return cast(click.Command, command(function_to_bind))
+
+    def decorator(fn: F) -> click.Command:
+        fn.__sayer_group__ = group_instance  # type: ignore
+        return cast(click.Command, command(fn, *args, **attrs))
+
+    if function_to_bind and callable(function_to_bind) and not args and not attrs:
+        return decorator(function_to_bind)
+    return cast(click.Command, decorator)
 
 
 # Monkey-patch Click so that all groups use Sayer’s binding logic:

@@ -143,7 +143,7 @@ def test_callback_positional_argument():
         received["filename"] = filename
 
     client = SayerTestClient(app)
-    result = client.invoke(["myfile.txt"])
+    result = client.invoke(["--filename", "myfile.txt"])
     assert result.exit_code == 0
     assert received["filename"] == "myfile.txt"
 

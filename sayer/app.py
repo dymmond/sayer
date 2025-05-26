@@ -301,6 +301,18 @@ class Sayer:
                         else:
                             param_config.required = False  # Defaulting to optional
 
+                if isinstance(param_config, click.Argument):
+                    flag_name = f"--{param_config.name.replace('_','-')}"
+                    param_config = click.Option(
+                        param_decls=[flag_name],
+                        type=param_config.type,
+                        default=param_config.default,
+                        required=False,
+                        help=getattr(param_config, "help", None),
+                        multiple=param_config.multiple,
+                        nargs=param_config.nargs,
+                        show_default=hasattr(param_config, "default"),
+                    )
                 # Insert the parameter at the beginning of the group's parameters list.
                 # This ensures callback parameters are processed before command-specific ones.
                 self._group.params.insert(0, param_config)

@@ -327,22 +327,21 @@ def _build_click_parameter(
 
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
+
     if isinstance(parameter_metadata, Argument):
-        # build the argument decorator
         wrapped = click.argument(
             parameter_name,
             type=parameter_base_type,
             required=is_required,
             default=final_default_value,
-            **parameter_metadata.options
+            **parameter_metadata.options,
         )(click_wrapper_function)
-        # manually attach our help text onto the click.Argument
-        help_text = getattr(parameter_metadata, "help", "")
 
-        if hasattr(wrapped, "params"):
-            for param in wrapped.params:
-                if isinstance(param, click.Argument) and param.name == parameter_name:
-                    param.help = help_text
+        # Now inject our help text into the click.Argument instance
+        help_text = getattr(parameter_metadata, "help", "")
+        for param_obj in getattr(wrapped, "__click_params__", []):
+            if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
+                param_obj.help = help_text
         return wrapped
 
     if isinstance(parameter_metadata, Env):
@@ -352,11 +351,11 @@ def _build_click_parameter(
             f"--{parameter_name.replace('_','-')}",
             type=parameter_base_type,
             # If default_factory exists, default is None for Click to handle factory.
-            default=None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value,
+            default=(None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
             show_default=True,
             required=parameter_metadata.required,
             help=f"[env:{parameter_metadata.envvar}] {effective_help_text}",
-            **parameter_metadata.options
+            **parameter_metadata.options,
         )(click_wrapper_function)
 
     if isinstance(parameter_metadata, Option):
@@ -378,7 +377,7 @@ def _build_click_parameter(
             hide_input=parameter_metadata.hide_input,
             callback=parameter_metadata.callback,
             envvar=parameter_metadata.envvar,
-            **parameter_metadata.options
+            **parameter_metadata.options,
         )(click_wrapper_function)
 
     # --- General fallback logic ---
@@ -411,7 +410,10 @@ def _build_click_parameter(
     if isinstance(parameter.default, Param):
         # `Param` as a default value means it's an optional argument with a default.
         return click.argument(
-            parameter_name, type=parameter_base_type, required=False, default=parameter.default.default
+            parameter_name,
+            type=parameter_base_type,
+            required=False,
+            default=parameter.default.default,
         )(click_wrapper_function)
 
     if parameter.default is None:

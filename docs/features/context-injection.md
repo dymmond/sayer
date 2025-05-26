@@ -8,7 +8,8 @@ This guide explains how context injection works in Sayer, what you can inject, a
 
 ## 🧩 What is Context Injection?
 
-Context injection is the mechanism by which Sayer **automatically provides certain objects to your command functions** — without you needing to pass them manually from the CLI.
+Context injection is the mechanism by which Sayer **automatically provides certain objects to your command functions** —
+without you needing to pass them manually from the CLI.
 
 It’s Sayer’s version of dependency injection: simple, automatic, and useful.
 

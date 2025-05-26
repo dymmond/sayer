@@ -22,6 +22,7 @@ def test_default_no_invoke_skips_callback_on_subcommand():
     client = SayerTestClient(app)
     result = client.invoke(["cmd"])
     assert result.exit_code == 0
+
     # With invoke_without_command=False, callbacks should NOT run for subcommands
     assert calls == ["cmd"]
 

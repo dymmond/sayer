@@ -1,225 +1,152 @@
 # Commands
 
-In Sayer, **commands are the heart of your CLI**. Every function you decorate with `@app.command()` or `@command()` becomes a runnable CLI command.
+This document provides an extensive, Django-style guide to Sayer’s command system. It offers detailed explanations, numerous examples, and actionable how-tos to help you fully leverage Sayer’s capabilities.
 
-This guide covers:
+## What is a Command?
 
-- Defining commands
-- Differences between `@app.command()` and `@command()`
-- Custom naming and ordering
-- Command grouping and nesting
-- Async support and state injection
-- Command registration and lifecycle
+A command is a Python function decorated with `@command`. Sayer automatically parses parameters using `Annotated` types and manages help, execution flow, and middleware.
 
----
+## Key Features of Sayer Commands
 
-## 🚀 Defining a Basic Command
+* Decorator-based registration (`@command`).
+* Parameter parsing with `Annotated` types (Option, Argument, Env, JsonParam).
+* Sync and async support.
+* Middleware integration (before/after hooks).
+* Rich help output with auto-generated parameter documentation.
+
+## Step-by-Step Guide
+
+### Defining Basic Commands
 
 ```python
-from sayer import Sayer
+from sayer import Sayer, command, Option
+from typing import Annotated
 
-app = Sayer()
+app = Sayer(help="My CLI App")
 
 @app.command()
-def greet():
-    print("Hello from Sayer!")
-
-if __name__ == "__main__":
-    app()
-````
+def greet(name: Annotated[str, Option()], shout: Annotated[bool, Option()] = False):
+    """Greet a user by name."""
+    message = f"Hello, {name}!"
+    if shout:
+        message = message.upper()
+    print(message)
+```
 
 Run:
 
 ```bash
-python app.py greet
+python main.py greet --name Alice --shout
 ```
 
----
+Output:
 
-## 🧠 `@app.command()` vs `@command()`
+```
+HELLO, ALICE!
+```
 
-Sayer provides **two decorators** for commands:
-
-| Decorator        | Usage Context              | Registers Automatically    |
-| ---------------- | -------------------------- | -------------------------- |
-| `@app.command()` | When using a `Sayer()` app | ✅ Yes, inline              |
-| `@command()`     | Standalone or modular use  | ✅ Yes, via global registry |
-
-### ✅ Using `@command()` for Reusability
+### Complex Parameters with Annotations
 
 ```python
-from sayer import command
-
-@command()
-def hello():
-    print("Hello!")
-```
-
-Register it with an app:
-
-```python
-from sayer import Sayer
-from sayer.core.engine import get_commands
-
-app = Sayer()
-app.register_commands(get_commands())
-```
-
----
-
-## ✍️ Naming and Help
-
-Use a function docstring to auto-generate help:
-
-```python
-@app.command()
-def greet():
-    \"\"\"Say a friendly hello.\"\"\"
-    print("Hi!")
-```
-
-Use a custom name:
-
-```python
-@app.command(name="hello")
-def greet():
-    print("Hi!")
-```
-
----
-
-## 📚 Help Output
-
-```bash
-$ python app.py greet --help
-
-Usage: app.py greet
-
-  Say a friendly hello.
-```
-
----
-
-## ⚙️ Command Parameters
-
-Commands can receive typed parameters (covered in depth in [Parameters](./params.md)):
-
-```python
-from sayer import Option
+from sayer import Argument, Env, JsonParam
+from typing import Annotated
 
 @app.command()
-def welcome(name: str = Option("World", help="Name to greet")):
-    print(f"Hello, {name}!")
+def process(
+    input_file: Annotated[str, Argument()],
+    config: Annotated[dict, JsonParam()],
+    token: Annotated[str, Env("API_TOKEN")],
+    count: Annotated[int, Option()] = 1
+):
+    print(f"File: {input_file}, Config: {config}, Token: {token}, Count: {count}")
 ```
+
+Run:
 
 ```bash
-python app.py welcome --name Ada
+python main.py process input.txt --config '{"key": "value"}' --token secret --count 5
 ```
 
----
-
-## 🧬 Async Support
+### Middleware Integration
 
 ```python
-from sayer import command
+from sayer.middleware import add_before_global
 
-@command()
-async def run():
-    await some_async_call()
+async def before(ctx):
+    print(f"Preparing to run {ctx.command.name}")
+add_before_global(before)
 ```
 
-Sayer handles it out-of-the-box.
-
----
-
-## 🧩 Grouping and Nesting Commands
+### Subcommands and Groups
 
 ```python
-from sayer import Sayer
+from sayer import group, command
+
+cli = group(help="Main CLI")
+
+@cli.command()
+def subcmd():
+    print("Subcommand executed.")
+
+cli()
+```
+
+### Async Commands
+
+```python
+from sayer import Sayer, command
+import anyio
 
 app = Sayer()
 
-@app.group()
-def users():
-    """User management."""
-    pass
+@app.command()
+async def async_greet():
+    await anyio.sleep(1)
+    print("Async Hello!")
 
-@users.command()
-def create():
-    print("User created")
-
-@users.command()
-def delete():
-    print("User deleted")
+app()
 ```
 
-You can nest as deeply as needed:
+### Dynamic Registration
 
 ```python
-@app.group()
-def admin():
-    pass
-
-@admin.group()
-def db():
-    pass
-
-@db.command()
-def wipe():
-    print("Database wiped.")
+from sayer.utils.loader import load_commands_from
+load_commands_from("myapp.commands")
 ```
 
----
+## Comprehensive Best Practices
 
-## 🧠 Injecting State
+* ✅ Use clear docstrings and parameter annotations for help output.
+* ✅ Test commands with different parameters and edge cases.
+* ✅ Keep commands focused; delegate complex logic to functions.
+* ✅ Use groups for modular CLI structures.
+* ✅ Use `JsonParam` for structured inputs.
+* ❌ Don’t mix `Option` and `Argument` on the same parameter.
+* ❌ Avoid hardcoding sensitive data; use `Env` for secrets.
 
-You can inject state objects:
+## Advanced Techniques
 
-```python
-from myproject.state import Settings
-from sayer import command
+* Leverage dynamic module loading for large apps.
+* Use async commands for network or I/O tasks.
+* Customize middleware for logging, validation, or context prep.
+* Implement complex parsers with `JsonParam`.
 
-@command()
-def config(settings: Settings):
-    print(settings.debug)
+## Visual Diagram
+
+```mermaid
+graph TD
+  Command[Command]
+  Param[Parameter Parsing]
+  Middleware[Middleware Hooks]
+  Help[Help Generation]
+  Command --> Param
+  Command --> Middleware
+  Command --> Help
 ```
 
----
+## API Reference
 
-## 🚨 Reserved Names and Conflicts
-
-* Function names become CLI names
-* Use `name="..."` to override
-* Reserved Python keywords (`class`, `async`, etc.) should be avoided
-* Duplicate names will raise an error
-
----
-
-## 🛠 Advanced: Manual Execution
-
-Use the CLI runner directly:
-
-```python
-from sayer.core.client import run
-
-if __name__ == "__main__":
-    run()
-```
-
----
-
-## 🧰 Recap
-
-| Topic              | Feature                          |
-| ------------------ | -------------------------------- |
-| Create Commands    | `@app.command()` or `@command()` |
-| Reusable Commands  | Define globally + register       |
-| Help & Docstrings  | Shown in CLI                     |
-| Nesting & Groups   | Use `.group()` on decorators     |
-| Async Support      | Works out-of-the-box             |
-| State Injection    | Accept state classes as args     |
-| Conflicts/Reserved | Avoid dupes and Python keywords  |
-
----
-
-👉 Next up: [Using Parameters](./params.md)
+* [Engine](../api-reference/core/engine.md)
+* [Groups](../api-reference/core/groups.md)
+* [Middleware](../api-reference/middleware.md)
+* [Params](../api-reference/params.md)

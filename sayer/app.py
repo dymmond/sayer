@@ -91,6 +91,7 @@ class Sayer:
         group_initialization_attributes["context_settings"] = resolved_context_settings
 
         # Apply init-time flags; these can be overridden per-callback later
+        self.invoke_without_command = invoke_without_command
         if invoke_without_command:
             group_initialization_attributes["invoke_without_command"] = invoke_without_command
 
@@ -118,9 +119,16 @@ class Sayer:
             Custom invoke method that integrates Sayer's root-level callbacks
             before the standard Click command dispatch.
             """
-            # If there's a subcommand AND invoke_without_command is False, skip root callbacks
-            # ctx.invoked_subcommand accurately checks for subcommand presence
-            if not self._group.invoke_without_command and ctx.invoked_subcommand is None:
+            if ctx.resilient_parsing:
+                return original_group_invoke(ctx)
+
+            # by default (invoke_without_command=False), skip root callbacks if a subcommand is being called
+            # Click<9 stores the raw tokens here; Click>=9 will populate .args instead
+            tokens = getattr(ctx, "protected_args", None)
+            if tokens is None:
+                tokens = ctx.args
+
+            if tokens and tokens[0] in cli_group.commands and not cli_group.invoke_without_command:
                 return original_group_invoke(ctx)
 
             # Enforce any required callback options upfront
@@ -202,7 +210,7 @@ class Sayer:
             parameter_help_text = ""
             if get_origin(raw_type_annotation) is Annotated:
                 for metadata_item in get_args(raw_type_annotation)[1:]:
-                    if isinstance(metadata_item, (Option, Argument, Env, Param, JsonParam)):
+                    if isinstance(metadata_item, (Option, Env, Param, Argument, JsonParam)):
                         parameter_metadata = metadata_item
                     elif isinstance(metadata_item, str):
                         parameter_help_text = metadata_item
@@ -348,43 +356,7 @@ class Sayer:
             alias: The name under which the `app` will be mounted as a subcommand.
             app: The `Sayer` application instance to be mounted.
         """
-
-        def rewrap_group(original_group: click.Group) -> click.Group:
-            """
-            Recursively re-wraps a Click group and its commands/subgroups to align
-            with the current Sayer application's command and context classes.
-            """
-            # Use the type of the current Sayer app's root group for the new group
-            WrappedGroupType = type(self._group)
-            new_wrapped_group = WrappedGroupType(
-                name=original_group.name,
-                help=original_group.help,
-                epilog=getattr(original_group, "epilog", None),  # Safely retrieve epilog
-                context_settings=self._group.context_settings.copy(),  # Copy context settings
-            )
-            new_wrapped_group.context_class = self._group.context_class
-            new_wrapped_group.command_class = self._group.command_class
-
-            # Iterate through commands and recursively re-wrap them
-            for command_name, command_object in list(original_group.commands.items()):
-                if isinstance(command_object, click.Group):
-                    # If it's a subgroup, recursively re-wrap it
-                    new_wrapped_group.add_command(rewrap_group(command_object), name=command_name)
-                else:
-                    # If it's a command, wrap it with SayerCommand
-                    wrapped_command = SayerCommand(
-                        name=command_object.name,
-                        callback=command_object.callback,
-                        params=command_object.params,
-                        help=command_object.help,
-                    )
-                    new_wrapped_group.add_command(wrapped_command, name=command_name)
-
-            return new_wrapped_group
-
-        # Perform the initial re-wrapping of the target app's root group
-        wrapped_app_group = rewrap_group(app._group)
-        self._group.add_command(wrapped_app_group, name=alias)
+        self._group.add_command(app._group, name=alias)
 
     def run(self, args: list[str] | None = None) -> Any:
         """

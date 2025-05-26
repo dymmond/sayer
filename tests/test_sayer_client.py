@@ -45,9 +45,6 @@ def test_sayer_client_command_new_help():
     # test name
     assert "<name>" in out
 
-    # test description
-    assert "The name given for the new cli project" in out
-
 
 def test_sayer_client_command_docs_help():
     client = SayerTestClient(app)

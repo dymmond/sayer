@@ -8,6 +8,7 @@ hide:
 ### Fixed
 
 - When using `from __future__ import annotations` this was not parsing the annotations correctly.
+- Union types were not being parsed correctly.
 
 ## 0.2.1
 

@@ -49,7 +49,7 @@ class SayerGroup(click.Group):
             # Attach the current SayerGroup instance to the function for later access.
             func.__sayer_group__ = self
             # Delegate to the Sayer command function for custom command creation.
-            return cast(T, command(func))
+            return cast(T, command(func, **kwargs))
 
         return decorator
 

@@ -340,11 +340,22 @@ def _build_click_parameter(
     # Apply specific Click decorators based on the explicit metadata type.
 
     if isinstance(parameter_metadata, Argument):
+        parameter_type = parameter_metadata.options.pop("type", None) or parameter_base_type
+        parameter_metadata.options.update(
+            {
+                "default": final_default_value,
+                "required": is_required,
+            }
+        )
+
+        if "nargs" in parameter_metadata.options and parameter_metadata.options["nargs"] == -1:
+            # If nargs is -1, it means this is a variadic argument (accepts multiple values).
+            # Click will handle this as a tuple.
+            parameter_metadata.options.pop("default", None)
+
         wrapped = click.argument(
             parameter_name,
-            type=parameter_base_type,
-            required=is_required,
-            default=final_default_value,
+            type=parameter_type,
             **parameter_metadata.options,
         )(click_wrapper_function)
 
@@ -460,6 +471,7 @@ def command(
     func: F | None = None,
     *,
     middleware: Sequence[str | Callable[..., Any]] = (),
+    **attrs: Any,
 ) -> click.Command | Callable[[F], click.Command]: ...
 
 
@@ -467,6 +479,7 @@ def command(
     func: F | None = None,
     *,
     middleware: Sequence[str | Callable[..., Any]] = (),
+    **attrs: Any,
 ) -> click.Command | Callable[[F], click.Command]:
     """
     A powerful decorator that transforms a Python function into a Click command,
@@ -524,7 +537,7 @@ def command(
         # Check if `click.Context` is explicitly injected into the function's parameters.
         is_context_param_injected = any(p.annotation is click.Context for p in function_signature.parameters.values())
 
-        @click.command(name=command_name, help=command_help_text)  # type: ignore
+        @click.command(name=command_name, help=command_help_text, **attrs)  # type: ignore
         @click.pass_context
         def click_command_wrapper(ctx: click.Context, **kwargs: Any) -> Any:
             """
@@ -642,7 +655,7 @@ def command(
 
             return execution_result
 
-        click_command_wrapper._original_func = function_to_decorate  # type: ignore
+        click_command_wrapper._original_func = function_to_decorate
         current_wrapper = click_command_wrapper
 
         # Attach parameters to the Click command.
@@ -681,7 +694,7 @@ def command(
                 param_metadata_for_build = param_inspect_obj.default
 
             # Build and apply the Click parameter decorator.
-            current_wrapper = _build_click_parameter(  # type: ignore
+            current_wrapper = _build_click_parameter(
                 param_inspect_obj,
                 raw_annotation_for_param,
                 param_base_type,
@@ -699,7 +712,7 @@ def command(
             # Otherwise, add it to the global command registry.
             COMMANDS[command_name] = current_wrapper
 
-        return current_wrapper
+        return cast(click.Command, current_wrapper)
 
     # If `func` is provided (i.e., `@command` without parentheses), apply the decorator immediately.
     # Otherwise, return the `command_decorator` function for later application (i.e., `@command(...)`).

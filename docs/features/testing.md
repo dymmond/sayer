@@ -1,25 +1,21 @@
 # Testing
 
-Sayer comes with built-in tools to make testing your CLI commands easy, robust, and expressive. Testing in Sayer is based on `pytest`
-and the `click.testing.CliRunner` under the hood — but enhanced with Sayer-specific helpers like `SayerTestClient`.
+This guide thoroughly explains Sayer’s testing system, covering setup, usage, and advanced examples.
 
----
+## Overview
 
-## 🔧 Test Setup
+Sayer includes testing utilities that make it easy to simulate CLI interactions and validate outputs. The core is `SayerTestClient`,
+which extends `click.testing.CliRunner` with Sayer-specific features.
 
-To get started, install test dependencies (if not already in your project):
+## Setup
 
 ```bash
 pip install pytest
 ```
 
-Sayer automatically supports all `pytest`-based test discovery and CLI tests.
+**Why**: `pytest` is used for discovery and running tests.
 
----
-
-## 🚀 `SayerTestClient`
-
-Sayer provides a lightweight wrapper around `CliRunner` to simplify CLI testing:
+## SayerTestClient Basics
 
 ```python
 from sayer.testing import SayerTestClient
@@ -27,88 +23,77 @@ from sayer.testing import SayerTestClient
 client = SayerTestClient()
 ```
 
-### ✅ Basic Usage
+**Why**: Initializes a test client for CLI interaction.
+**How**: Wraps `CliRunner` and links to the global or custom app.
+
+### Basic Command Testing
 
 ```python
-def test_hello_command():
-    result = SayerTestClient().invoke(["hello", "--name", "Ada"])
+def test_hello():
+    result = client.invoke(["hello", "--name", "Ada"])
     assert result.exit_code == 0
     assert "Hello, Ada" in result.output
 ```
 
-You can simulate input:
+**Why**: Tests command execution and output.
+**How**: Calls the CLI with arguments, checks output and exit code.
+
+### Simulating Input
 
 ```python
 result = client.invoke(["upload"], input="file contents\n")
 ```
 
----
+**Why**: Simulates user input for interactive commands.
 
-## 📦 `SayerTestResult`
-
-The result returned by `invoke(...)` is a `SayerTestResult`:
+### SayerTestResult Attributes
 
 ```python
 result = client.invoke(["hello", "--name", "Alan"])
-print(result.exit_code)
-print(result.output)
+
+print(result.exit_code)  # 0
+print(result.output)     # Command output
 ```
 
-### Available Attributes:
+| Attribute  | Description                           |
+| ---------- | ------------------------------------- |
+| exit\_code | Command exit status                   |
+| output     | Stdout and stderr combined            |
+| stdout     | Standard output                       |
+| stderr     | Standard error                        |
+| exception  | Any exception raised during execution |
 
-| Attribute   | Description                                |
-| ----------- | ------------------------------------------ |
-| `exit_code` | Integer exit code of the command           |
-| `output`    | Combined stdout and stderr (raw)           |
-| `stdout`    | Standard output (usually same as `output`) |
-| `stderr`    | Captured standard error                    |
-| `exception` | Any raised exception (if not handled)      |
-
----
-
-## 🌍 Environment and CWD
-
-You can override environment variables:
+## Environment and Working Directory
 
 ```python
 result = client.invoke(["env-read"], env={"MY_VAR": "123"})
-```
-
-Or simulate a different working directory:
-
-```python
 result = client.invoke(["whoami"], cwd="/tmp/test-env")
 ```
 
----
+**Why**: Sets environment or working directory for the command.
 
-## 🧪 Example Test
+## Complete Example
 
 ```python
 from sayer.testing import SayerTestClient
 
-def test_verbose_output():
+def test_verbose():
     result = SayerTestClient().invoke(["diagnose", "--debug"])
     assert "Debug mode enabled" in result.output
     assert result.exit_code == 0
 ```
 
----
+**Why**: Full test showing command, output check, and exit validation.
 
-## 🧠 Best Practices
+## Best Practices
 
-* 🧪 Use `SayerTestClient().invoke([...])` for simulating command-line execution
-* 📥 Use `input="..."` to test interactive commands
-* 🧪 Use `env={"VAR": "value"}` to simulate configuration
-* 🧼 Clean up or isolate state between tests to avoid leakage
+✅ Use `invoke` to simulate CLI calls.
+✅ Use `input` to test interactive commands.
+✅ Set `env` for environment simulation.
+✅ Use `cwd` to control test context.
+✅ Clean up state between tests.
 
----
-
-## 🔍 Advanced: Accessing the CLI App
-
-By default, `SayerTestClient()` uses the global CLI instance from `sayer.core.client`.
-
-If you want to test a custom app:
+## Custom App Testing
 
 ```python
 from myproject.cli import app
@@ -116,18 +101,19 @@ from myproject.cli import app
 client = SayerTestClient(app=app)
 ```
 
----
+**Why**: Tests a specific app instead of the default.
+**How**: Provides full control over the tested CLI.
 
-## 🧰 Recap
+## Recap Table
 
-| Feature                | Usage                         |
-| ---------------------- | ----------------------------- |
-| Basic CLI invocation   | `client.invoke(["cmd", ...])` |
-| Input piping           | `input="..."`                 |
-| Environment simulation | `env={"KEY": "value"}`        |
-| Output assertions      | `result.output`, `exit_code`  |
-| CWD override           | `cwd="/path/to/dir"`          |
+| Feature          | Usage                         |
+| ---------------- | ----------------------------- |
+| Basic Invocation | `client.invoke(["cmd", ...])` |
+| Input Simulation | `input="..."`                 |
+| Env Simulation   | `env={"KEY": "value"}`        |
+| Output Checking  | `result.output`, `exit_code`  |
+| CWD Override     | `cwd="/path/to/dir"`          |
 
----
+## Conclusion
 
-Sayer’s testing utilities make it easy to simulate real-world CLI interactions with full control over input, environment, and assertions.
+Sayer’s testing utilities simplify comprehensive CLI tests, letting you control inputs, environments, and verify outputs for robust command validation.

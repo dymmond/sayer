@@ -52,8 +52,10 @@ nav:
   - Introduction: "index.md"
   - Features:
       - "getting-started.md"
+      - "features/sayer-and-apps.md"
       - "features/settings.md"
       - "features/commands.md"
+      - "features/callbacks.md"
       - "features/params.md"
       - "features/middleware.md"
       - "features/state.md"

@@ -1,19 +1,25 @@
 # Parameters
 
-Sayer gives you rich, expressive ways to define CLI arguments using Python type annotations, default values, and explicit metadata.
+This guide provides a comprehensive and richly explained view of Sayer’s parameter system, covering every aspect from the basics to advanced use cases.
 
-This guide explains:
+## Overview
 
-- How Sayer maps parameters to CLI options
-- Differences between `Option`, `Argument`, and `Env`
-- Advanced types and annotations
-- Common patterns and edge cases
+Sayer transforms function parameters into CLI options, arguments, and environment variable inputs. With explicit metadata via helper classes, you can:
 
----
+* Define required and optional inputs.
+* Use type annotations to control parsing and validation.
+* Combine CLI inputs with environment variables for flexible configuration.
 
-## 🧱 Basics
+## Key Concepts
 
-Sayer uses Python function parameters to define CLI inputs.
+* **Options**: Named CLI flags (`--name value`).
+* **Arguments**: Positional CLI inputs.
+* **Env**: Environment variable inputs, with fallback support.
+* **Annotated**: Combines typing with metadata for clarity.
+
+## Fully Explained Examples
+
+### Basic Option Parsing
 
 ```python
 from sayer import Sayer
@@ -22,205 +28,146 @@ app = Sayer()
 
 @app.command()
 def greet(name: str):
-    print("Hello,", name)
+    print(f"Hello, {name}")
 ```
 
-```bash
-python app.py greet --name Ada
-# Output: Hello, Ada
-```
+**Why**: Maps the `name` parameter to a CLI option `--name`.
+**How**: Sayer infers `str` and makes it required.
 
-By default:
-
-* Parameters with no default = **required options**
-* Parameters with defaults = **optional options**
-
----
-
-## 🧩 Explicit Parameter Types
-
-Sayer provides three helpers:
-
-| Type       | Purpose                           | CLI Format         |
-| ---------- | --------------------------------- | ------------------ |
-| `Option`   | Named flags / options             | `--name John`      |
-| `Argument` | Positional arguments              | `print foo.txt`    |
-| `Env`      | Values from environment variables | `export TOKEN=...` |
-
----
-
-## ✨ Using `Option`
+### Explicit Required Option with Help
 
 ```python
 from sayer import Option
 
 @app.command()
 def greet(name: str = Option(..., help="Your name")):
-    print("Hello,", name)
+    print(f"Hello, {name}")
 ```
 
-The `...` means required.
+**Why**: `Option(...)` makes it required, with a help message.
+**How**: `...` indicates required, shown in help output.
 
-```bash
-python app.py greet --name Ada
-```
-
-Optional variant:
+### Optional Option with Default Value
 
 ```python
+@app.command()
 def greet(name: str = Option("World")):
-    print("Hello,", name)
+    print(f"Hello, {name}")
 ```
 
----
+**Why**: Default value makes it optional.
+**How**: If `--name` is omitted, defaults to "World".
 
-## 🔢 Positional Arguments: `Argument`
+### Positional Arguments
 
 ```python
 from sayer import Argument
 
 @app.command()
-def cat(file: str = Argument(..., help="File to read")):
-    print("Reading", file)
+def read(file: str = Argument(..., help="File to read")):
+    print(f"Reading {file}")
 ```
 
-Called like:
+**Why**: `Argument(...)` binds `file` as a positional argument.
+**How**: Called as `read myfile.txt`.
 
-```bash
-python app.py cat myfile.txt
-```
-
----
-
-## 🌱 Environment Variables: `Env`
+### Environment Variable Fallback
 
 ```python
 from sayer import Env
 
 @app.command()
 def auth(token: str = Env(..., env="API_TOKEN")):
-    print("Using token:", token)
+    print(f"Using token: {token}")
 ```
 
-```bash
-export API_TOKEN=abc123
-python app.py auth
-```
+**Why**: Loads `token` from environment variable if no CLI input.
+**How**: `export API_TOKEN=abc` and call `auth`.
 
-You can combine:
+### Combined Env and Option
 
 ```python
 def auth(token: str = Option(None) | Env(..., env="API_TOKEN")):
-    ...
+    print(f"Token: {token}")
 ```
 
----
+**Why**: First tries CLI `--token`, then `API_TOKEN` env var.
 
-## 🧠 Under the Hood
-
-Each helper returns a **Param object**, which stores metadata:
-
-* name
-* help text
-* default
-* required
-* env var fallback
-* validators (future)
-
----
-
-## 🧪 Advanced Types
-
-You can use:
+### Advanced Types and Parsing
 
 ```python
 @app.command()
-def example(
-    level: int = Option(...),
-    tags: list[str] = Option([]),
-    size: float = Option(1.5),
-):
-    ...
+def config(level: int = Option(...), tags: list[str] = Option([]), size: float = Option(1.5)):
+    print(f"Level: {level}, Tags: {tags}, Size: {size}")
 ```
 
-Booleans are treated as flags:
+**Why**: Parses complex types like int, list, and float.
+**How**: Handles JSON-style list input for `--tags`.
+
+### Booleans as Flags
 
 ```python
 @app.command()
-def verbose(debug: bool = Option(False)):
-    if debug:
-        print("Debug mode")
+def debug(verbose: bool = Option(False)):
+    if verbose:
+        print("Verbose mode enabled")
 ```
 
-Call:
+**Why**: `bool` options convert to CLI flags.
+**How**: `--verbose` sets it True.
 
-```bash
-python app.py verbose --debug
-```
-
----
-
-## 🧬 Using Annotated
-
-Sayer supports `Annotated` to combine typing + metadata:
+### Using Annotated for Clarity
 
 ```python
 from typing import Annotated
-from sayer import Option
 
 @app.command()
 def user(name: Annotated[str, Option(..., help="User name")]):
-    print(name)
+    print(f"User: {name}")
 ```
 
-This is equivalent to:
+**Why**: Combines typing with metadata.
+**How**: Cleaner syntax, aligns with Python standards.
 
-```python
-def user(name: str = Option(..., help="User name")):
-    ...
-```
+### Required vs Optional Behavior Explained
 
----
-
-## ❓ Required vs Optional
-
-| Type hint     | Default           | Behavior |
+| Type Hint     | Default           | Behavior |
 | ------------- | ----------------- | -------- |
 | `str`         | None / missing    | Required |
 | `str = "foo"` | default provided  | Optional |
 | `Option(...)` | required override | Required |
 | `Option("x")` | optional override | Optional |
 
----
+### Execution Order of Params
 
-## 🧰 Debugging Tips
+* **Arguments**: Parsed first (positional).
+* **Options**: Named flags, follow.
+* **Env**: Checked for missing inputs.
+* **State Injection**: Non-CLI params injected later.
 
-* 💡 **Missing `--flag`?** → check if your param has a default
-* 💡 **Env var ignored?** → make sure you use `Env(...)` or `Option() | Env(...)`
-* 💡 **Wrong type?** → check your annotation (`list[int]`, `bool`, etc.)
+### Debugging and Tips
 
----
+* ✅ Check types for mismatches.
+* ✅ Use `help` in `Option` and `Argument` for clarity.
+* ✅ Combine `Option` and `Env` for flexible config.
+* ✅ Use `Annotated` for clean type+metadata declarations.
+* ❌ Avoid ambiguous types like `list` without clear parsing logic.
 
-## 🔁 Param Order in CLI
+### Complete Example with Explanations
 
-* `Argument`s are parsed first (positional)
-* Then `Option`s (named flags)
-* Then `Env` fallback
-* Then injected state (not CLI)
+```python
+@app.command()
+def run(
+    config: Annotated[dict, Option(..., help="JSON config")],
+    token: Annotated[str, Option(None) | Env(..., env="API_TOKEN")],
+    debug: Annotated[bool, Option(False)]
+):
+    print(f"Config: {config}, Token: {token}, Debug: {debug}")
+```
 
----
+**Why**: Demonstrates complex CLI structure with options, env fallback, and flags.
+**How**: Combines best practices into one command.
 
-## 🧰 Recap
+## Conclusion
 
-| Param Type  | Syntax                      | Use Case                |
-| ----------- | --------------------------- | ----------------------- |
-| `Option`    | `Option(...), Option("x")`  | Named CLI options       |
-| `Argument`  | `Argument(...)`             | Positional CLI args     |
-| `Env`       | `Env(..., env="NAME")`      | Load from env variables |
-| `Annotated` | `Annotated[T, Option(...)]` | Type + metadata combo   |
-
-Sayer lets you express everything **clearly and Pythonically** — with no magic, just clean annotations.
-
----
-
-👉 Next: [Middleware](./middleware.md)
+Sayer’s parameter system is expressive, Pythonic, and powerful. Use it to build clean, maintainable, and user-friendly CLIs.

@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+import sys
 import types
 from datetime import date, datetime
 from enum import Enum
@@ -72,7 +73,7 @@ _PRIMITIVE_TYPE_MAP = {
 }
 
 
-def _convert_cli_value_to_type(value: Any, to_type: type) -> Any:
+def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, param_name: str = None) -> Any:
     """
     Converts a command-line interface (CLI) input value into the desired Python type.
 
@@ -92,6 +93,12 @@ def _convert_cli_value_to_type(value: Any, to_type: type) -> Any:
         The converted value, or the original value if no conversion is necessary
         or possible.
     """
+    # Resolve postponed annotations if to_type is a string
+    if isinstance(to_type, str) and func and param_name:
+        # Use get_type_hints to resolve actual type
+        type_hints = get_type_hints(func, globalns=sys.modules[func.__module__].__dict__)
+        to_type = type_hints.get(param_name, to_type)
+
     if isinstance(to_type, type) and issubclass(to_type, Enum):
         return value
     if to_type is date and isinstance(value, datetime):
@@ -645,7 +652,9 @@ def command(
 
                 # Convert non-list/Sequence types using the `_convert_cli_value_to_type` helper.
                 if get_origin(raw_type_for_conversion) not in (list, Sequence):
-                    parameter_value = _convert_cli_value_to_type(parameter_value, target_type_for_conversion)
+                    parameter_value = _convert_cli_value_to_type(
+                        parameter_value, target_type_for_conversion, function_to_decorate, param_sig.name
+                    )
 
                 bound_arguments[param_sig.name] = parameter_value
 

@@ -3,6 +3,17 @@ hide:
   - navigation
 ---
 
+## 0.2.3
+
+This was missed from the version 0.2.2 and it should have been included.
+
+### Changed
+
+- Postpone Annotations and Type Hints: The `@command` decorator now postpones annotations and type
+hints until the command is executed, allowing for more dynamic behavior and flexibility in command definitions.
+
+###
+
 ## 0.2.2
 
 ### Added

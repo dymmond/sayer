@@ -370,9 +370,10 @@ def _build_click_parameter(
 
         # Now inject our help text into the click.Argument instance
         help_text = getattr(parameter_metadata, "help", "")
-        for param_obj in getattr(wrapped, "__click_params__", []):
-            if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
-                param_obj.help = help_text
+        if hasattr(wrapped, "params"):
+            for param_obj in wrapped.params:
+                if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
+                    param_obj.help = help_text
         return wrapped
 
     if isinstance(parameter_metadata, Env):
@@ -463,6 +464,7 @@ def _build_click_parameter(
     final_wrapped_function = click.argument(
         parameter_name, type=parameter_base_type, default=final_default_value, required=False
     )(click_wrapper_function)
+
     # Ensure the Click parameter reflects the optional nature and default.
     for param_in_wrapper in final_wrapped_function.params:
         if param_in_wrapper.name == parameter_name:

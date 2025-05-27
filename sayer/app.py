@@ -307,8 +307,8 @@ class Sayer:
                         else:
                             param_config.required = False  # Defaulting to optional
 
-                if isinstance(param_config, click.Argument):
-                    flag_name = f"--{param_config.name.replace('_','-')}"
+                if isinstance(param_config, click.Argument) and param_config.type is not click.UNPROCESSED:
+                    flag_name = f"--{param_config.name.replace('_', '-')}"
                     param_config = click.Option(
                         param_decls=[flag_name],
                         type=param_config.type,

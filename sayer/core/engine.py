@@ -716,6 +716,10 @@ def command(
             ):
                 param_metadata_for_build = param_inspect_obj.default
 
+            # Extract the type and override it
+            if getattr(param_metadata_for_build, "type", None) is not None:
+                param_base_type = param_metadata_for_build.type
+
             # Build and apply the Click parameter decorator.
             current_wrapper = _build_click_parameter(
                 param_inspect_obj,

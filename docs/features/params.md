@@ -1,173 +1,223 @@
 # Parameters
 
-This guide provides a comprehensive and richly explained view of Sayer’s parameter system, covering every aspect from the basics to advanced use cases.
+This guide dives deep into Sayer’s parameter system, explaining **what** each feature is, **why** you’d use it, and **when** it’s most appropriate. Examples illustrate real‐world patterns.
 
-## Overview
+---
 
-Sayer transforms function parameters into CLI options, arguments, and environment variable inputs. With explicit metadata via helper classes, you can:
+## 1. Core Parameter Types
 
-* Define required and optional inputs.
-* Use type annotations to control parsing and validation.
-* Combine CLI inputs with environment variables for flexible configuration.
+| Type        | CLI Style             | Typical Use Case                                                  |
+| ----------- | --------------------- | ----------------------------------------------------------------- |
+| `Option`    | `--flag value`        | Named flags, optional or required toggles, environment fallbacks. |
+| `Argument`  | positional values     | Natural, required list/sequence inputs (e.g., filenames).         |
+| `Env`       | environment variables | Secrets, credentials, settings loaded from the environment.       |
+| `JsonParam` | JSON string           | Complex data structures (e.g., Pydantic models) via JSON.         |
 
-## Key Concepts
+### 1.1 `Option`
 
-* **Options**: Named CLI flags (`--name value`).
-* **Arguments**: Positional CLI inputs.
-* **Env**: Environment variable inputs, with fallback support.
-* **Annotated**: Combines typing with metadata for clarity.
+**What**: A named CLI parameter: `--name foo` or flag `--verbose`.
 
-## Fully Explained Examples
+**Why**: Use for any value where clarity and explicit naming help the user. Good for:
 
-### Basic Option Parsing
+* Configuration values (ports, hosts, file paths).
+* Feature flags (`--dry-run`, `--force`).
+* Any optional input where a default makes sense.
+
+**When**:
+
+* You want `--timeout 30` instead of positional `30` to avoid ambiguity in order.
+* You have multiple optional values in one command.
+* You need `--help` to clearly annotate each parameter.
+
+**Example**:
 
 ```python
-from sayer import Sayer
-
+from sayer import Sayer, Option
 app = Sayer()
 
 @app.command()
-def greet(name: str):
-    print(f"Hello, {name}")
+def upload(
+    file: str = Option(..., help="Path to the file to upload."),
+    retry: int = Option(3, help="Number of retries on failure."),
+    force: bool = Option(False, help="Overwrite existing files."),
+):
+    pass
 ```
 
-**Why**: Maps the `name` parameter to a CLI option `--name`.
-**How**: Sayer infers `str` and makes it required.
+* `file` is **required** (`Option(...)`).
+* `retry` is **optional** with default `3`.
+* `force` is a boolean flag (no value needed).
 
-### Explicit Required Option with Help
+---
 
-```python
-from sayer import Option
+### 1.2 `Argument`
 
-@app.command()
-def greet(name: str = Option(..., help="Your name")):
-    print(f"Hello, {name}")
-```
+**What**: Positional CLI parameters: `cmd input1 input2 ...`.
 
-**Why**: `Option(...)` makes it required, with a help message.
-**How**: `...` indicates required, shown in help output.
+**Why**: When order matters, or you want succinct commands:
 
-### Optional Option with Default Value
+* File lists: `process file1.txt file2.txt`.
+* Data points: `compute 1 2 3`.
 
-```python
-@app.command()
-def greet(name: str = Option("World")):
-    print(f"Hello, {name}")
-```
+**When**:
 
-**Why**: Default value makes it optional.
-**How**: If `--name` is omitted, defaults to "World".
+* Inputs form a natural sequence.
+* You expect users to type multiple values quickly.
+* You prefer brevity over explicit naming.
 
-### Positional Arguments
+**Example**:
 
 ```python
 from sayer import Argument
 
 @app.command()
-def read(file: str = Argument(..., help="File to read")):
-    print(f"Reading {file}")
+def process(
+    inputs: list[str] = Argument(
+        nargs=-1, help="Files to process.")
+    ):
+    pass
 ```
 
-**Why**: `Argument(...)` binds `file` as a positional argument.
-**How**: Called as `read myfile.txt`.
+* `nargs=-1` captures *all* remaining tokens.
 
-### Environment Variable Fallback
+---
+
+### 1.3 `Env`
+
+**What**: Injects values from environment variables.
+
+**Why**: For secrets and configuration you don’t want on the CLI:
+
+* API keys
+* Database URIs
+* Cloud credentials
+
+**When**:
+
+* You want CI/CD or server automation to provide values via environment.
+* You want to **avoid** revealing secrets in shell history.
+
+**Example**:
 
 ```python
 from sayer import Env
 
 @app.command()
-def auth(token: str = Env(..., env="API_TOKEN")):
-    print(f"Using token: {token}")
+def deploy(
+    token: str = Env(..., envvar="DEPLOY_TOKEN", help="Auth token."),
+):
+    pass
 ```
 
-**Why**: Loads `token` from environment variable if no CLI input.
-**How**: `export API_TOKEN=abc` and call `auth`.
+* User runs `export DEPLOY_TOKEN=xyz` once, then `deploy` with no flags.
 
-### Combined Env and Option
+---
+
+### 1.4 `JsonParam`
+
+**What**: Accepts a JSON string on the CLI and parses it into Python objects.
+
+**Why**: Complex nested data (configs, records) without writing a file.
+
+**When**:
+
+* You need a rich structure: lists of dicts, nested objects.
+* You prefer inline JSON over `--opt key1=val1 --opt key2=val2`.
+
+**Example**:
 
 ```python
-def auth(token: str = Option(None) | Env(..., env="API_TOKEN")):
-    print(f"Token: {token}")
-```
+from sayer.params import JsonParam
 
-**Why**: First tries CLI `--token`, then `API_TOKEN` env var.
-
-### Advanced Types and Parsing
-
-```python
 @app.command()
-def config(level: int = Option(...), tags: list[str] = Option([]), size: float = Option(1.5)):
-    print(f"Level: {level}, Tags: {tags}, Size: {size}")
+def create(
+    data: MyPydanticModel = JsonParam(help="JSON of the new record."),
+):
+    pass
 ```
 
-**Why**: Parses complex types like int, list, and float.
-**How**: Handles JSON-style list input for `--tags`.
+* CLI: `create '{"name": "Alice", "age": 30}'`
 
-### Booleans as Flags
+---
 
-```python
-@app.command()
-def debug(verbose: bool = Option(False)):
-    if verbose:
-        print("Verbose mode enabled")
-```
+## 2. Annotated Metadata
 
-**Why**: `bool` options convert to CLI flags.
-**How**: `--verbose` sets it True.
-
-### Using Annotated for Clarity
+Use `typing.Annotated` to group type hints with metadata in one place:
 
 ```python
 from typing import Annotated
+from sayer.params import Option, Argument
 
-@app.command()
-def user(name: Annotated[str, Option(..., help="User name")]):
-    print(f"User: {name}")
-```
-
-**Why**: Combines typing with metadata.
-**How**: Cleaner syntax, aligns with Python standards.
-
-### Required vs Optional Behavior Explained
-
-| Type Hint     | Default           | Behavior |
-| ------------- | ----------------- | -------- |
-| `str`         | None / missing    | Required |
-| `str = "foo"` | default provided  | Optional |
-| `Option(...)` | required override | Required |
-| `Option("x")` | optional override | Optional |
-
-### Execution Order of Params
-
-* **Arguments**: Parsed first (positional).
-* **Options**: Named flags, follow.
-* **Env**: Checked for missing inputs.
-* **State Injection**: Non-CLI params injected later.
-
-### Debugging and Tips
-
-* ✅ Check types for mismatches.
-* ✅ Use `help` in `Option` and `Argument` for clarity.
-* ✅ Combine `Option` and `Env` for flexible config.
-* ✅ Use `Annotated` for clean type+metadata declarations.
-* ❌ Avoid ambiguous types like `list` without clear parsing logic.
-
-### Complete Example with Explanations
-
-```python
 @app.command()
 def run(
-    config: Annotated[dict, Option(..., help="JSON config")],
-    token: Annotated[str, Option(None) | Env(..., env="API_TOKEN")],
-    debug: Annotated[bool, Option(False)]
+    path: Annotated[str, Argument(..., help="Source path.")],
+    level: Annotated[int, Option(1, help="Verbosity level.")],
 ):
-    print(f"Config: {config}, Token: {token}, Debug: {debug}")
+    pass
 ```
 
-**Why**: Demonstrates complex CLI structure with options, env fallback, and flags.
-**How**: Combines best practices into one command.
+* Cleaner than mixing defaults and metadata.
+* Leverages standard Python typing.
 
-## Conclusion
+---
 
-Sayer’s parameter system is expressive, Pythonic, and powerful. Use it to build clean, maintainable, and user-friendly CLIs.
+## 3. Container Types Support
+
+Sayer now casts multiple CLI tokens into Python containers with element-wise conversion.
+
+| Container      | `nargs=-1` | Example CLI          | Parsed Python Type     |
+| -------------- | ---------- | -------------------- | ---------------------- |
+| `list[T]`      | Yes        | `prog cmd 1 2 3`     | `[1,2,3]`              |
+| `tuple[T,...]` | Yes        | `prog cmd 1 2 3`     | `(1,2,3)`              |
+| `tuple[A,B,C]` | Yes        | `prog cmd a 1 2.5`   | `('a',1,2.5)`          |
+| `set[T]`       | Yes        | `prog cmd a b a`     | `{'a','b'}`            |
+| `frozenset[T]` | Yes        | `prog cmd x y x`     | `frozenset({'x','y'})` |
+| `dict[K,V]`    | Yes        | `prog cmd k1=1 k2=2` | `{'k1':1,'k2':2}`      |
+
+**Implementation Details**:
+
+* Under the hood, `_convert_cli_value_to_type` inspects `typing.get_origin` and `get_args`.
+* Lists/tuples/sets/frozensets: iterate and cast each item.
+* `dict[K,V]`: expects tokens `key=value`, splitting and casting both sides.
+
+---
+
+## 4. When to Use What
+
+| Scenario                                  | Recommended Parameter                       |
+| ----------------------------------------- | ------------------------------------------- |
+| Single required value                     | `Option(..., help="...")`                   |
+| Multiple unnamed values                   | `Argument(nargs=-1)`                        |
+| Secret/token                              | `Env(..., envvar="...", help="...")`        |
+| Rich structured payload                   | `JsonParam()`                               |
+| Multiple homogeneous numeric inputs       | `list[int] = Argument(nargs=-1)`            |
+| Fixed-format heterogeneous inputs (x,y,z) | `tuple[str,int,float] = Argument(nargs=-1)` |
+| Unique values from CLI                    | `set[...]` or `frozenset[...]`              |
+| Key-value option list                     | `dict[str,int] = Argument(nargs=-1)`        |
+
+---
+
+## 5. Execution & Validation Order
+
+1. **Positional Arguments** (`Argument`).
+2. **Options** (`Option`, including boolean flags).
+3. **Environment** fallback for missing values.
+4. **Container conversion** (list/tuple/set/frozenset/dict).
+5. **JSON deserialization** (`JsonParam`).
+6. **Custom callbacks** and `Param.callback` hooks.
+7. **Context / State** injection.
+
+At each step, type mismatches raise `click.BadParameter`.
+
+---
+
+## 6. Best Practices
+
+* **Favor `Option`** for clarity if order of args might confuse users.
+* **Use `Argument`** for natural, required sequences.
+* **Combine** `Option` + `Env` for sensitive defaults (`--token` or `$TOKEN`).
+* **Leverage** container types to avoid manual `split()` logic.
+* **Annotate** with `Annotated[...]` to keep definitions tidy.
+* **Document** every parameter with `help=`.
+
+With these tools, Sayer makes building rich, user-friendly Python CLIs a breeze—embrace the full power of typing, metadata, and automatic conversion!

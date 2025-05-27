@@ -5,6 +5,7 @@ import sys
 import types
 from datetime import date, datetime
 from enum import Enum
+from functools import wraps
 from pathlib import Path
 from typing import (
     IO,
@@ -99,6 +100,61 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         type_hints = get_type_hints(func, globalns=sys.modules[func.__module__].__dict__)
         to_type = type_hints.get(param_name, to_type)
 
+    # --- container types support ---
+    origin = get_origin(to_type)
+    # list[T]
+    if origin is list and isinstance(value, (list, tuple)):
+        inner = get_args(to_type)[0]
+        return [
+            _convert_cli_value_to_type(item, inner, func, param_name)
+            for item in value
+        ]
+    # tuple[T, ...] or Tuple[T1, T2, ...]
+    if origin is tuple and isinstance(value, (list, tuple)):
+        args = get_args(to_type)
+        # homogeneous: Tuple[T, ...]
+        if len(args) == 2 and args[1] is Ellipsis:
+            inner = args[0]
+            return tuple(
+                _convert_cli_value_to_type(item, inner, func, param_name)
+                for item in value
+            )
+        # heterogeneous: Tuple[T1, T2, ...]
+        return tuple(
+            _convert_cli_value_to_type(item, arg_type, func, param_name)
+            for item, arg_type in zip(value, args, strict=False)
+        )
+    # set[T]
+    if origin is set and isinstance(value, (list, tuple)):
+        inner = get_args(to_type)[0]
+        return {
+            _convert_cli_value_to_type(item, inner, func, param_name)
+            for item in value
+        }
+    # dict[K, V] from ["key=val", ...]
+    if origin is dict and isinstance(value, (list, tuple)):
+        key_t, val_t = get_args(to_type)
+        d: dict[Any, Any] = {}
+        for item in value:
+            if isinstance(item, str) and "=" in item:
+                k_str, v_str = item.split("=", 1)
+                k = _convert_cli_value_to_type(k_str, key_t, func, param_name)
+                v = _convert_cli_value_to_type(v_str, val_t, func, param_name)
+                d[k] = v
+            else:
+                raise ValueError(
+                    f"Cannot parse dict item {item!r} for {param_name!r}"
+                )
+        return d
+
+    # frozenset[T]
+    if origin is frozenset and isinstance(value, (list, tuple)):
+        inner = get_args(to_type)[0]
+        return frozenset(
+            _convert_cli_value_to_type(item, inner, func, param_name)
+            for item in value
+        )
+
     if isinstance(to_type, type) and issubclass(to_type, Enum):
         return value
     if to_type is date and isinstance(value, datetime):
@@ -187,6 +243,7 @@ def _build_click_parameter(
     param_help_text: str,
     click_wrapper_function: Callable,
     is_context_injected: bool,
+    is_overriden_type: bool,
 ) -> Callable:
     """
     Dynamically attaches a Click argument or option decorator to a command
@@ -261,7 +318,7 @@ def _build_click_parameter(
         default_for_sequence = () if not has_default_value else parameter.default
         return click.option(
             f"--{parameter_name.replace('_','-')}",
-            type=click_inner_type,
+            type=click_inner_type if not is_overriden_type else parameter_base_type,
             multiple=True,
             default=default_for_sequence,
             show_default=True,
@@ -278,7 +335,7 @@ def _build_click_parameter(
             enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
         return click.option(
             f"--{parameter_name.replace('_','-')}",
-            type=click.Choice(enum_choices),
+            type=click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
             default=enum_default_value,
             show_default=True,
             help=param_help_text,
@@ -304,7 +361,7 @@ def _build_click_parameter(
     if isinstance(parameter_metadata, JsonParam):
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=click.STRING,
+            type=click.STRING if not is_overriden_type else parameter_base_type,
             default=parameter_metadata.default,
             required=parameter_metadata.required,
             show_default=False,
@@ -346,32 +403,28 @@ def _build_click_parameter(
 
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
-
     if isinstance(parameter_metadata, Argument):
-        parameter_type = parameter_metadata.options.pop("type", None) or parameter_base_type
-        parameter_metadata.options.update(
-            {
-                "default": final_default_value,
-                "required": is_required,
-            }
-        )
-
         if "nargs" in parameter_metadata.options and parameter_metadata.options["nargs"] == -1:
             # If nargs is -1, it means this is a variadic argument (accepts multiple values).
             # Click will handle this as a tuple.
-            parameter_metadata.options.pop("default", None)
+            if final_default_value and final_default_value not in (inspect._empty, ...):
+                raise ValueError("Variadic arguments (nargs=-1) cannot have a default value.")
+        else:
+            parameter_metadata.options["default"] = final_default_value
 
         wrapped = click.argument(
             parameter_name,
-            type=parameter_type,
+            type=parameter_base_type,
+            required=is_required,
             **parameter_metadata.options,
         )(click_wrapper_function)
 
         # Now inject our help text into the click.Argument instance
         help_text = getattr(parameter_metadata, "help", "")
-        for param_obj in getattr(wrapped, "__click_params__", []):
-            if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
-                param_obj.help = help_text
+        if hasattr(wrapped, "params"):
+            for param_obj in wrapped.params:
+                if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
+                    param_obj.help = help_text
         return wrapped
 
     if isinstance(parameter_metadata, Env):
@@ -462,6 +515,7 @@ def _build_click_parameter(
     final_wrapped_function = click.argument(
         parameter_name, type=parameter_base_type, default=final_default_value, required=False
     )(click_wrapper_function)
+
     # Ensure the Click parameter reflects the optional nature and default.
     for param_in_wrapper in final_wrapped_function.params:
         if param_in_wrapper.name == parameter_name:
@@ -560,6 +614,7 @@ def command(
 
         @click.command(**click_cmd_kwargs)  # type: ignore
         @click.pass_context
+        @wraps(function_to_decorate)
         def click_command_wrapper(ctx: click.Context, **kwargs: Any) -> Any:
             """
             The inner Click command wrapper function.
@@ -573,6 +628,14 @@ def command(
             - Execution of the original Python function (`fn`),
               including handling of asynchronous functions.
             """
+            for param in ctx.command.params:
+                if isinstance(param, click.Option) and param.required:
+                    # click stores missing params as None (or sometimes Ellipsis in Sayer),
+                    # so treat both as “not provided.”
+                    val = kwargs.get(param.name, None)
+                    if val is None or val is inspect._empty or val in [Ellipsis, "Ellipsis"]:
+                        ctx.fail(f"Missing option '{param.opts[0]}'")
+
             # --- State injection ---
             # If the context doesn't already have sayer state, initialize it.
             if not hasattr(ctx, "_sayer_state"):
@@ -716,6 +779,12 @@ def command(
             ):
                 param_metadata_for_build = param_inspect_obj.default
 
+            # Extract the type and override it
+            is_overriden_type = False
+            if getattr(param_metadata_for_build, "type", None) is not None:
+                param_base_type = param_metadata_for_build.type
+                is_overriden_type = True
+
             # Build and apply the Click parameter decorator.
             current_wrapper = _build_click_parameter(
                 param_inspect_obj,
@@ -725,6 +794,7 @@ def command(
                 param_help_for_build,
                 current_wrapper,
                 is_context_param_injected,
+                is_overriden_type,
             )
 
         # Register the command.

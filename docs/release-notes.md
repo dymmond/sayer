@@ -3,6 +3,18 @@ hide:
   - navigation
 ---
 
+## 0.2.4
+
+### Added
+
+- Custom typing overrides making sure you can specify your own typing for the `@command` decorator.
+- `SayerCommand` now supports all the parameters of `click.Command`, allowing for more flexibility in command definitions when `app.add_command` is used.
+
+## Fixed
+
+- Help text for arguments was not being displayed correctly when using the `@command` decorator.
+- `@command` decorator was not wrapping the decorator properly and loosing critical information for type checking and for type hints.
+
 ## 0.2.3
 
 This was missed from the version 0.2.2 and it should have been included.

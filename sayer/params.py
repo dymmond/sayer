@@ -1,7 +1,56 @@
 from typing import Any, Callable, Optional
 
 
-class Option:
+class BaseParam:
+    """
+    Base class for command-line parameter definitions.
+
+    This class is not intended to be instantiated directly but serves as a base
+    for more specific parameter types like Option, Argument, and Env.
+    """
+
+    def __init__(self, **options: Any):
+        """
+        Initializes a new BaseParam instance.
+
+        Args:
+            options: Additional options for the parameter.
+        """
+        self.type: Any = options.pop("type", None)
+        self.options: dict[str, Any] = options if options is not None else {}
+
+    def get_param_definitions(self) -> dict[str, Any]:
+        """
+        Returns the parameter definitions as a dictionary.
+
+        This method can be overridden by subclasses to provide specific parameter
+        definitions.
+
+        Returns:
+            A dictionary containing the parameter definitions.
+        """
+        values = self.__dict__.copy()
+
+        if not self.options:
+            values.pop("options", None)
+            return dict(values)
+
+        data: dict[str, Any] = {}
+
+        for top_key, top_value in values.items():
+            for key in self.options.keys():
+                if key == top_key:
+                    value = self.options.pop(key)
+                    data[key] = value
+                else:
+                    data[key] = top_value
+
+        if "options" in data:
+            del data["options"]
+        return data
+
+
+class Option(BaseParam):
     """
     Represents a command-line option parameter definition.
 
@@ -23,7 +72,7 @@ class Option:
         callback: Optional[Callable[[Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         **options: Any,
-    ):
+    ) -> None:
         """
         Initializes a new Option instance.
 
@@ -40,6 +89,7 @@ class Option:
                       required. If None, being required is determined by the default value.
             callback: A function to call to process the value after parsing.
         """
+        super().__init__(**options)
         self.default = default
         self.help = help
         self.envvar = envvar
@@ -55,10 +105,9 @@ class Option:
 
         self.callback = callback
         self.default_factory = default_factory
-        self.options = options if options is not None else {}
 
 
-class Argument:
+class Argument(BaseParam):
     """
     Represents a command-line argument parameter definition.
 
@@ -74,7 +123,7 @@ class Argument:
         callback: Optional[Callable[[Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         **options: Any,
-    ):
+    ) -> None:
         """
         Initializes a new Argument instance.
 
@@ -85,6 +134,7 @@ class Argument:
                       required. If None, being required is determined by the default value.
             callback: A function to call to process the value after parsing.
         """
+        super().__init__(**options)
         self.default = default
         self.help = help
 
@@ -94,10 +144,9 @@ class Argument:
 
         self.callback = callback
         self.default_factory = default_factory
-        self.options = options if options is not None else {}
 
 
-class Env:
+class Env(BaseParam):
     """
     Represents an environment variable parameter definition.
 
@@ -111,7 +160,7 @@ class Env:
         required: Optional[bool] = None,
         default_factory: Callable[[], Any] | None = None,
         **options: Any,
-    ):
+    ) -> None:
         """
         Initializes a new Env instance.
 
@@ -123,6 +172,7 @@ class Env:
                       variable is required. If None, being required is determined
                       by the default value.
         """
+        super().__init__(**options)
         self.envvar = envvar
         self.default = default
 
@@ -131,10 +181,9 @@ class Env:
         self.required = required if required is not None else not (has_static or has_factory)
 
         self.default_factory = default_factory
-        self.options = options if options is not None else {}
 
 
-class Param:
+class Param(BaseParam):
     """
     Represents a flexible parameter definition with various configuration options.
 
@@ -156,7 +205,7 @@ class Param:
         callback: Callable[[Any], Any] | None = None,
         default_factory: Callable[[], Any] | None = None,
         **options: Any,
-    ):
+    ) -> None:
         """
         Initializes a new Param instance.
 
@@ -173,6 +222,7 @@ class Param:
                       required. If None, being required is determined by the default value.
             callback: A function to call to process the value after parsing.
         """
+        super().__init__(**options)
         self.default = default
         self.help = help
         self.envvar = envvar
@@ -188,7 +238,6 @@ class Param:
 
         self.callback = callback
         self.default_factory = default_factory
-        self.options = options if options is not None else {}
 
     def as_option(self) -> "Option":
         """

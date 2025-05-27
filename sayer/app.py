@@ -219,6 +219,11 @@ class Sayer:
             if parameter_metadata is None and isinstance(param_obj.default, (Option, Argument, Env, Param, JsonParam)):
                 parameter_metadata = param_obj.default
 
+            is_overriden_type = False
+            if getattr(parameter_metadata, "type", None) is not None:
+                actual_param_type = parameter_metadata.type
+                is_overriden_type = True
+
             wrapped_function = _build_click_parameter(
                 param_obj,
                 raw_type_annotation,
@@ -227,6 +232,7 @@ class Sayer:
                 parameter_help_text,
                 wrapped_function,
                 context_param_injected,
+                is_overriden_type,
             )
 
         return wrapped_function
@@ -301,8 +307,8 @@ class Sayer:
                         else:
                             param_config.required = False  # Defaulting to optional
 
-                if isinstance(param_config, click.Argument):
-                    flag_name = f"--{param_config.name.replace('_','-')}"
+                if isinstance(param_config, click.Argument) and param_config.type is not click.UNPROCESSED:
+                    flag_name = f"--{param_config.name.replace('_', '-')}"
                     param_config = click.Option(
                         param_decls=[flag_name],
                         type=param_config.type,
@@ -413,6 +419,13 @@ class Sayer:
             callback=cmd.callback,
             params=cmd.params,
             help=cmd.help,
+            context_settings=cmd.context_settings,
+            add_help_option=cmd.add_help_option,
+            short_help=cmd.short_help,
+            epilog=cmd.epilog,
+            hidden=cmd.hidden,
+            no_args_is_help=cmd.no_args_is_help,
+            deprecated=cmd.deprecated,
         )
         self._group.add_command(wrapped, name=name)
 

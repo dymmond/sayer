@@ -40,7 +40,7 @@ Sayer is a modern, async-native Python CLI framework built for developers who wa
 - More power.
 - More expressiveness.
 
-Less boilerplate. Less headache. Less "why doesn't this just work?"
+Less boilerplate. Less headache. Less "why doesn't this just work?".
 
 Designed to scale from weekend scripts to enterprise-grade CLI suites — with a touch of magic.
 

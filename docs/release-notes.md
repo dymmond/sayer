@@ -9,6 +9,10 @@ hide:
 
 - Custom typing overrides making sure you can specify your own typing for the `@command` decorator.
 
+## Fixed
+
+- Help text for arguments was not being displayed correctly when using the `@command` decorator.
+
 ## 0.2.3
 
 This was missed from the version 0.2.2 and it should have been included.

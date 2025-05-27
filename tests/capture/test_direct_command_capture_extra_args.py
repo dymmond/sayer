@@ -12,21 +12,20 @@ from sayer.params import Argument, Option
 def runner():
     return CliRunner()
 
+
 cmd_direct = command(
     name="run",
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )(lambda: None)  # placeholder to get a Command object
+
 
 # Replace the placeholder function with our real handler:
 @command(
     name="run",
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
 )
-def cmd_direct( # noqa
-    directive: Annotated[
-        str,
-        Option(required=True, help="The name of the directive to run.")
-    ],
+def cmd_direct(  # noqa
+    directive: Annotated[str, Option(required=True, help="The name of the directive to run.")],
     directive_args: Annotated[
         str,
         Argument(
@@ -46,13 +45,12 @@ def test_direct_unknown_flags_are_captured(runner):
     assert result.exit_code == 0
     assert "create → ('-n', 'Esmerald')" in result.output
 
+
 def test_direct_explicit_separator_works(runner):
-    result = runner.invoke(
-        cmd_direct,
-        ["--directive", "create", "--", "foo", "bar", "--baz"]
-    )
+    result = runner.invoke(cmd_direct, ["--directive", "create", "--", "foo", "bar", "--baz"])
     assert result.exit_code == 0
     assert "create → ('foo', 'bar', '--baz')" in result.output
+
 
 def test_direct_missing_directive_fails(runner):
     result = runner.invoke(cmd_direct, ["-n", "Esmerald"])

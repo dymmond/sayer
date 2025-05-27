@@ -219,6 +219,11 @@ class Sayer:
             if parameter_metadata is None and isinstance(param_obj.default, (Option, Argument, Env, Param, JsonParam)):
                 parameter_metadata = param_obj.default
 
+            is_overriden_type = False
+            if getattr(parameter_metadata, "type", None) is not None:
+                actual_param_type = parameter_metadata.type
+                is_overriden_type = True
+
             wrapped_function = _build_click_parameter(
                 param_obj,
                 raw_type_annotation,
@@ -227,6 +232,7 @@ class Sayer:
                 parameter_help_text,
                 wrapped_function,
                 context_param_injected,
+                is_overriden_type,
             )
 
         return wrapped_function

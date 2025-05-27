@@ -187,6 +187,7 @@ def _build_click_parameter(
     param_help_text: str,
     click_wrapper_function: Callable,
     is_context_injected: bool,
+    is_overriden_type: bool,
 ) -> Callable:
     """
     Dynamically attaches a Click argument or option decorator to a command
@@ -261,7 +262,7 @@ def _build_click_parameter(
         default_for_sequence = () if not has_default_value else parameter.default
         return click.option(
             f"--{parameter_name.replace('_','-')}",
-            type=click_inner_type,
+            type=click_inner_type if not is_overriden_type else parameter_base_type,
             multiple=True,
             default=default_for_sequence,
             show_default=True,
@@ -278,7 +279,7 @@ def _build_click_parameter(
             enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
         return click.option(
             f"--{parameter_name.replace('_','-')}",
-            type=click.Choice(enum_choices),
+            type=click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
             default=enum_default_value,
             show_default=True,
             help=param_help_text,
@@ -304,7 +305,7 @@ def _build_click_parameter(
     if isinstance(parameter_metadata, JsonParam):
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=click.STRING,
+            type=click.STRING if not is_overriden_type else parameter_base_type,
             default=parameter_metadata.default,
             required=parameter_metadata.required,
             show_default=False,
@@ -717,8 +718,10 @@ def command(
                 param_metadata_for_build = param_inspect_obj.default
 
             # Extract the type and override it
+            is_overriden_type = False
             if getattr(param_metadata_for_build, "type", None) is not None:
                 param_base_type = param_metadata_for_build.type
+                is_overriden_type = True
 
             # Build and apply the Click parameter decorator.
             current_wrapper = _build_click_parameter(
@@ -729,6 +732,7 @@ def command(
                 param_help_for_build,
                 current_wrapper,
                 is_context_param_injected,
+                is_overriden_type,
             )
 
         # Register the command.

@@ -12,6 +12,7 @@ hide:
 ## Fixed
 
 - Help text for arguments was not being displayed correctly when using the `@command` decorator.
+- `@command` decorator was not wrapping the decorator properly and loosing critical information for type checking and for type hints.
 
 ## 0.2.3
 

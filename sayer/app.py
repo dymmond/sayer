@@ -419,6 +419,13 @@ class Sayer:
             callback=cmd.callback,
             params=cmd.params,
             help=cmd.help,
+            context_settings=cmd.context_settings,
+            add_help_option=cmd.add_help_option,
+            short_help=cmd.short_help,
+            epilog=cmd.epilog,
+            hidden=cmd.hidden,
+            no_args_is_help=cmd.no_args_is_help,
+            deprecated=cmd.deprecated,
         )
         self._group.add_command(wrapped, name=name)
 

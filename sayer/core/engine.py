@@ -99,7 +99,6 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         # Use get_type_hints to resolve actual type
         type_hints = get_type_hints(func, globalns=sys.modules[func.__module__].__dict__)
         to_type = type_hints.get(param_name, to_type)
-
     if isinstance(to_type, type) and issubclass(to_type, Enum):
         return value
     if to_type is date and isinstance(value, datetime):
@@ -573,6 +572,14 @@ def command(
             - Execution of the original Python function (`fn`),
               including handling of asynchronous functions.
             """
+            for param in ctx.command.params:
+                if isinstance(param, click.Option) and param.required:
+                    # click stores missing params as None (or sometimes Ellipsis in Sayer),
+                    # so treat both as “not provided.”
+                    val = kwargs.get(param.name, None)
+                    if val is None or val is inspect._empty or val in [Ellipsis, "Ellipsis"]:
+                        ctx.fail(f"Missing option '{param.opts[0]}'")
+
             # --- State injection ---
             # If the context doesn't already have sayer state, initialize it.
             if not hasattr(ctx, "_sayer_state"):

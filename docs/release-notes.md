@@ -8,6 +8,7 @@ hide:
 ### Added
 
 - Custom typing overrides making sure you can specify your own typing for the `@command` decorator.
+- `SayerCommand` now supports all the parameters of `click.Command`, allowing for more flexibility in command definitions when `app.add_command` is used.
 
 ## Fixed
 

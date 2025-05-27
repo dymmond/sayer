@@ -5,6 +5,7 @@ import sys
 import types
 from datetime import date, datetime
 from enum import Enum
+from functools import wraps
 from pathlib import Path
 from typing import (
     IO,
@@ -347,24 +348,19 @@ def _build_click_parameter(
 
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
-
     if isinstance(parameter_metadata, Argument):
-        parameter_type = parameter_metadata.options.pop("type", None) or parameter_base_type
-        parameter_metadata.options.update(
-            {
-                "default": final_default_value,
-                "required": is_required,
-            }
-        )
-
         if "nargs" in parameter_metadata.options and parameter_metadata.options["nargs"] == -1:
             # If nargs is -1, it means this is a variadic argument (accepts multiple values).
             # Click will handle this as a tuple.
-            parameter_metadata.options.pop("default", None)
+            if final_default_value and final_default_value not in (inspect._empty, ...):
+                raise ValueError("Variadic arguments (nargs=-1) cannot have a default value.")
+        else:
+            parameter_metadata.options["default"] = final_default_value
 
         wrapped = click.argument(
             parameter_name,
-            type=parameter_type,
+            type=parameter_base_type,
+            required=is_required,
             **parameter_metadata.options,
         )(click_wrapper_function)
 
@@ -563,6 +559,7 @@ def command(
 
         @click.command(**click_cmd_kwargs)  # type: ignore
         @click.pass_context
+        @wraps(function_to_decorate)
         def click_command_wrapper(ctx: click.Context, **kwargs: Any) -> Any:
             """
             The inner Click command wrapper function.

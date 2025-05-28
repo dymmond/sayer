@@ -9,11 +9,16 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sayer.conf import monkay
 from sayer.params import Argument, Env, Option, Param
 from sayer.utils.console import console
 
 
-def render_help_for_command(ctx: click.Context) -> None:
+def render_help_for_command(
+    ctx: click.Context,
+    display_full_help: bool = monkay.settings.display_full_help,
+    display_help_length: int = monkay.settings.display_help_length,
+) -> None:
     """
     Render help for a single command (or group) using Rich formatting.
     Includes description, usage, parameters (if any), and if a group, lists its sub-commands.
@@ -102,7 +107,18 @@ def render_help_for_command(ctx: click.Context) -> None:
         cmd_table.add_column("Name", style="cyan")
         cmd_table.add_column("Description", style="white")
         for name, sub in cmd.commands.items():
-            cmd_table.add_row(name, sub.help or "")
+            help_text = sub.help or ""
+            if not display_full_help:
+                lines = help_text.strip().splitlines()
+                first_line = lines[0] if lines else ""
+                remaining = " ".join(lines[1:]).strip()
+                if len(remaining) > display_help_length:
+                    remaining = remaining[:display_help_length] + "..."
+                sub_help = f"{first_line}\n{remaining}" if remaining else first_line
+            else:
+                sub_help = help_text
+
+            cmd_table.add_row(name, sub_help or "")
 
     # 5) Assemble panels
     parts = [

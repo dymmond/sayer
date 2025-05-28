@@ -13,6 +13,7 @@ from typing import (
 
 import click
 
+from sayer.conf import monkay
 from sayer.core.commands import SayerCommand
 from sayer.core.engine import _build_click_parameter
 from sayer.core.groups import SayerGroup
@@ -44,6 +45,8 @@ class Sayer:
         context_class: type[click.Context] = click.Context,
         invoke_without_command: bool = False,
         no_args_is_help: bool = False,
+        display_full_help: bool = monkay.settings.display_full_help,
+        display_help_length: int = monkay.settings.display_help_length,
         **group_attrs: Any,
     ) -> None:
         """
@@ -104,6 +107,11 @@ class Sayer:
         cli_group = group_class(name=name, **group_initialization_attributes)
         cli_group.context_class = context_class
         cli_group.command_class = command_class
+
+        # Allows the user to override the default Sayer help rendering
+        # by setting `display_full_help` and `display_help_length`
+        cli_group.display_full_help = display_full_help
+        cli_group.display_help_length = display_help_length
 
         # Add version option if requested
         if add_version_option:

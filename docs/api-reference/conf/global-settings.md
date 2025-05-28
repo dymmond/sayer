@@ -13,6 +13,8 @@ This document covers `sayer/conf/global_settings.py`, detailing the default sett
 * **version**: The application version.
 * **force_terminal**: Force terminal output even when redirected. Default is `False`.
 * **color_system**: Terminal color system (e.g., `auto`, `standard`, `256`, `truecolor`).
+* **display_full_help**: Controls whether to display the full help text for commands.
+* **display_help_length**: Specifies the maximum length of help text lines if `display_full_help` is False.
 
 ### Logging Configuration
 

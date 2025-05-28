@@ -12,66 +12,42 @@ from sayer.params import Argument
 def runner():
     return CliRunner()
 
+
 # 1) Test list[int]
 @command(name="list_ints")
-def cmd_list_ints(
-    items: Annotated[
-        list[int],
-        Argument(nargs=-1, type=click.UNPROCESSED)
-    ]
-) -> None:
+def cmd_list_ints(items: Annotated[list[int], Argument(nargs=-1, type=click.UNPROCESSED)]) -> None:
     """Echo the parsed list[int]"""
     click.echo(repr(items))
 
+
 # 2) Test homogeneous tuple[int, ...]
 @command(name="tuple_ints")
-def cmd_tuple_ints(
-    items: Annotated[
-        tuple[int, ...],
-        Argument(nargs=-1, type=click.UNPROCESSED)
-    ]
-) -> None:
+def cmd_tuple_ints(items: Annotated[tuple[int, ...], Argument(nargs=-1, type=click.UNPROCESSED)]) -> None:
     click.echo(repr(items))
+
 
 # 3) Test heterogeneous tuple[str,int,float]
 @command(name="tuple_mixed")
-def cmd_tuple_mixed(
-    items: Annotated[
-        tuple[str, int, float],
-        Argument(nargs=-1, type=click.UNPROCESSED)
-    ]
-) -> None:
+def cmd_tuple_mixed(items: Annotated[tuple[str, int, float], Argument(nargs=-1, type=click.UNPROCESSED)]) -> None:
     click.echo(repr(items))
+
 
 # 4) Test set[str]
 @command(name="set_strs")
-def cmd_set_strs(
-    items: Annotated[
-        set[str],
-        Argument(nargs=-1, type=click.UNPROCESSED)
-    ]
-) -> None:
+def cmd_set_strs(items: Annotated[set[str], Argument(nargs=-1, type=click.UNPROCESSED)]) -> None:
     # sort for deterministic output
     click.echo(repr(set(items)))
 
+
 # 5) Test dict[str,int]
 @command(name="dict_str_int")
-def cmd_dict_str_int(
-    kv: Annotated[
-        dict[str, int],
-        Argument(nargs=-1, type=click.UNPROCESSED)
-    ]
-) -> None:
+def cmd_dict_str_int(kv: Annotated[dict[str, int], Argument(nargs=-1, type=click.UNPROCESSED)]) -> None:
     click.echo(repr(kv))
+
 
 # 6) Test frozenset[str]
 @command(name="fset_strs")
-def cmd_frozenset_strs(
-    items: Annotated[
-        frozenset[str],
-        Argument(nargs=-1, type=click.UNPROCESSED)
-    ]
-) -> None:
+def cmd_frozenset_strs(items: Annotated[frozenset[str], Argument(nargs=-1, type=click.UNPROCESSED)]) -> None:
     click.echo(repr(items))
 
 

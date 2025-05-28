@@ -105,20 +105,14 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
     # list[T]
     if origin is list and isinstance(value, (list, tuple)):
         inner = get_args(to_type)[0]
-        return [
-            _convert_cli_value_to_type(item, inner, func, param_name)
-            for item in value
-        ]
+        return [_convert_cli_value_to_type(item, inner, func, param_name) for item in value]
     # tuple[T, ...] or Tuple[T1, T2, ...]
     if origin is tuple and isinstance(value, (list, tuple)):
         args = get_args(to_type)
         # homogeneous: Tuple[T, ...]
         if len(args) == 2 and args[1] is Ellipsis:
             inner = args[0]
-            return tuple(
-                _convert_cli_value_to_type(item, inner, func, param_name)
-                for item in value
-            )
+            return tuple(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
         # heterogeneous: Tuple[T1, T2, ...]
         return tuple(
             _convert_cli_value_to_type(item, arg_type, func, param_name)
@@ -127,10 +121,7 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
     # set[T]
     if origin is set and isinstance(value, (list, tuple)):
         inner = get_args(to_type)[0]
-        return {
-            _convert_cli_value_to_type(item, inner, func, param_name)
-            for item in value
-        }
+        return {_convert_cli_value_to_type(item, inner, func, param_name) for item in value}
     # dict[K, V] from ["key=val", ...]
     if origin is dict and isinstance(value, (list, tuple)):
         key_t, val_t = get_args(to_type)
@@ -142,18 +133,13 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
                 v = _convert_cli_value_to_type(v_str, val_t, func, param_name)
                 d[k] = v
             else:
-                raise ValueError(
-                    f"Cannot parse dict item {item!r} for {param_name!r}"
-                )
+                raise ValueError(f"Cannot parse dict item {item!r} for {param_name!r}")
         return d
 
     # frozenset[T]
     if origin is frozenset and isinstance(value, (list, tuple)):
         inner = get_args(to_type)[0]
-        return frozenset(
-            _convert_cli_value_to_type(item, inner, func, param_name)
-            for item in value
-        )
+        return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
 
     if isinstance(to_type, type) and issubclass(to_type, Enum):
         return value

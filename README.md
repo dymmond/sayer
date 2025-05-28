@@ -71,10 +71,9 @@ uv pip install sayer
 * ✅ Shared app state and lifecycle management
 * ✅ Terminal-rich output via `rich`
 * ✅ Easy testing with `SayerTestClient`
-* ✅ Built-in shell completions (coming soon)
 * ✅ Flexible help and docs rendering
 * ✅ Clean project scaffolding, sensible defaults
-* ✅ 100% type annotated and battle-tested
+* ✅ 100% type annotated.
 
 ---
 

@@ -40,8 +40,10 @@ This is not to be confused with your application-level settings — it is used i
 | `logging_level`      | `str`                                  | Logging threshold (`DEBUG`, `INFO`, etc.)       |
 | `version`            | `str`                                  | Version of the Sayer library (auto-filled)      |
 | `is_logging_setup`   | `bool`                                 | Tracks if logging has already been configured   |
-| `force_terminal`     | `bool | None`                         | Force terminal output regardless of environment |
-| `color_system`       | `"auto" | "standard" | "256" | ...` | Controls terminal color profile                 |
+| `force_terminal`     | `bool | None`                          | Force terminal output regardless of environment |
+| `color_system`       | `"auto" | "standard" | "256" | ...`    | Controls terminal color profile                 |
+| `display_full_help`  | `bool`                                 | Flag indicating the the display of each command must be diplayed in full |
+| `display_help_length` | `int`                                 | The length of the help if `display_full_help` is set to False. Defaults to 99 |
 
 ---
 

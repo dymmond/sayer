@@ -74,6 +74,27 @@ class Settings:
     of the color output in different environments, ensuring that the
     application can adapt to various terminal capabilities.
     """
+    display_full_help: bool = False
+    """
+    Controls whether to display the full help text for commands.
+    If set to True, the application will show detailed help information
+    for commands, including descriptions, options, and usage examples.
+    If set to False, it will provide a more concise help output. This setting
+    is useful for controlling the verbosity of help messages, especially in
+    environments where space is limited or when a more streamlined help
+    output is desired.
+    """
+    display_help_length: int = 99
+    """
+    Specifies the maximum length of help text lines.
+    This setting determines how long each line of help text will be
+    before wrapping. If set to a specific integer value, the application
+    will ensure that help text lines do not exceed this length, improving
+    readability in terminal output. If set to 0, it will use the terminal's
+    default width. This setting is particularly useful for ensuring that
+    help messages are formatted correctly in different terminal sizes and
+    environments.
+    """
     __logging_config__: LoggingConfig | None = None
 
     @property

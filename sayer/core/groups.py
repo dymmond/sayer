@@ -4,6 +4,7 @@ import click
 from rich.panel import Panel
 from rich.text import Text
 
+from sayer.conf import monkay
 from sayer.utils.console import console
 
 T = TypeVar("T", bound=Callable[..., Any])
@@ -18,6 +19,9 @@ class SayerGroup(click.Group):
     decorator use `sayer.core.engine.command` for enhanced Sayer-specific
     command behavior and provides custom help and error rendering.
     """
+
+    display_full_help: bool = monkay.settings.display_full_help
+    display_help_length: int = monkay.settings.display_help_length
 
     @overload
     def command(self, f: T) -> T: ...
@@ -107,7 +111,7 @@ class SayerGroup(click.Group):
             # Retrieve the usage string for display in the error panel.
             usage = self.get_usage(ctx)
             # Construct the error message and usage string using Rich markup.
-            body = f"[bold red]Error:[/] {e.format_message()}\n\n" f"[bold cyan]Usage:[/]\n  {usage.strip()}"
+            body = f"[bold red]Error:[/] {e.format_message()}\n\n[bold cyan]Usage:[/]\n  {usage.strip()}"
             # Create a Rich Panel to visually highlight the error.
             panel = Panel.fit(Text.from_markup(body), title="Error", border_style="red")
             # Print the error panel to the console.
@@ -134,4 +138,4 @@ class SayerGroup(click.Group):
         )
 
         # Delegate the help rendering to Sayer's custom help function.
-        render_help_for_command(ctx)
+        render_help_for_command(ctx, self.display_full_help, self.display_help_length)

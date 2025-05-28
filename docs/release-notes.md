@@ -3,6 +3,13 @@ hide:
   - navigation
 ---
 
+## 0.2.5
+
+### Added
+
+- `display_full_help` and `display_help_length` in the settings and `SayerGroup` allowing to specifify if the help
+of commands/subcommands must be displayed in full.
+
 ## 0.2.4
 
 ### Added

@@ -45,7 +45,7 @@ We’ll walk you through installation, project creation, and writing your first 
 
 Before you begin, ensure you have:
 
-* Python 3.8 or higher installed.
+* Python 3.10 or higher installed.
 * A terminal/command prompt.
 * A basic understanding of Python and CLI concepts.
 

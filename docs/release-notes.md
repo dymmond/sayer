@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.2.6
+
+### Fixed
+
+- `nargs` detection and default.
+
 ## 0.2.5
 
 ### Added

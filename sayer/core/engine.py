@@ -390,11 +390,11 @@ def _build_click_parameter(
     # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
     if isinstance(parameter_metadata, Argument):
-        if "nargs" in parameter_metadata.options and parameter_metadata.options["nargs"] == -1:
+        if "nargs" in parameter_metadata.options:
             # If nargs is -1, it means this is a variadic argument (accepts multiple values).
             # Click will handle this as a tuple.
             if final_default_value and final_default_value not in (inspect._empty, ...):
-                raise ValueError("Variadic arguments (nargs=-1) cannot have a default value.")
+                raise ValueError("Variadic arguments (nargs) cannot have a default value.")
         else:
             parameter_metadata.options["default"] = final_default_value
 

@@ -117,7 +117,7 @@ class Argument(BaseParam):
     def __init__(
         self,
         default: Any = ...,
-        *,
+        *param_decls: str,
         help: str | None = None,
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
@@ -144,6 +144,7 @@ class Argument(BaseParam):
 
         self.callback = callback
         self.default_factory = default_factory
+        self.param_decls = param_decls
 
 
 class Env(BaseParam):

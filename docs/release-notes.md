@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.2.7
+
+### Fixed
+
+- `Argument` was not declaring the *param_decls properly and the required display was not accurate.
+
 ## 0.2.6
 
 ### Fixed

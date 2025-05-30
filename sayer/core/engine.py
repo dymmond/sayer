@@ -279,7 +279,7 @@ def _build_click_parameter(
             parameter_base_type = non_none[0]
 
     is_boolean_flag = parameter_base_type is bool
-    has_default_value = parameter.default is not inspect._empty
+    has_default_value = parameter.default not in [inspect._empty, Ellipsis]
     resolved_default_value = parameter.default if has_default_value else None
 
     # Param(...) annotated as generic → Option if criteria met
@@ -375,8 +375,12 @@ def _build_click_parameter(
         parameter_base_type = click.File("r")
 
     # Compute final default & required
-    has_metadata_default = getattr(parameter_metadata, "default", ...) is not ...
+    has_metadata_default = getattr(parameter_metadata, "default", ...) not in [..., Ellipsis]
     final_default_value = getattr(parameter_metadata, "default", resolved_default_value)
+
+    if final_default_value is Ellipsis:
+        final_default_value = None
+
     if isinstance(final_default_value, Enum):
         final_default_value = final_default_value.value
     if isinstance(final_default_value, (date, datetime)):

@@ -1,8 +1,7 @@
 import inspect
-from typing import Annotated, get_args, get_origin
 
 import click
-from rich.console import Group
+from rich import box
 from rich.markdown import Markdown
 from rich.padding import Padding
 from rich.panel import Panel
@@ -20,129 +19,168 @@ def render_help_for_command(
     display_help_length: int = monkay.settings.display_help_length,
 ) -> None:
     """
-    Render help for a single command (or group) using Rich formatting.
-    Includes description, usage, parameters (if any), and if a group, lists its sub-commands.
+    Render help in a simple layout, with:
+
+      1. ‘Usage:’ line (yellow + white).
+      2. Description as Markdown.
+      3. A single ‘Options’ box with box.ROUNDED borders in gray50,
+         containing columns: Flags | Required | Default | Description, with spacing.
+      4. A single ‘Commands’ box with box.ROUNDED borders in gray50:
+         Name | Description, with spacing.
+      5. Exactly one blank line between Usage, Description, Options, and Commands.
     """
     cmd = ctx.command
 
-    # Fetch the help text or fallback to docstring or a placeholder
-    doc = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."
-    description_md = Markdown(doc)
-
-    # Build a signature string only once
+    # —— 1) USAGE LINE ——
     signature = generate_signature(cmd)
     if isinstance(cmd, click.Group):
-        usage = f"{ctx.command_path} [OPTIONS] COMMAND [ARGS]..."
+        usage_line = f"{ctx.command_path} [OPTIONS] COMMAND [ARGS]..."
     else:
-        usage = f"{ctx.command_path} {signature}"
+        usage_line = f"{ctx.command_path} {signature}".rstrip()
 
-    user_params = [
+    usage_text = Text()
+    usage_text.append("Usage: ", style="bold yellow")
+    usage_text.append(usage_line, style="white")
+    padded_usage_text = Padding(usage_text, (1, 0, 0, 1))  # 4 spaces on the lef
+
+    # —— 2) DESCRIPTION ——
+    raw_help = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."
+    description_renderable = Markdown(raw_help)
+    padded_description_renderable = Padding(description_renderable, (0, 0, 0, 1))
+
+    # —— 3) BUILD LISTS FOR OPTIONS ——
+    user_options = [
         p
         for p in cmd.params
-        if not (isinstance(p, click.Option) and "--help" in getattr(p, "opts", ())) and not getattr(p, "hidden", False)
+        if isinstance(p, click.Option) and "--help" not in getattr(p, "opts", ()) and not getattr(p, "hidden", False)
     ]
 
-    param_table = None
-    if user_params:
-        # Create the table header (Rich Table)
-        param_table = Table(
+    flags_req_def_desc: list[tuple[str, str, str, str]] = []
+    max_flag_len = 0
+
+    for param in user_options:
+        # Build plain “flags” string: reversed so short form appears first
+        flags_str = "/".join(reversed(param.opts))
+        if len(flags_str) > max_flag_len:
+            max_flag_len = len(flags_str)
+
+        # Required?
+        required_str = "Yes" if getattr(param, "required", False) else "No"
+
+        # Default value (only if not None/empty)
+        default_val = getattr(param, "default", inspect._empty)
+        if default_val in (inspect._empty, None, ...):
+            default_str = ""
+        elif isinstance(default_val, bool):
+            default_str = "true" if default_val else "false"
+        else:
+            default_str = str(default_val)
+
+        # Help/Description text
+        desc = param.help or ""
+        flags_req_def_desc.append((flags_str, required_str, default_str, desc))
+
+    # —— 4) BUILD OPTIONS PANEL ——
+    options_panel = None
+    if flags_req_def_desc:
+        opt_table = Table(
             show_header=True,
-            header_style="bold yellow",
+            header_style="gray50",
             box=None,
             pad_edge=False,
-            title_style="bold magenta",
+            padding=(0, 2),  # two spaces padding on left/right of each cell
+            expand=False,
         )
-        param_table.add_column("Parameter", style="cyan")
-        param_table.add_column("Type", style="green")
-        param_table.add_column("Required", style="red", justify="center")
-        param_table.add_column("Default", style="blue", justify="center")
-        param_table.add_column("Description", style="white")
+        # Four columns: flags, Required, Default, Description
+        opt_table.add_column("Flags", style="bold cyan", no_wrap=True, min_width=max_flag_len)
+        opt_table.add_column("Required", style="red", no_wrap=True, justify="center")
+        opt_table.add_column("Default", style="blue", no_wrap=True, justify="center")
+        opt_table.add_column("Description", style="gray50", ratio=1)
 
-        # If the callback was wrapped, get the original function to inspect type hints
-        orig_fn = getattr(cmd.callback, "_original_func", None)
-        orig_sig = inspect.signature(orig_fn) if orig_fn else None
-
-        # Iterate once over all user-defined params
-        for param in user_params:
-            if orig_sig and param.name in orig_sig.parameters:
-                anno = orig_sig.parameters[param.name].annotation
-                if get_origin(anno) is Annotated:
-                    raw = get_args(anno)[0]
+        for flags_str, required_str, default_str, desc in flags_req_def_desc:
+            # Reconstruct a Text object for flags, coloring '--no-' in magenta
+            flags_text = Text()
+            for i, part in enumerate(flags_str.split("  ")):
+                if i > 0:
+                    flags_text.append("  ")
+                if part.startswith("--no-"):
+                    flags_text.append(part, style="magenta")
                 else:
-                    raw = anno
-                typestr = getattr(raw, "__name__", str(raw)).upper() if raw is not inspect._empty else "STRING"
-            else:
-                # Fall back to click's type name
-                pt = param.type
-                typestr = pt.name.upper() if hasattr(pt, "name") else str(pt).upper()
+                    flags_text.append(part, style="bold cyan")
 
-            real_default = getattr(param, "default", inspect._empty)
-            if real_default in (inspect._empty, None, ...):
-                default_str = ""
-            elif isinstance(real_default, bool):
-                default_str = "true" if real_default else "false"
-            else:
-                default_str = str(real_default)
+            opt_table.add_row(
+                flags_text,
+                required_str,
+                default_str,
+                desc,
+            )
 
-            required = "Yes" if getattr(param, "required", False) else "No"
-
-            if isinstance(param, click.Option):
-                label = "/".join(reversed(param.opts))
-            else:
-                label = f"<{param.name}>"
-
-            help_text = getattr(param, "help", "") or ""
-            param_table.add_row(label, typestr, required, default_str, help_text)
-
-    cmd_table = None
-    if isinstance(cmd, click.Group):
-        cmd_table = Table(
-            show_header=True,
-            header_style="bold green",
-            box=None,
-            pad_edge=False,
+        options_panel = Panel(
+            opt_table,
+            title="Options",
+            title_align="left",
+            border_style="gray50",
+            box=box.ROUNDED,
+            padding=(0, 1),
         )
-        cmd_table.add_column("Name", style="cyan")
-        cmd_table.add_column("Description", style="white")
+
+    # —— 5) BUILD COMMANDS PANEL ——
+    commands_panel = None
+    if isinstance(cmd, click.Group):
+        sub_items: list[tuple[str, str]] = []
+        max_cmd_len = 0
 
         for name, sub in cmd.commands.items():
-            help_text = sub.help or ""
+            raw_sub_help = sub.help or ""
             if not display_full_help:
-                # Show only the first line + truncated remainder
-                lines = help_text.strip().splitlines()
+                lines = raw_sub_help.strip().splitlines()
                 first_line = lines[0] if lines else ""
                 remaining = " ".join(lines[1:]).strip()
                 if len(remaining) > display_help_length:
                     remaining = remaining[:display_help_length] + "..."
-                sub_help = f"{first_line}\n{remaining}" if remaining else first_line
+                sub_summary = f"{first_line}\n{remaining}" if remaining else first_line
             else:
-                sub_help = help_text
+                sub_summary = raw_sub_help
 
-            cmd_table.add_row(name, sub_help or "")
+            if len(name) > max_cmd_len:
+                max_cmd_len = len(name)
+            sub_items.append((name, sub_summary))
 
-    parts = [
-        Text("Description", style="bold blue"),
-        Padding(description_md, (0, 0, 1, 2)),
-        Text("Usage", style="bold cyan"),
-        Padding(Text(f"  {usage}"), (0, 0, 1, 0)),
-    ]
+        cmd_table = Table(
+            show_header=True,
+            header_style="gray50",
+            box=None,
+            pad_edge=False,
+            padding=(0, 2),  # two spaces padding on left/right of each cell
+            expand=False,
+        )
+        cmd_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
+        cmd_table.add_column("Description", style="gray50", ratio=1)
 
-    if param_table:
-        parts.extend(
-            [
-                Text("Parameters", style="bold cyan"),
-                Padding(param_table, (0, 0, 1, 2)),
-            ]
+        for name, summary in sub_items:
+            cmd_table.add_row(Text(name, style="bold cyan"), summary)
+
+        commands_panel = Panel(
+            cmd_table,
+            title="Commands",
+            title_align="left",
+            border_style="gray50",
+            box=box.ROUNDED,
+            padding=(0, 1),
         )
 
-    if cmd_table:
-        parts.extend(
-            [
-                Text("Commands", style="bold cyan"),
-                Padding(cmd_table, (0, 0, 0, 2)),
-            ]
-        )
+    # —— 6) PRINT ALL SECTIONS WITH ONE BLANK LINE BETWEEN ——
+    console.print(padded_usage_text)
+    console.print()  # blank line
 
-    panel = Panel.fit(Group(*parts), title=cmd.name, border_style="bold cyan")  # type: ignore
-    console.print(panel)
+    console.print(padded_description_renderable)
+    console.print()  # blank line
+
+    if options_panel:
+        console.print(options_panel)
+        console.print()  # blank line before Commands
+
+    if commands_panel:
+        console.print(commands_panel)
+
     ctx.exit()

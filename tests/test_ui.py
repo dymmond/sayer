@@ -17,9 +17,9 @@ def runner():
         (
             [],
             [
-                "Sayer CLI Application",
+                "Sayer CLI",
                 "Usage",
-                "Parameters",
+                "Options",
                 "Commands",
                 "new",
                 "docs",

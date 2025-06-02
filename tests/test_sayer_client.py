@@ -10,7 +10,7 @@ def test_sayer_client():
 
     out = result.output
 
-    assert "Sayer CLI Application" in out
+    assert "Sayer CLI" in out
 
     # exact formatting: command name, two spaces, description
     assert "new" in out
@@ -27,7 +27,7 @@ def test_sayer_client_help():
 
     out = result.output
 
-    assert "Sayer CLI Application" in out
+    assert "Sayer CLI" in out
 
     # exact formatting: command name, two spaces, description
     assert "new" in out

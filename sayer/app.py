@@ -118,7 +118,7 @@ class Sayer:
         if add_version_option:
             if not version:
                 raise ValueError("`version` must be provided with `add_version_option=True`")
-            cli_group = click.version_option(version, "--version", "-V")(cli_group)
+            cli_group = click.version_option(version, "--version", "-v")(cli_group)
 
         # Preserve the original invoke method to be called after callbacks
         original_group_invoke = cli_group.invoke

@@ -4,9 +4,16 @@ from sayer.app import Sayer
 from sayer.core.commands.sayer import SayerCommand
 from sayer.core.engine import get_commands, get_groups
 
+help_text = """**Sayer** CLI: Your essential command-line tool for any project.
+
+The ultimate tool for managing and running your Sayer projects and apps.
+
+Read more in the docs: https://sayer.dymmond.com
+"""
+
 app = Sayer(
     name="sayer",
-    help="Sayer CLI Application",
+    help=help_text,
     add_version_option=True,
     version=get_version(),
 )

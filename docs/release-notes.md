@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.3.1
+
+### Changed
+
+- Make the UI help display cleaner and simpler.
+
 ## 0.3.0
 
 ### Added

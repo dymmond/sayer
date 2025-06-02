@@ -18,7 +18,7 @@ def render_help_for_command(
     display_help_length: int = monkay.settings.display_help_length,
 ) -> None:
     """
-    Render help in a FastAPI‐style layout, with:
+    Render help in a simple layout, with:
 
       1. ‘Usage:’ line (yellow + white).
       2. Description as Markdown.

@@ -4,13 +4,13 @@ from typing import Annotated, get_args, get_origin
 
 import click
 
-from sayer.app import Sayer
+from sayer.core.engine import group
 from sayer.params import Option
 from sayer.utils.ui import error, success
 
 # Create the 'docs' subgroup
-docs = Sayer(
-    name="docs",
+docs = group(
+    "docs",
     help="Generate Markdown documentation for all Sayer commands and groups.",
 )
 
@@ -143,6 +143,8 @@ def generate(
             continue
         for sub, sub_cmd in grp.commands.items():
             filename = f"{name}-{sub}.md"
-            (commands_dir / filename).write_text(render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8")
+            (commands_dir / filename).write_text(
+                render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8"
+            )
 
     success(f"Generated docs in {output}")

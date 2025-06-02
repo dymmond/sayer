@@ -26,7 +26,7 @@ for cmd in get_commands().values():
         no_args_is_help=cmd.no_args_is_help,
         deprecated=cmd.deprecated,
     )
-    app.cli.add_command(cmd_cls)
+    app.add_command(cmd_cls)
 
 # 2️⃣ For each group, rewrap *its* subcommands before adding the group itself
 for alias, group_cmd in get_groups().items():

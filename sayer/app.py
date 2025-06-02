@@ -14,6 +14,7 @@ from typing import (
 import click
 
 from sayer.conf import monkay
+from sayer.core.commands.base import BaseSayerCommand
 from sayer.core.commands.sayer import SayerCommand
 from sayer.core.engine import _build_click_parameter
 from sayer.core.groups.sayer import SayerGroup
@@ -178,6 +179,7 @@ class Sayer:
         # Install our wrapper
         cli_group.invoke = invoke_with_sayer_callbacks  # type: ignore
         self._group = cli_group
+        self._command_class = command_class
 
     def _apply_param_logic(self, target_function: Callable[..., Any]) -> Callable[..., Any]:
         """
@@ -421,8 +423,12 @@ class Sayer:
             self._group.add_command(cmd, name=name)
             return
 
+        if isinstance(cmd, BaseSayerCommand):
+            self._group.add_command(cmd, name=name)
+            return
+
         # Otherwise it's a leaf command: wrap it in SayerCommand
-        wrapped = SayerCommand(
+        wrapped = self._command_class(
             name=cmd.name,
             callback=cmd.callback,
             params=cmd.params,

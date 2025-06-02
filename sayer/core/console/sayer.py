@@ -3,6 +3,7 @@ import inspect
 import click
 from rich import box
 from rich.markdown import Markdown
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -40,10 +41,12 @@ def render_help_for_command(
     usage_text = Text()
     usage_text.append("Usage: ", style="bold yellow")
     usage_text.append(usage_line, style="white")
+    padded_usage_text = Padding(usage_text, (1, 0, 0, 1))  # 4 spaces on the lef
 
     # —— 2) DESCRIPTION ——
     raw_help = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."
     description_renderable = Markdown(raw_help)
+    padded_description_renderable = Padding(description_renderable, (0, 0, 0, 1))
 
     # —— 3) BUILD LISTS FOR OPTIONS ——
     user_options = [
@@ -89,10 +92,10 @@ def render_help_for_command(
             expand=False,
         )
         # Four columns: flags, Required, Default, Description
-        opt_table.add_column("Flags", style="cyan", no_wrap=True, min_width=max_flag_len)
+        opt_table.add_column("Flags", style="bold cyan", no_wrap=True, min_width=max_flag_len)
         opt_table.add_column("Required", style="red", no_wrap=True, justify="center")
         opt_table.add_column("Default", style="blue", no_wrap=True, justify="center")
-        opt_table.add_column("Description", style="white", ratio=1)
+        opt_table.add_column("Description", style="gray50", ratio=1)
 
         for flags_str, required_str, default_str, desc in flags_req_def_desc:
             # Reconstruct a Text object for flags, coloring '--no-' in magenta
@@ -103,7 +106,7 @@ def render_help_for_command(
                 if part.startswith("--no-"):
                     flags_text.append(part, style="magenta")
                 else:
-                    flags_text.append(part, style="cyan")
+                    flags_text.append(part, style="bold cyan")
 
             opt_table.add_row(
                 flags_text,
@@ -151,11 +154,11 @@ def render_help_for_command(
             padding=(0, 2),  # two spaces padding on left/right of each cell
             expand=False,
         )
-        cmd_table.add_column("Name", style="cyan", no_wrap=True, min_width=max_cmd_len)
-        cmd_table.add_column("Description", style="white", ratio=1)
+        cmd_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
+        cmd_table.add_column("Description", style="gray50", ratio=1)
 
         for name, summary in sub_items:
-            cmd_table.add_row(Text(name, style="cyan"), summary)
+            cmd_table.add_row(Text(name, style="bold cyan"), summary)
 
         commands_panel = Panel(
             cmd_table,
@@ -167,10 +170,10 @@ def render_help_for_command(
         )
 
     # —— 6) PRINT ALL SECTIONS WITH ONE BLANK LINE BETWEEN ——
-    console.print(usage_text)
+    console.print(padded_usage_text)
     console.print()  # blank line
 
-    console.print(description_renderable)
+    console.print(padded_description_renderable)
     console.print()  # blank line
 
     if options_panel:

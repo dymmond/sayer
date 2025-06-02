@@ -10,10 +10,7 @@ hide:
 * **BaseSayerCommand**: Introduced a new base class for commands, `BaseSayerCommand`,
 which provides a more structured way to define commands and allows for easier extension of command functionality.
 * **BaseSayerGroup**: Introduced a new base class for groups, `BaseSayerGroup`.
-* **MarkdownCommand**: A new command to generate Markdown documentation for your CLI, making it easier to maintain and share your CLI documentation.
-    * `from sayer.core.commands.markdown import MarkdownCommand`
-* **SayerMarkdownGroup**: A new group for handling Markdown-related commands, providing a structured way to manage Markdown documentation generation.
-    * `from sayer.core.groups.markdown import SayerMarkdownGroup`
+* `override_help_text`: A new parameter for the `add_app` and `add_sayer` decorator that allows you to override the help text for a command, providing more flexibility in how commands are documented.
 
 ### Changed
 

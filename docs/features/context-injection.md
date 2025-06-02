@@ -88,11 +88,13 @@ import inspect
 from functools import wraps
 import click
 from sayer import Sayer
-from sayer.core.groups import SayerGroup
+from sayer.core.groups.sayer import SayerGroup
+
 
 class EnvLoader:
     def __init__(self):
         self.name = "prod"
+
 
 class CustomGroup(SayerGroup):
     def add_command(self, cmd, name=None):

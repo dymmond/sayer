@@ -7,7 +7,7 @@ from functools import wraps
 import click
 
 from sayer import Sayer, command
-from sayer.core.groups import SayerGroup
+from sayer.core.groups.sayer import SayerGroup
 from sayer.testing import SayerTestClient
 
 T = typing.TypeVar("T")

@@ -70,5 +70,5 @@ def test_sayer_client_command_docs_generate_options_display():
     out = result.output
 
     # test name
-    assert "--output/-o" in out
-    assert "--force/-f" in out
+    assert "-o/--output" in out
+    assert "-f/--force" in out

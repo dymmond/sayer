@@ -3,6 +3,22 @@ hide:
   - navigation
 ---
 
+## 0.3.0
+
+### Added
+
+* **BaseSayerCommand**: Introduced a new base class for commands, `BaseSayerCommand`,
+which provides a more structured way to define commands and allows for easier extension of command functionality.
+* **BaseSayerGroup**: Introduced a new base class for groups, `BaseSayerGroup`.
+* `override_help_text`: A new parameter for the `add_app` and `add_sayer` decorator that allows you to override the help text for a command, providing more flexibility in how commands are documented.
+
+### Changed
+
+- **SayerCommand**: Now inherits from `BaseSayerCommand`, this brings some structure and allows an easier way to extend the command
+functionality.
+- **SayerGroup**: Now inherits from `BaseSayerGroup`, this brings some structure and allows an easier way to extend the group.
+- To check the version, you can use `-v` instead of `-V`.
+
 ## 0.2.7
 
 ### Fixed

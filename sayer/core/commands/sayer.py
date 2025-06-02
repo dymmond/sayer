@@ -1,13 +1,10 @@
-from typing import Any, Callable, TypeVar
-
 import click
 
-from sayer.core.help import render_help_for_command
+from sayer.core.commands.base import BaseSayerCommand
+from sayer.core.console.sayer import render_help_for_command
 
-T = TypeVar("T", bound=Callable[..., Any])
 
-
-class SayerCommand(click.Command):
+class SayerCommand(BaseSayerCommand):
     """
     A custom click.Command that renders help via Sayer's rich help renderer.
     """

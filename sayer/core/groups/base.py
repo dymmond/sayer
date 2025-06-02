@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from typing import Any, Callable, TypeVar, cast, overload
 
 import click
@@ -10,7 +11,7 @@ from sayer.utils.console import console
 T = TypeVar("T", bound=Callable[..., Any])
 
 
-class SayerGroup(click.Group):
+class BaseSayerGroup(ABC, click.Group):
     """
     A custom `click.Group` subclass that enhances command registration and
     error handling with Rich-based formatting.
@@ -119,6 +120,7 @@ class SayerGroup(click.Group):
             # Exit the application with the error's exit code.
             ctx.exit(e.exit_code)
 
+    @abstractmethod
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter | None = None) -> None:
         """
         Formats and renders the help message for the command or group using
@@ -133,9 +135,4 @@ class SayerGroup(click.Group):
             formatter: An optional Click `HelpFormatter` instance (though ignored
                        as Sayer uses its own rendering).
         """
-        from sayer.core.help import (
-            render_help_for_command,
-        )
-
-        # Delegate the help rendering to Sayer's custom help function.
-        render_help_for_command(ctx, self.display_full_help, self.display_help_length)
+        raise NotImplementedError("Subclasses must implement format_help method.")

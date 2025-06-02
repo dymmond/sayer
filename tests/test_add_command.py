@@ -2,8 +2,8 @@ import click
 from click.testing import CliRunner
 
 from sayer import Sayer
-from sayer.core.commands import SayerCommand
-from sayer.core.groups import SayerGroup
+from sayer.core.commands.sayer import SayerCommand
+from sayer.core.groups.sayer import SayerGroup
 
 
 def test_add_leaf_command_wraps_in_sayer_command():

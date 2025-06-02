@@ -18,7 +18,7 @@ Commands are usually created using the `@command` decorator in Sayer, but `Sayer
 ### Example
 
 ```python
-from sayer.core.commands import SayerCommand
+from sayer.core.commands.sayer import SayerCommand
 from click import Context
 
 cmd = SayerCommand(

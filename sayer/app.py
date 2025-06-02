@@ -14,9 +14,10 @@ from typing import (
 import click
 
 from sayer.conf import monkay
-from sayer.core.commands import SayerCommand
+from sayer.core.commands.base import BaseSayerCommand
+from sayer.core.commands.sayer import SayerCommand
 from sayer.core.engine import _build_click_parameter
-from sayer.core.groups import SayerGroup
+from sayer.core.groups.sayer import SayerGroup
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State
 
@@ -178,6 +179,7 @@ class Sayer:
         # Install our wrapper
         cli_group.invoke = invoke_with_sayer_callbacks  # type: ignore
         self._group = cli_group
+        self._command_class = command_class
 
     def _apply_param_logic(self, target_function: Callable[..., Any]) -> Callable[..., Any]:
         """
@@ -361,17 +363,18 @@ class Sayer:
         """
         return self._group.command(*args, **kwargs)
 
-    def add_app(self, alias: str, app: "Sayer") -> None:
+    def add_app(self, alias: str, app: "Sayer", override_helper_text: bool = True) -> None:
         """
         An alias for `add_sayer()`.
 
         Args:
             alias: The name under which the `app` will be mounted.
             app: The `Sayer` application instance to be mounted.
+            override_helper_text: If `True`, the mounted app's help text will be overridden
         """
-        self.add_sayer(alias, app)
+        self.add_sayer(alias, app, override_helper_text)
 
-    def add_sayer(self, alias: str, app: "Sayer") -> None:
+    def add_sayer(self, alias: str, app: "Sayer", override_helper_text: bool = True) -> None:
         """
         Mounts another `Sayer` application under this one.
         This re-wraps the mounted app's commands and groups to ensure that
@@ -381,7 +384,11 @@ class Sayer:
         Args:
             alias: The name under which the `app` will be mounted as a subcommand.
             app: The `Sayer` application instance to be mounted.
+            override_helper_text: If `True`, the mounted app's help text will be overridden
+                                  to use this app's help rendering logic.
         """
+        if override_helper_text:
+            app._group.format_help = self._group.format_help  # type: ignore
         self._group.add_command(app._group, name=alias)
 
     def run(self, args: list[str] | None = None) -> Any:
@@ -421,8 +428,12 @@ class Sayer:
             self._group.add_command(cmd, name=name)
             return
 
+        if isinstance(cmd, BaseSayerCommand):
+            self._group.add_command(cmd, name=name)
+            return
+
         # Otherwise it's a leaf command: wrap it in SayerCommand
-        wrapped = SayerCommand(
+        wrapped = self._command_class(
             name=cmd.name,
             callback=cmd.callback,
             params=cmd.params,

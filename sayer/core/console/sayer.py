@@ -10,8 +10,8 @@ from rich.table import Table
 from rich.text import Text
 
 from sayer.conf import monkay
-from sayer.params import Argument, Env, Option, Param
 from sayer.utils.console import console
+from sayer.utils.signature import generate_signature
 
 
 def render_help_for_command(
@@ -25,18 +25,17 @@ def render_help_for_command(
     """
     cmd = ctx.command
 
-    # 1) Description
+    # Fetch the help text or fallback to docstring or a placeholder
     doc = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."
     description_md = Markdown(doc)
 
-    # 2) Usage — use the actual invoked path, not “sayer …”
-    signature = _generate_signature(cmd)
+    # Build a signature string only once
+    signature = generate_signature(cmd)
     if isinstance(cmd, click.Group):
         usage = f"{ctx.command_path} [OPTIONS] COMMAND [ARGS]..."
     else:
         usage = f"{ctx.command_path} {signature}"
 
-    # 3) Parameters — filter out built-in help and any hidden params
     user_params = [
         p
         for p in cmd.params
@@ -45,6 +44,7 @@ def render_help_for_command(
 
     param_table = None
     if user_params:
+        # Create the table header (Rich Table)
         param_table = Table(
             show_header=True,
             header_style="bold yellow",
@@ -58,12 +58,12 @@ def render_help_for_command(
         param_table.add_column("Default", style="blue", justify="center")
         param_table.add_column("Description", style="white")
 
-        # original function signature for type hints
+        # If the callback was wrapped, get the original function to inspect type hints
         orig_fn = getattr(cmd.callback, "_original_func", None)
         orig_sig = inspect.signature(orig_fn) if orig_fn else None
 
+        # Iterate once over all user-defined params
         for param in user_params:
-            # Type name
             if orig_sig and param.name in orig_sig.parameters:
                 anno = orig_sig.parameters[param.name].annotation
                 if get_origin(anno) is Annotated:
@@ -72,18 +72,11 @@ def render_help_for_command(
                     raw = anno
                 typestr = getattr(raw, "__name__", str(raw)).upper() if raw is not inspect._empty else "STRING"
             else:
+                # Fall back to click's type name
                 pt = param.type
                 typestr = pt.name.upper() if hasattr(pt, "name") else str(pt).upper()
 
-            # Default & required
-            default_val = getattr(param, "default", inspect._empty)
-            if isinstance(default_val, (Option, Argument, Env, Param)):
-                real_default = default_val.default
-                required = "Yes" if default_val.required else "No"
-            else:
-                real_default = default_val
-                required = "No" if real_default not in (inspect._empty, None, ...) else "Yes"
-
+            real_default = getattr(param, "default", inspect._empty)
             if real_default in (inspect._empty, None, ...):
                 default_str = ""
             elif isinstance(real_default, bool):
@@ -91,14 +84,16 @@ def render_help_for_command(
             else:
                 default_str = str(real_default)
 
-            if not param.required:
-                required = "No"
+            required = "Yes" if getattr(param, "required", False) else "No"
 
-            label = "/".join(param.opts) if isinstance(param, click.Option) else f"<{param.name}>"
+            if isinstance(param, click.Option):
+                label = "/".join(reversed(param.opts))
+            else:
+                label = f"<{param.name}>"
+
             help_text = getattr(param, "help", "") or ""
             param_table.add_row(label, typestr, required, default_str, help_text)
 
-    # 4) If group, build commands table
     cmd_table = None
     if isinstance(cmd, click.Group):
         cmd_table = Table(
@@ -109,9 +104,11 @@ def render_help_for_command(
         )
         cmd_table.add_column("Name", style="cyan")
         cmd_table.add_column("Description", style="white")
+
         for name, sub in cmd.commands.items():
             help_text = sub.help or ""
             if not display_full_help:
+                # Show only the first line + truncated remainder
                 lines = help_text.strip().splitlines()
                 first_line = lines[0] if lines else ""
                 remaining = " ".join(lines[1:]).strip()
@@ -123,7 +120,6 @@ def render_help_for_command(
 
             cmd_table.add_row(name, sub_help or "")
 
-    # 5) Assemble panels
     parts = [
         Text("Description", style="bold blue"),
         Padding(description_md, (0, 0, 1, 2)),
@@ -150,16 +146,3 @@ def render_help_for_command(
     panel = Panel.fit(Group(*parts), title=cmd.name, border_style="bold cyan")  # type: ignore
     console.print(panel)
     ctx.exit()
-
-
-def _generate_signature(cmd: click.Command) -> str:
-    parts: list[str] = []
-    for p in cmd.params:
-        if isinstance(p, click.Argument):
-            parts.append(f"<{p.name}>")
-        elif isinstance(p, click.Option):
-            if p.is_flag:
-                parts.append(f"[--{p.name}]")
-            else:
-                parts.append(f"[--{p.name} <{p.name}>]")
-    return " ".join(parts)

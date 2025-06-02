@@ -143,6 +143,8 @@ def generate(
             continue
         for sub, sub_cmd in grp.commands.items():
             filename = f"{name}-{sub}.md"
-            (commands_dir / filename).write_text(render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8")
+            (commands_dir / filename).write_text(
+                render_cmd(f"{name} {sub}", sub_cmd), encoding="utf-8"
+            )
 
     success(f"Generated docs in {output}")

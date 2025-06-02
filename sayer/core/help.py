@@ -38,8 +38,7 @@ def render_help_for_command(
     user_params = [
         p
         for p in cmd.params
-        if not (isinstance(p, click.Option) and "--help" in getattr(p, "opts", ()))
-        and not getattr(p, "hidden", False)
+        if not (isinstance(p, click.Option) and "--help" in getattr(p, "opts", ())) and not getattr(p, "hidden", False)
     ]
 
     param_table = None
@@ -70,11 +69,7 @@ def render_help_for_command(
                     raw = get_args(anno)[0]
                 else:
                     raw = anno
-                typestr = (
-                    getattr(raw, "__name__", str(raw)).upper()
-                    if raw is not inspect._empty
-                    else "STRING"
-                )
+                typestr = getattr(raw, "__name__", str(raw)).upper() if raw is not inspect._empty else "STRING"
             else:
                 # Fall back to click's type name
                 pt = param.type
@@ -147,7 +142,7 @@ def render_help_for_command(
             ]
         )
 
-    panel = Panel.fit(Group(*parts), title=cmd.name, border_style="bold cyan")
+    panel = Panel.fit(Group(*parts), title=cmd.name, border_style="bold cyan")  # type: ignore
     console.print(panel)
     ctx.exit()
 

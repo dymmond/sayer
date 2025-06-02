@@ -3,6 +3,14 @@ hide:
   - navigation
 ---
 
+## 0.3.0
+
+### Changed
+
+- **SayerCommand**: Now inherits from `BaseSayerCommand`, this brings some structure and allows an easier way to extend the command
+functionality.
+- **SayerGroup**: Now inherits from `BaseSayerGroup`, this brings some structure and allows an easier way to extend the group.
+
 ## 0.2.7
 
 ### Fixed

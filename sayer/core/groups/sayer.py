@@ -133,7 +133,7 @@ class SayerGroup(click.Group):
             formatter: An optional Click `HelpFormatter` instance (though ignored
                        as Sayer uses its own rendering).
         """
-        from sayer.core.help import (
+        from sayer.core.console.sayer import (
             render_help_for_command,
         )
 

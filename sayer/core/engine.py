@@ -26,7 +26,7 @@ from uuid import UUID
 import anyio
 import click
 
-from sayer.core.groups import SayerGroup
+from sayer.core.groups.sayer import SayerGroup
 from sayer.encoders import MoldingProtocol, apply_structure, get_encoders
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, JsonParam, Option, Param
@@ -706,7 +706,10 @@ def command(
                 # Convert non-list/Sequence types using the `_convert_cli_value_to_type` helper.
                 if get_origin(raw_type_for_conversion) not in (list, Sequence):
                     parameter_value = _convert_cli_value_to_type(
-                        parameter_value, target_type_for_conversion, function_to_decorate, param_sig.name
+                        parameter_value,
+                        target_type_for_conversion,
+                        function_to_decorate,
+                        param_sig.name,
                     )
 
                 bound_arguments[param_sig.name] = parameter_value
@@ -746,7 +749,7 @@ def command(
             # Determine the raw annotation and the primary parameter type.
             raw_annotation_for_param = type_hints.get(
                 param_inspect_obj.name,
-                param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str,
+                (param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str),
             )
             param_base_type = (
                 get_args(raw_annotation_for_param)[0]

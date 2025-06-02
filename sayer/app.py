@@ -14,9 +14,9 @@ from typing import (
 import click
 
 from sayer.conf import monkay
-from sayer.core.commands import SayerCommand
+from sayer.core.commands.sayer import SayerCommand
 from sayer.core.engine import _build_click_parameter
-from sayer.core.groups import SayerGroup
+from sayer.core.groups.sayer import SayerGroup
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State
 

@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sayer.conf import monkay
 from sayer.utils.console import console
+from sayer.utils.signature import generate_signature
 
 
 def render_help_for_command(
@@ -29,7 +30,7 @@ def render_help_for_command(
     description_md = Markdown(doc)
 
     # Build a signature string only once
-    signature = _generate_signature(cmd)
+    signature = generate_signature(cmd)
     if isinstance(cmd, click.Group):
         usage = f"{ctx.command_path} [OPTIONS] COMMAND [ARGS]..."
     else:
@@ -145,19 +146,3 @@ def render_help_for_command(
     panel = Panel.fit(Group(*parts), title=cmd.name, border_style="bold cyan")  # type: ignore
     console.print(panel)
     ctx.exit()
-
-
-def _generate_signature(cmd: click.Command) -> str:
-    """
-    Build a minimal signature string like "<arg> [--flag <flag>]" for usage output.
-    """
-    parts: list[str] = []
-    for p in cmd.params:
-        if isinstance(p, click.Argument):
-            parts.append(f"<{p.name}>")
-        elif isinstance(p, click.Option):
-            if p.is_flag:
-                parts.append(f"[--{p.name}]")
-            else:
-                parts.append(f"[--{p.name} <{p.name}>]")
-    return " ".join(parts)

@@ -2,7 +2,7 @@ from typing import Any, Callable, TypeVar
 
 import click
 
-from sayer.core.help import render_help_for_command
+from sayer.core.console.sayer import render_help_for_command
 
 T = TypeVar("T", bound=Callable[..., Any])
 

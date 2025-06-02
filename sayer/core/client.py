@@ -1,7 +1,7 @@
 import sayer.cli.docs  # noqa
 from sayer.__version__ import get_version
 from sayer.app import Sayer
-from sayer.core.commands import SayerCommand
+from sayer.core.commands.sayer import SayerCommand
 from sayer.core.engine import get_commands, get_groups
 
 app = Sayer(

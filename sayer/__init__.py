@@ -5,11 +5,12 @@ from monkay import Monkay
 from .__version__ import get_version
 
 if TYPE_CHECKING:
+    from sayer.core.groups.sayer import SayerGroup
+
     from .app import Sayer, SayerCommand
     from .conf import settings
     from .conf.global_settings import Settings
     from .core.engine import command, group
-    from .core.groups import SayerGroup
     from .params import Argument, JsonParam, Option, Param
     from .utils.config import get_config
     from .utils.loader import load_commands_from

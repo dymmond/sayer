@@ -5,11 +5,22 @@ hide:
 
 ## 0.3.0
 
+### Added
+
+* **BaseSayerCommand**: Introduced a new base class for commands, `BaseSayerCommand`,
+which provides a more structured way to define commands and allows for easier extension of command functionality.
+* **BaseSayerGroup**: Introduced a new base class for groups, `BaseSayerGroup`.
+* **MarkdownCommand**: A new command to generate Markdown documentation for your CLI, making it easier to maintain and share your CLI documentation.
+    * `from sayer.core.commands.markdown import MarkdownCommand`
+* **SayerMarkdownGroup**: A new group for handling Markdown-related commands, providing a structured way to manage Markdown documentation generation.
+    * `from sayer.core.groups.markdown import SayerMarkdownGroup`
+
 ### Changed
 
 - **SayerCommand**: Now inherits from `BaseSayerCommand`, this brings some structure and allows an easier way to extend the command
 functionality.
 - **SayerGroup**: Now inherits from `BaseSayerGroup`, this brings some structure and allows an easier way to extend the group.
+- To check the version, you can use `-v` instead of `-V`.
 
 ## 0.2.7
 

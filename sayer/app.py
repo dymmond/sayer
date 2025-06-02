@@ -363,17 +363,18 @@ class Sayer:
         """
         return self._group.command(*args, **kwargs)
 
-    def add_app(self, alias: str, app: "Sayer") -> None:
+    def add_app(self, alias: str, app: "Sayer", override_helper_text: bool = True) -> None:
         """
         An alias for `add_sayer()`.
 
         Args:
             alias: The name under which the `app` will be mounted.
             app: The `Sayer` application instance to be mounted.
+            override_helper_text: If `True`, the mounted app's help text will be overridden
         """
-        self.add_sayer(alias, app)
+        self.add_sayer(alias, app, override_helper_text)
 
-    def add_sayer(self, alias: str, app: "Sayer") -> None:
+    def add_sayer(self, alias: str, app: "Sayer", override_helper_text: bool = True) -> None:
         """
         Mounts another `Sayer` application under this one.
         This re-wraps the mounted app's commands and groups to ensure that
@@ -383,7 +384,11 @@ class Sayer:
         Args:
             alias: The name under which the `app` will be mounted as a subcommand.
             app: The `Sayer` application instance to be mounted.
+            override_helper_text: If `True`, the mounted app's help text will be overridden
+                                  to use this app's help rendering logic.
         """
+        if override_helper_text:
+            app._group.format_help = self._group.format_help  # type: ignore
         self._group.add_command(app._group, name=alias)
 
     def run(self, args: list[str] | None = None) -> Any:

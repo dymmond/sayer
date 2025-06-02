@@ -4,13 +4,13 @@ from typing import Annotated, get_args, get_origin
 
 import click
 
-from sayer.core.engine import group
+from sayer.app import Sayer
 from sayer.params import Option
 from sayer.utils.ui import error, success
 
 # Create the 'docs' subgroup
-docs = group(
-    "docs",
+docs = Sayer(
+    name="docs",
     help="Generate Markdown documentation for all Sayer commands and groups.",
 )
 

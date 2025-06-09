@@ -8,6 +8,7 @@ hide:
 ### Changed
 
 - Add `get_help` and `format_help` directly via Sayer instance.
+- Add support to markup, emoji and styles in the default console.
 
 ## 0.3.1
 

@@ -31,7 +31,7 @@ def render_help_for_command(
     """
     cmd = ctx.command
 
-    # —— 1) USAGE LINE ——
+    # USAGE LINE ——
     signature = generate_signature(cmd)
     if isinstance(cmd, click.Group):
         usage_line = f"{ctx.command_path} [OPTIONS] COMMAND [ARGS]..."
@@ -43,12 +43,12 @@ def render_help_for_command(
     usage_text.append(usage_line, style="white")
     padded_usage_text = Padding(usage_text, (1, 0, 0, 1))  # 4 spaces on the lef
 
-    # —— 2) DESCRIPTION ——
+    # DESCRIPTION
     raw_help = cmd.help or (cmd.callback.__doc__ or "").strip() or "No description provided."
     description_renderable = Markdown(raw_help)
     padded_description_renderable = Padding(description_renderable, (0, 0, 0, 1))
 
-    # —— 3) BUILD LISTS FOR OPTIONS ——
+    # BUILD LISTS FOR OPTIONS ——
     user_options = [
         p
         for p in cmd.params
@@ -80,7 +80,7 @@ def render_help_for_command(
         desc = param.help or ""
         flags_req_def_desc.append((flags_str, required_str, default_str, desc))
 
-    # —— 4) BUILD OPTIONS PANEL ——
+    # —BUILD OPTIONS PANEL ——
     options_panel = None
     if flags_req_def_desc:
         opt_table = Table(

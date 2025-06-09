@@ -39,10 +39,11 @@ class ConsoleProxy:
         # This is crucial for environments like Click's CliRunner where sys.stdout is redirected.
         console = Console(
             file=sys.stdout,
-            # Inherit terminal forcing settings from Sayer's configuration.
             force_terminal=monkay.settings.force_terminal,
-            # Inherit color system settings from Sayer's configuration.
             color_system=monkay.settings.color_system,
+            markup=True,
+            highlight=True,
+            emoji=True,
         )
         # Return the requested attribute from the newly created console instance.
         return getattr(console, name)

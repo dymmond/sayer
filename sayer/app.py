@@ -460,6 +460,19 @@ class Sayer:
         """
         return self.run(args)
 
+    def get_help(self, context: click.Context) -> str:
+        """
+        Gets the help in style defined by the client command.
+        :param context: a click/sayer context
+        """
+        return self._group.get_help(context)
+
+    def format_help(self, context: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Formats the help text
+        """
+        return self._group.format_help(context, formatter)
+
     @property
     def cli(self) -> click.Group:
         """

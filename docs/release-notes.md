@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.3.2
+
+### Changed
+
+- Add `get_help` and `format_help` directly via Sayer instance.
+
 ## 0.3.1
 
 ### Changed

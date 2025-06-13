@@ -3,7 +3,16 @@ hide:
   - navigation
 ---
 
-## 0.3.2
+## 0.3.4
+
+### Fixed
+
+- Displaying the Arguments in the help of subcommands.
+
+## 0.3.3
+
+!!! Note
+    Version 0.3.2 had issues and it was skipped
 
 ### Changed
 

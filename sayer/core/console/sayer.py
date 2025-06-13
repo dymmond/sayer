@@ -52,7 +52,7 @@ def render_help_for_command(
     user_options = [
         p
         for p in cmd.params
-        if isinstance(p, click.Option) and "--help" not in getattr(p, "opts", ()) and not getattr(p, "hidden", False)
+        if isinstance(p, (click.Option, click.Argument)) and "--help" not in getattr(p, "opts", ()) and not getattr(p, "hidden", False)
     ]
 
     flags_req_def_desc: list[tuple[str, str, str, str]] = []

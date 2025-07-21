@@ -177,14 +177,12 @@ It will:
 
 ```python
 # your_project/settings.py
-from dataclasses import dataclass
+from sayer.conf.global_settings import BaseSettings
 
-@dataclass
-class Base:
+class Base(BaseSettings):
     debug = False
     retries = 3
 
-@dataclass
 class Dev(Base):
     debug = True
     retries = 10
@@ -230,16 +228,14 @@ No need to pass it explicitly — it’s global, and lazily loaded on first acce
 ```python
 # settings.py
 from dataclasses import dataclass
+from sayer.conf.global_settings import BaseSettings
 
-@dataclass
-class Base:
+class Base(BaseSettings):
     retries = 3
 
-@dataclass
 class Dev(Base):
     debug = True
 
-@dataclass
 class Prod(Base):
     debug = False
     retries = 1

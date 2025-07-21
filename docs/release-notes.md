@@ -3,6 +3,40 @@ hide:
   - navigation
 ---
 
+## 0.4.0
+
+### Changed
+
+In the past, Sayer was using `dataclass` to manage all the settings but we found out that can be a bit cumbersome for a lot
+of people that are more used to slightly cleaner interfaces and therefore, the internal API was updated to stop using `@dataclass` and
+use directly a typed `Settings` object.
+
+- Replace `Settings` to stop using `@dataclass` and start using direct objects instead.
+
+**Example before**
+
+```python
+from dataclasses import dataclass, field
+from sayer.conf.global_settings import Settings
+
+
+@dataclass
+class MyCustomSettings(Settings):
+    hosts: list[str] = field(default_factory=lambda: ["example.com"])
+```
+
+**Example after**
+
+```python
+from sayer.conf.global_settings import Settings
+
+
+class MyCustomSettings(Settings):
+    hosts: list[str] = ["example.com"]
+```
+
+This makes the code cleaner and readable.
+
 ## 0.3.4
 
 ### Fixed

@@ -3,6 +3,13 @@ hide:
   - navigation
 ---
 
+## 0.4.1
+
+### Fixed
+
+- Error when parsing Boolean values from environment variables.
+- Fixed error when Boolean values are parsed from environment variables.
+
 ## 0.4.0
 
 ### Changed

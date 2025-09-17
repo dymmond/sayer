@@ -3,6 +3,13 @@ hide:
   - navigation
 ---
 
+## 0.5.0
+
+### Added
+
+- Allow direct invoke of a function being decorated by `@command`.
+- Allow Sayer syntax annotation for natural direct calls.
+
 ## 0.4.1
 
 ### Fixed

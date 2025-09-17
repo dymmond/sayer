@@ -26,6 +26,7 @@ from uuid import UUID
 import anyio
 import click
 
+from sayer.core.commands.sayer import SayerCommand
 from sayer.core.groups.sayer import SayerGroup
 from sayer.encoders import MoldingProtocol, apply_structure, get_encoders
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
@@ -303,7 +304,7 @@ def _build_click_parameter(
         # Set default for sequences to an empty tuple if no default is provided.
         default_for_sequence = () if not has_default_value else parameter.default
         return click.option(
-            f"--{parameter_name.replace('_','-')}",
+            f"--{parameter_name.replace('_', '-')}",
             type=click_inner_type if not is_overriden_type else parameter_base_type,
             multiple=True,
             default=default_for_sequence,
@@ -320,7 +321,7 @@ def _build_click_parameter(
             # Resolve the default value for Enums, handling both enum member or raw value.
             enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
         return click.option(
-            f"--{parameter_name.replace('_','-')}",
+            f"--{parameter_name.replace('_', '-')}",
             type=click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
             default=enum_default_value,
             show_default=True,
@@ -421,7 +422,7 @@ def _build_click_parameter(
         # For Env parameters, retrieve value from environment or use metadata default.
         env_resolved_value = os.getenv(parameter_metadata.envvar, parameter_metadata.default)
         return click.option(
-            f"--{parameter_name.replace('_','-')}",
+            f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
             # If default_factory exists, default is None for Click to handle factory.
             default=(None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
@@ -462,7 +463,7 @@ def _build_click_parameter(
     if is_context_injected and not is_boolean_flag:
         # If context is injected and it's not a boolean flag, it's an option.
         return click.option(
-            f"--{parameter_name.replace('_','-')}",
+            f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
             default=final_default_value,
             required=is_required,
@@ -473,7 +474,7 @@ def _build_click_parameter(
     if is_boolean_flag and isinstance(parameter.default, bool):
         # Boolean flags with a default boolean value.
         return click.option(
-            f"--{parameter_name.replace('_','-')}",
+            f"--{parameter_name.replace('_', '-')}",
             is_flag=True,
             default=parameter.default,
             show_default=True,
@@ -492,7 +493,7 @@ def _build_click_parameter(
     if parameter.default is None:
         # Parameters with a `None` default become optional options.
         return click.option(
-            f"--{parameter_name.replace('_','-')}",
+            f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
             default=None,
             show_default=True,
@@ -601,6 +602,11 @@ def command(
             "help": command_help_text,
             **attrs,
         }
+
+        # Start with the original function as the Click wrapper function.
+        # This function will be progressively wrapped with Click decorators.
+        # This will allow to naturally call a command as a normal function
+        click_cmd_kwargs.setdefault("cls", SayerCommand)
 
         @click.command(**click_cmd_kwargs)  # type: ignore
         @click.pass_context
@@ -720,10 +726,31 @@ def command(
             # Run global and command-specific `before` middleware.
             run_before(command_name, bound_arguments)
 
+            # Checks if this comes from a natural call (i.e. not from Click)
+            is_natural_call = kwargs.pop("_sayer_natural_call", False)
+
             # --- Execute command ---
             execution_result = function_to_decorate(**bound_arguments)
             # If the function is a coroutine, run it using `anyio`.
             if inspect.iscoroutine(execution_result):
+                # If in AnyIO context create a coroutine to run later
+                if is_natural_call:
+
+                    async def _runner() -> Any:
+                        """
+                        Runs the coroutine in an existing AnyIO context.
+                        This is used when the command is invoked directly as a function
+                        within an existing async context, avoiding nested event loops.
+                        """
+                        _final = await execution_result
+                        for hook_func in after_execution_hooks:
+                            hook_func(command_name, bound_arguments, _final)
+                        run_after(command_name, bound_arguments, _final)
+                        return _final
+
+                    return _runner()
+
+                # Not in AnyIO context → run now
                 execution_result = anyio.run(lambda: execution_result)
 
             # --- After hooks ---

@@ -836,6 +836,7 @@ def group(
     name: str,
     group_cls: type[click.Group] | None = None,
     help: str | None = None,
+    **kwargs: Any,
 ) -> click.Group:
     """
     Creates or retrieves a Click command group, integrating it with `sayer`'s
@@ -867,7 +868,7 @@ def group(
         # Determine the group class to use; default to `SayerGroup`.
         group_class_to_use = group_cls or SayerGroup
         # Create the Click group instance.
-        new_group_instance = group_class_to_use(name=name, help=help)
+        new_group_instance = group_class_to_use(name=name, help=help, **kwargs)
 
         def _group_command_method_override(func_to_bind: F | None = None, **opts: Any) -> click.Command:  #
             """

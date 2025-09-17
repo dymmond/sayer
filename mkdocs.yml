@@ -12,15 +12,15 @@ theme:
       accent: "red"
       media: "(prefers-color-scheme: light)"
       toggle:
-            icon: "material/lightbulb"
-            name: "Switch to dark mode"
+        icon: "material/lightbulb"
+        name: "Switch to dark mode"
     - scheme: "slate"
       media: "(prefers-color-scheme: dark)"
       primary: "amber"
       accent: "red"
       toggle:
-            icon: "material/lightbulb-outline"
-            name: "Switch to light mode"
+        icon: "material/lightbulb-outline"
+        name: "Switch to light mode"
   favicon: statics/images/favicon.ico
   logo: statics/images/logo-white.png
   features:
@@ -55,6 +55,7 @@ nav:
       - "features/sayer-and-apps.md"
       - "features/settings.md"
       - "features/commands.md"
+      - "features/groups.md"
       - "features/callbacks.md"
       - "features/params.md"
       - "features/middleware.md"

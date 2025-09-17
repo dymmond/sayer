@@ -9,6 +9,11 @@ hide:
 
 - Allow direct invoke of a function being decorated by `@command`.
 - Allow Sayer syntax annotation for natural direct calls.
+- [group](./features/groups.md) documentation section updated.
+
+### Fixed
+
+- Imports from `sayer`.
 
 ## 0.4.1
 

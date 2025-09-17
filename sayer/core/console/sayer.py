@@ -79,7 +79,7 @@ def render_help_for_command(
             default_str = str(default_val)
 
         # Help/Description text
-        desc = param.help or ""  # type: ignore
+        desc = getattr(param, "help", "")
         flags_req_def_desc.append((flags_str, required_str, default_str, desc))
 
     # —BUILD OPTIONS PANEL ——

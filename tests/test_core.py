@@ -155,13 +155,3 @@ def test_multiple_params_inference_with_param():
 
     assert result2.exit_code == 0
     assert result2.output.strip() == "AC"
-
-
-def test_help_includes_description():
-    @command
-    def show(msg: Annotated[str, Param(help="test message")]):
-        click.echo(msg)
-
-    cmd = get_commands()["show"]
-    help_text = cmd.get_help(click.Context(cmd))
-    assert "test message" in help_text

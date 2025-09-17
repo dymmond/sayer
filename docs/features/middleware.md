@@ -38,9 +38,7 @@ from sayer import command, group
 def greet(name):
     return f"Hello, {name}!"
 
-@group(middleware=["logger"])
-def admin():
-    pass
+admin = group(name="admin", middleware=["logger"])
 
 @admin.command()
 def shutdown():
@@ -60,6 +58,7 @@ add_after_global(lambda name, args, result: print(f"[Global After] {name}"))
 
 ```python
 register("audit", before=[lambda n, a: print(f"[Audit] {n}")])
+
 @command(middleware=["logger", "audit"])
 def report():
     return "Report generated."

@@ -23,7 +23,7 @@ monkay: Monkay = Monkay(
     globals(),
     lazy_imports={
         "Sayer": ".app.Sayer",
-        "SayerCommand": ".core.commands.SayerCommand",
+        "SayerCommand": ".core.commands.sayer.SayerCommand",
         "command": ".core.engine.command",
         "group": ".core.engine.group",
         "load_commands_from": ".utils.loader.load_commands_from",
@@ -42,7 +42,7 @@ monkay: Monkay = Monkay(
         "info": ".utils.ui.info",
         "warning": ".utils.ui.warning",
         "echo": ".utils.ui.echo",
-        "SayerGroup": ".core.groups.SayerGroup",
+        "SayerGroup": ".core.groups.sayer.SayerGroup",
     },
     skip_all_update=True,
     package="sayer",

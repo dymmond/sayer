@@ -20,6 +20,7 @@ from sayer.core.engine import _build_click_parameter
 from sayer.core.groups.sayer import SayerGroup
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State
+from sayer.utils.coersion import coerce_argument_to_option
 
 _EMPTY_PARAMETER_SENTINEL = inspect._empty
 T = TypeVar("T", bound=Callable[..., Any])
@@ -317,21 +318,19 @@ class Sayer:
                         else:
                             param_config.required = False  # Defaulting to optional
 
-                if isinstance(param_config, click.Argument) and param_config.type is not click.UNPROCESSED:
-                    flag_name = f"--{param_config.name.replace('_', '-')}"
-                    param_config = click.Option(
-                        param_decls=[flag_name],
-                        type=param_config.type,
-                        default=param_config.default,
-                        required=False,
-                        help=getattr(param_config, "help", None),
-                        multiple=param_config.multiple,
-                        nargs=param_config.nargs,
-                        show_default=hasattr(param_config, "default"),
-                    )
-                # Insert the parameter at the beginning of the group's parameters list.
-                # This ensures callback parameters are processed before command-specific ones.
-                self._group.params.insert(0, param_config)
+                if isinstance(param_config, click.Argument):
+                    if param_config.nargs == -1:
+                        # Variadic argument: keep it positional
+                        self._group.params.insert(0, param_config)
+                    else:
+                        if getattr(param_config, "_force_option", False):
+                            param_config = coerce_argument_to_option(param_config, force=True)
+                            self._group.params.insert(0, param_config)
+                        else:
+                            # Normal positional argument
+                            self._group.params.insert(0, param_config)
+                else:
+                    self._group.params.insert(0, param_config)
 
             self._callbacks.append(stamped_function)
             return func_to_decorate

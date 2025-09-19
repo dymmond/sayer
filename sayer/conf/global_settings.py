@@ -179,7 +179,7 @@ class Settings(BaseSettings):
     these operational monkay.settings.
     """
 
-    debug: bool = False
+    debug: bool = True
     """
     Enables debug mode if True.
 

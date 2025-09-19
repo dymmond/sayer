@@ -3,6 +3,24 @@ hide:
   - navigation
 ---
 
+## 0.5.1
+
+### Changed
+
+### Option Handling
+
+* Normalized default values for required and optional options to ensure consistent behavior with `None`, `...`, and `_empty`.
+* Improved boolean flag defaults (`--verbose/--no-verbose`) so that default `True` is mapped correctly and reflected in output.
+
+### Argument Handling
+
+* Added proper support for default values in positional arguments.
+* Arguments with defaults are now correctly displayed in `--help` with `show_default`.
+
+### Root Callback Behavior
+
+* Improved `invoke_without_command` handling: root callbacks are executed even without subcommands, mirroring Click’s behavior while respecting Sayer’s callback chain.
+
 ## 0.5.0
 
 ### Added

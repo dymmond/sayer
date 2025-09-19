@@ -392,16 +392,21 @@ def _build_click_parameter(
     # Combine metadata help with general help text.
     effective_help_text = getattr(parameter_metadata, "help", param_help_text) or param_help_text
 
-    # --- Explicit metadata cases ---
     # Apply specific Click decorators based on the explicit metadata type.
     if isinstance(parameter_metadata, Argument):
         if "nargs" in parameter_metadata.options:
             # If nargs is -1, it means this is a variadic argument (accepts multiple values).
             # Click will handle this as a tuple.
-            if final_default_value and final_default_value not in (inspect._empty, ...):
+            if (
+                final_default_value is not inspect._empty
+                and final_default_value is not ...
+                and final_default_value is not None
+            ):
                 raise ValueError("Variadic arguments (nargs) cannot have a default value.")
         else:
-            parameter_metadata.options["default"] = final_default_value
+            # Only set default if it's meaningful
+            if final_default_value is not None and final_default_value is not inspect._empty:
+                parameter_metadata.options["default"] = final_default_value
 
         wrapped = click.argument(
             parameter_name,
@@ -410,7 +415,7 @@ def _build_click_parameter(
             **parameter_metadata.options,
         )(click_wrapper_function)
 
-        # Now inject our help text into the click.Argument instance
+        # Inject help text manually
         help_text = getattr(parameter_metadata, "help", "")
         if hasattr(wrapped, "params"):
             for param_obj in wrapped.params:
@@ -433,17 +438,25 @@ def _build_click_parameter(
         )(click_wrapper_function)
 
     if isinstance(parameter_metadata, Option):
-        # figure out default
-        option_default = None if getattr(parameter_metadata, "default_factory", None) else final_default_value
-        # if it's not required and default is None, we want Click to skip parsing
-        # entirely and just hand us None, so we *don't* accidentally interpret
-        # the option name as its own value.
+        if getattr(parameter_metadata, "default_factory", None):
+            option_default = None  # let Click handle the factory
+        else:
+            option_default = final_default_value
+
+        # Special-case: if required and no default, don't pass `default=None`
+        default_kwarg = {}
+        if not (is_required and option_default is None):
+            default_kwarg["default"] = option_default
+
+        # Special-case for boolean flags: True default maps to flag_value
+        if parameter_metadata.is_flag and option_default is True:
+            default_kwarg["default"] = None  # let Click map internally
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             *parameter_metadata.param_decls,
             type=None if is_boolean_flag else parameter_base_type,
             is_flag=is_boolean_flag,
-            default=option_default,
             required=is_required,
             show_default=parameter_metadata.show_default,
             help=effective_help_text,
@@ -452,9 +465,9 @@ def _build_click_parameter(
             callback=parameter_metadata.callback,
             envvar=parameter_metadata.envvar,
             **parameter_metadata.options,
+            **default_kwarg,
         )(click_wrapper_function)
 
-    # --- General fallback logic ---
     # These are default behaviors if no explicit metadata is provided.
     if not has_default_value:
         # If no default, it's a required positional argument.

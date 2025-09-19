@@ -71,6 +71,7 @@ class Option(BaseParam):
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
+        is_flag: bool = False,
         **options: Any,
     ) -> None:
         """
@@ -98,6 +99,7 @@ class Option(BaseParam):
         self.hide_input = hide_input
         self.show_default = show_default
         self.param_decls = param_decls
+        self.is_flag = is_flag
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -122,6 +124,7 @@ class Argument(BaseParam):
         required: Optional[bool] = None,
         callback: Optional[Callable[[Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
+        is_flag: bool = False,
         **options: Any,
     ) -> None:
         """
@@ -137,6 +140,7 @@ class Argument(BaseParam):
         super().__init__(**options)
         self.default = default
         self.help = help
+        self.is_flag = is_flag
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -160,6 +164,7 @@ class Env(BaseParam):
         default: Any = ...,
         required: Optional[bool] = None,
         default_factory: Callable[[], Any] | None = None,
+        is_flag: bool = False,
         **options: Any,
     ) -> None:
         """
@@ -176,6 +181,7 @@ class Env(BaseParam):
         super().__init__(**options)
         self.envvar = envvar
         self.default = default
+        self.is_flag = is_flag
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -205,6 +211,7 @@ class Param(BaseParam):
         required: bool | None = None,
         callback: Callable[[Any], Any] | None = None,
         default_factory: Callable[[], Any] | None = None,
+        is_flag: bool = False,
         **options: Any,
     ) -> None:
         """
@@ -232,6 +239,7 @@ class Param(BaseParam):
         self.hide_input = hide_input
         self.show_default = show_default
         self.param_decls = param_decls
+        self.is_flag = is_flag
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -263,6 +271,7 @@ class Param(BaseParam):
             callback=self.callback,
             default_factory=self.default_factory,
             options=self.options,
+            is_flag=self.is_flag,
         )
 
 

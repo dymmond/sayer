@@ -80,27 +80,23 @@ def test_argument_with_default_value():
     assert "Hello Charlie" in res2.output
 
 
-# def test_variadic_argument_no_default_ok():
-#     app = Sayer(add_version_option=False, invoke_without_command=True)
-#
-#     @app.callback()
-#     def root(
-#         items: list[str] = Argument(nargs=-1)
-#     ):
-#         click.echo(f"Got {len(items)} items")
-#
-#     client = SayerTestClient(app=app)
-#     res = client.invoke([])
-#
-#     breakpoint()
-#     assert res.exit_code == 0
-#     assert "Got 0 items" in res.output
-#
-#     res2 = client.invoke(["one", "two", "three"])
-#
-#     assert res2.exit_code == 0
-#     assert "Got 3 items" in res2.output
-#
+def test_variadic_argument_no_default_ok():
+    app = Sayer(add_version_option=False, invoke_without_command=True)
+
+    @app.callback()
+    def root(items: list[str] = Argument(nargs=-1)):
+        click.echo(f"Got {len(items)} items")
+
+    client = SayerTestClient(app=app)
+    res = client.invoke([])
+
+    assert res.exit_code == 0
+    assert "Got 0 items" in res.output
+
+    res2 = client.invoke(["one", "two", "three"])
+
+    assert res2.exit_code == 0
+    assert "Got 3 items" in res2.output
 
 
 def test_argument_to_option_group_param_behaviour():

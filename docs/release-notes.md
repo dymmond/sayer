@@ -3,6 +3,16 @@ hide:
   - navigation
 ---
 
+## 0.5.2
+
+### Fixed
+
+* Fixed variadic arguments (`nargs=-1`). Now correctly supported when declared with `Argument`.
+They are treated as positional, variadic, and non-required, allowing `[]` or multiple values to pass.
+* Improved type handling for `list[...]` annotations.
+When `Argument` is explicitly provided, the inner type (e.g., `str`) is used per item instead
+of coercing into an option with `multiple=True`.
+
 ## 0.5.1
 
 ### Changed

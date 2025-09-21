@@ -295,13 +295,30 @@ def _build_click_parameter(
 
     type_origin = get_origin(raw_type_annotation)
 
-    # 1) list[T] or Sequence[T] → --name multiple
+    # 1) list[T] or Sequence[T]
     if type_origin in (list, Sequence):
-        # For list or Sequence types, extract the inner type (e.g., `int` from `list[int]`).
+        # Extract inner type: list[str] -> str
         inner_type = get_args(raw_type_annotation)[0]
-        # Map the inner type to a Click primitive type, defaulting to STRING.
         click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
-        # Set default for sequences to an empty tuple if no default is provided.
+
+        if isinstance(parameter_metadata, Argument):
+            variadic_nargs = parameter_metadata.options.get("nargs", -1)
+            # Variadic (e.g. -1) should allow zero items
+            is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
+            is_required_local = False if is_variadic else getattr(parameter_metadata, "required", False)
+
+            arg_options = dict(parameter_metadata.options)
+            # Use per-item type, not list[...] itself
+            arg_type = click_inner_type if not is_overriden_type else parameter_base_type
+
+            return click.argument(
+                parameter_name,
+                type=arg_type,
+                required=is_required_local,
+                **arg_options,
+            )(click_wrapper_function)
+
+        # Otherwise, map sequences to an option with multiple=True
         default_for_sequence = () if not has_default_value else parameter.default
         return click.option(
             f"--{parameter_name.replace('_', '-')}",

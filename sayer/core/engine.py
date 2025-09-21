@@ -301,7 +301,6 @@ def _build_click_parameter(
         inner_type = get_args(raw_type_annotation)[0]
         click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
 
-        # If the user explicitly asked for an Argument, honor it (e.g. variadic positional)
         if isinstance(parameter_metadata, Argument):
             variadic_nargs = parameter_metadata.options.get("nargs", -1)
             # Variadic (e.g. -1) should allow zero items

@@ -117,6 +117,7 @@ dependencies = [
     "mkdocs-meta-descriptions-plugin>=2.3.0",
     "mkdocstrings[python]>=0.23.0",
     "pyyaml>=6.0,<7.0.0",
+    "typing_extensions>=3.10.0",
 ]
 
 [tool.hatch.envs.docs.scripts]

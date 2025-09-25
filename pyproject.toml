@@ -69,7 +69,6 @@ Source = "https://github.com/dymmond/sayer"
 path = "sayer/__version__.py"
 
 [tool.hatch.envs.default]
-installer = "uv"
 dependencies = [
     "mypy==1.9.0",
     "ruff>=0.3.0,<5.0.0",
@@ -110,9 +109,8 @@ format = "hatch fmt && hatch fmt --check && hatch run test:check_types"
 [tool.hatch.envs.docs]
 dependencies = [
     "griffe-typingdoc>=0.2.2,<1.0",
-    "mkautodoc>=0.2.0,<0.3.0",
     "mkdocs>=1.1.2,<2.0.0",
-    "mkdocs-material>=9.4.4,<10.0.0",
+    "mkdocs-material>=9.4.4",
     "mdx-include>=1.4.2,<2.0.0",
     "mkdocs-macros-plugin>=0.4.0",
     "mkdocs-meta-descriptions-plugin>=2.3.0",

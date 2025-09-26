@@ -211,7 +211,7 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         (inner,) = get_args(inspect_ann) or (Any,)
         return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
 
-    # ----- Scalars: now it's safe to normalize to runtime base -----
+    #  Scalars: now it's safe to normalize to runtime base
     to_type = _normalize_annotation_to_runtime_type(to_type)
 
     if isinstance(to_type, type) and issubclass(to_type, Enum):

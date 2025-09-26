@@ -8,6 +8,7 @@ from datetime import date, datetime
 from enum import Enum
 from functools import wraps
 from pathlib import Path
+from types import UnionType
 from typing import (
     IO,
     Annotated,
@@ -152,6 +153,14 @@ def _normalize_annotation_to_runtime_type(ann: Any) -> Any:
 def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, param_name: str = None) -> Any:
     """
     Converts a command-line interface (CLI) input value into the desired Python type.
+
+    Handles:
+      - Union / Optional: tries inner types in order (prefers non-None)
+      - Containers: list[T], tuple[T...], set[T], frozenset[T], dict[K, V] (from ["k=v", ...])
+      - Enum: leaves as string (Click.Choice validates)
+      - date: downcasts datetime -> date
+      - bool: parses "true/1/yes/on" and "false/0/no/off" (case-insensitive)
+      - Scalars: casts when target is a real class
     """
 
     # Resolve postponed annotations if to_type is a string
@@ -159,33 +168,80 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         type_hints = _safe_get_type_hints(func, include_extras=True)
         to_type = type_hints.get(param_name, to_type)
 
-    # unwrap Annotated for inspection, but DO NOT normalize yet
+    # --- unwrap Annotated[T, ...] only for inspection (keep generics intact) ---
     inspect_ann = to_type
     if get_origin(inspect_ann) is Annotated:
         inspect_ann = get_args(inspect_ann)[0]
 
+    # --- Union / Optional: handle early, trying inner types in order ---
+    origin = get_origin(inspect_ann)
+    if origin in (Union, UnionType):
+        inner_types = list(get_args(inspect_ann))
+        non_none = [t for t in inner_types if t is not type(None)]
+        none_in_union = len(non_none) != len(inner_types)
+
+        # try each non-None inner type in declared order
+        for inner in non_none:
+            try:
+                coerced = _convert_cli_value_to_type(value, inner, func, param_name)
+                # success heuristics:
+                # 1) coerced is instance of the inner class/type
+                if isinstance(inner, type) and isinstance(coerced, inner):
+                    return coerced
+                # 2) value changed (e.g., "42" -> 42)
+                if coerced != value:
+                    return coerced
+            except Exception:
+                continue
+
+        # if None allowed and value is an empty/none sentinel, return None
+        if none_in_union and (
+            value is None or (isinstance(value, str) and value.strip().lower() in {"", "none", "null"})
+        ):
+            return None
+
+        # nothing matched: leave as-is (or raise if you prefer strictness)
+        return value
+
+    # --- Container types (use inspect_ann so generic args are preserved) ---
     origin = get_origin(inspect_ann)
 
     # list[T]
-    if origin is list and isinstance(value, (list, tuple)):
+    if origin is list:
         (inner,) = get_args(inspect_ann) or (Any,)
-        return [_convert_cli_value_to_type(item, inner, func, param_name) for item in value]
+        if isinstance(value, (list, tuple)):
+            return [_convert_cli_value_to_type(item, inner, func, param_name) for item in value]
+        if isinstance(value, str):
+            # CSV support; otherwise treat as a single item list
+            if "," in value:
+                return [_convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")]
+            return [_convert_cli_value_to_type(value, inner, func, param_name)]
+        # fallback: wrap scalar-ish input
+        return [_convert_cli_value_to_type(value, inner, func, param_name)]
 
-    # tuple[T, ...] or Tuple[T1, T2, ...]
+    # tuple[T, ...] or tuple[T1, T2, ...]
     if origin is tuple and isinstance(value, (list, tuple)):
         args = get_args(inspect_ann)
+        # homogeneous: tuple[T, ...]
         if len(args) == 2 and args[1] is Ellipsis:
             inner = args[0]
             return tuple(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
+        # heterogeneous: tuple[T1, T2, ...]
         return tuple(
             _convert_cli_value_to_type(item, arg_type, func, param_name)
             for item, arg_type in zip(value, args, strict=False)
         )
 
     # set[T]
-    if origin is set and isinstance(value, (list, tuple)):
+    if origin is set:
         (inner,) = get_args(inspect_ann) or (Any,)
-        return {_convert_cli_value_to_type(item, inner, func, param_name) for item in value}
+        if isinstance(value, (list, tuple)):
+            return {_convert_cli_value_to_type(item, inner, func, param_name) for item in value}
+        if isinstance(value, str):
+            if "," in value:
+                return {_convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")}
+            return {_convert_cli_value_to_type(value, inner, func, param_name)}
+        return {_convert_cli_value_to_type(value, inner, func, param_name)}
 
     # dict[K, V] from ["key=val", ...]
     if origin is dict and isinstance(value, (list, tuple)):
@@ -193,38 +249,61 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         if len(args) >= 2:
             key_t, val_t = args[0], args[1]
         else:
-            # Fallbacks if someone typed plain `dict`
             key_t, val_t = (str, Any)
-        d: dict[Any, Any] = {}
+        out: dict[Any, Any] = {}
         for item in value:
             if isinstance(item, str) and "=" in item:
                 k_str, v_str = item.split("=", 1)
                 k = _convert_cli_value_to_type(k_str, key_t, func, param_name)
                 v = _convert_cli_value_to_type(v_str, val_t, func, param_name)
-                d[k] = v
+                out[k] = v
             else:
                 raise ValueError(f"Cannot parse dict item {item!r} for {param_name!r}")
-        return d
+        return out
 
     # frozenset[T]
-    if origin is frozenset and isinstance(value, (list, tuple)):
+    if origin is frozenset:
         (inner,) = get_args(inspect_ann) or (Any,)
-        return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
+        if isinstance(value, (list, tuple)):
+            return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
+        if isinstance(value, str):
+            if "," in value:
+                return frozenset(
+                    _convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")
+                )
+            return frozenset((_convert_cli_value_to_type(value, inner, func, param_name),))
+        return frozenset((_convert_cli_value_to_type(value, inner, func, param_name),))
 
-    #  Scalars: now it's safe to normalize to runtime base
+    # --- Scalars: now normalize to a runtime base and convert ---
     to_type = _normalize_annotation_to_runtime_type(to_type)
 
     if isinstance(to_type, type) and issubclass(to_type, Enum):
+        # Policy: leave Enum strings as-is for Click.Choice validation
         return value
+
     if to_type is date and isinstance(value, datetime):
         return value.date()
+
     if to_type is bool:
         if isinstance(value, bool):
             return value
-        return str(value).lower() in ("true", "1", "yes", "on")
-    if isinstance(value, to_type):
-        return value
-    return to_type(value)  # type: ignore
+        v = str(value).strip().lower()
+        if v in ("true", "1", "yes", "on"):
+            return True
+        if v in ("false", "0", "no", "off"):
+            return False
+        # fallthrough: let casting try or return original
+
+    # Only perform isinstance/cast when target is a real class
+    if isinstance(to_type, type):
+        if isinstance(value, to_type):
+            return value
+        try:
+            return to_type(value)
+        except Exception:
+            return value
+
+    return value  # type: ignore
 
 
 def _should_parameter_use_option_style(meta_param: Param, default_value: Any) -> str | bool:  #
@@ -343,21 +422,20 @@ def _build_click_parameter(
         argument or option.
     """
     parameter_name = parameter.name
+
+    # Handle Optional/Union[T, None] by collapsing to T when unambiguous
     origin = get_origin(parameter_base_type)
     if origin in (Union, types.UnionType):
         args = get_args(parameter_base_type)
         non_none = [t for t in args if t is not type(None)]
         if len(non_none) == 1:
-            # If the parameter is a Union with only one non-None type, use that type.
             parameter_base_type = non_none[0]
 
     is_boolean_flag = parameter_base_type is bool
     has_default_value = parameter.default not in [inspect._empty, Ellipsis]
     resolved_default_value = parameter.default if has_default_value else None
 
-    # Param(...) annotated as generic → Option if criteria met
-    # If a generic `Param` metadata is provided via `Annotated` and
-    # `_should_parameter_use_option_style` evaluates to True, it's re-cast as an `Option`.
+    # If Param metadata suggests "option style", recast Param -> Option
     if (
         isinstance(parameter_metadata, Param)
         and get_origin(raw_type_annotation) is Annotated
@@ -365,24 +443,22 @@ def _build_click_parameter(
     ):
         parameter_metadata = parameter_metadata.as_option()
 
-    type_origin = get_origin(raw_type_annotation)
-
-    # 1) list[T] or Sequence[T]
-    if type_origin in (list, Sequence):
-        # Extract inner type: list[str] -> str
-        inner_type = get_args(raw_type_annotation)[0]
+    # ---------- list[T] or Sequence[T] -> multiple=True, per-item type ----------
+    base_origin = get_origin(parameter_base_type)
+    if base_origin in (list, Sequence):
+        # Derive inner type from the BASE type, not from Annotated wrapper
+        inner_args = get_args(parameter_base_type)
+        inner_type = inner_args[0] if inner_args else str
         click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
 
         if isinstance(parameter_metadata, Argument):
+            # Variadic argument
             variadic_nargs = parameter_metadata.options.get("nargs", -1)
-            # Variadic (e.g. -1) should allow zero items
             is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
             is_required_local = False if is_variadic else getattr(parameter_metadata, "required", False)
-
             arg_options = dict(parameter_metadata.options)
-            # Use per-item type, not list[...] itself
-            arg_type = click_inner_type if not is_overriden_type else parameter_base_type
 
+            arg_type = click_inner_type if not is_overriden_type else parameter_base_type
             return click.argument(
                 parameter_name,
                 type=arg_type,
@@ -390,7 +466,7 @@ def _build_click_parameter(
                 **arg_options,
             )(click_wrapper_function)
 
-        # Otherwise, map sequences to an option with multiple=True
+        # Option: use multiple=True and inner type so Click aggregates as tuple[str,...]
         default_for_sequence = () if not has_default_value else parameter.default
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
@@ -401,13 +477,11 @@ def _build_click_parameter(
             help=param_help_text,
         )(click_wrapper_function)
 
-    # 2) Enum → --name Choice([...])
+    # ---------- Enum -> Choice ----------
     if isinstance(parameter_base_type, type) and issubclass(parameter_base_type, Enum):
-        # For Enum types, create Click.Choice from enum member values.
         enum_choices = [e.value for e in parameter_base_type]
         enum_default_value = None
         if has_default_value:
-            # Resolve the default value for Enums, handling both enum member or raw value.
             enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
@@ -417,9 +491,7 @@ def _build_click_parameter(
             help=param_help_text,
         )(click_wrapper_function)
 
-    # 2.4) Implicit JSON injection for any type your encoders can mold!
-    #      If no Param/Option/Argument/Env given, and the bare Python class
-    #      is moldable by one of our MoldingProtocol encoders, inject JsonParam.
+    # ---------- Implicit JSON injection for encodable complex types ----------
     simple_types = (str, bool, int, float, Enum, Path, UUID, date, datetime)
     skip_implicit_json = isinstance(parameter_base_type, type) and issubclass(parameter_base_type, simple_types)
     if (
@@ -433,7 +505,7 @@ def _build_click_parameter(
     ):
         parameter_metadata = JsonParam()
 
-    # 2.5) Explicit JsonParam → JSON string option
+    # ---------- Explicit JsonParam -> JSON string option ----------
     if isinstance(parameter_metadata, JsonParam):
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
@@ -444,48 +516,34 @@ def _build_click_parameter(
             help=f"{param_help_text} (JSON)",
         )(click_wrapper_function)
 
-    # 3) Path support
+    # ---------- Path / UUID / date / datetime / File ----------
     if parameter_base_type is Path:
         parameter_base_type = click.Path(exists=False, file_okay=True, dir_okay=True, resolve_path=True)
-
-    # 4) UUID support
     if parameter_base_type is UUID:
         parameter_base_type = click.UUID
-
-    # 5) date support
     if parameter_base_type is date:
         parameter_base_type = click.DateTime(formats=["%Y-%m-%d"])
-
-    # 6) datetime support
     if parameter_base_type is datetime:
         parameter_base_type = click.DateTime()
-
-    # 7) File IO support
     if raw_type_annotation is IO or raw_type_annotation is click.File:
         parameter_base_type = click.File("r")
 
-    # Compute final default & required
+    # ---------- Defaults / required ----------
     has_metadata_default = getattr(parameter_metadata, "default", ...) not in [..., Ellipsis]
     final_default_value = getattr(parameter_metadata, "default", resolved_default_value)
-
     if final_default_value is Ellipsis:
         final_default_value = None
-
     if isinstance(final_default_value, Enum):
         final_default_value = final_default_value.value
     if isinstance(final_default_value, (date, datetime)):
         final_default_value = final_default_value.isoformat()
 
-    # Determine if the parameter is required based on default presence and metadata.
     is_required = getattr(parameter_metadata, "required", not (has_default_value or has_metadata_default))
-    # Combine metadata help with general help text.
     effective_help_text = getattr(parameter_metadata, "help", param_help_text) or param_help_text
 
-    # Apply specific Click decorators based on the explicit metadata type.
+    # ---------- Explicit Argument ----------
     if isinstance(parameter_metadata, Argument):
         if "nargs" in parameter_metadata.options:
-            # If nargs is -1, it means this is a variadic argument (accepts multiple values).
-            # Click will handle this as a tuple.
             if (
                 final_default_value is not inspect._empty
                 and final_default_value is not ...
@@ -493,7 +551,6 @@ def _build_click_parameter(
             ):
                 raise ValueError("Variadic arguments (nargs) cannot have a default value.")
         else:
-            # Only set default if it's meaningful
             if final_default_value is not None and final_default_value is not inspect._empty:
                 parameter_metadata.options["default"] = final_default_value
 
@@ -504,7 +561,6 @@ def _build_click_parameter(
             **parameter_metadata.options,
         )(click_wrapper_function)
 
-        # Inject help text manually
         help_text = getattr(parameter_metadata, "help", "")
         if hasattr(wrapped, "params"):
             for param_obj in wrapped.params:
@@ -512,13 +568,12 @@ def _build_click_parameter(
                     param_obj.help = help_text
         return wrapped
 
+    # ---------- Env ----------
     if isinstance(parameter_metadata, Env):
-        # For Env parameters, retrieve value from environment or use metadata default.
         env_resolved_value = os.getenv(parameter_metadata.envvar, parameter_metadata.default)
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
-            # If default_factory exists, default is None for Click to handle factory.
             default=(None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
             show_default=True,
             required=parameter_metadata.required,
@@ -526,18 +581,17 @@ def _build_click_parameter(
             **parameter_metadata.options,
         )(click_wrapper_function)
 
+    # ---------- Option ----------
     if isinstance(parameter_metadata, Option):
         if getattr(parameter_metadata, "default_factory", None):
-            option_default = None  # let Click handle the factory
+            option_default = None
         else:
             option_default = final_default_value
 
-        # Special-case: if required and no default, don't pass `default=None`
-        default_kwarg = {}
+        default_kwarg: dict[str, Any] = {}
         if not (is_required and option_default is None):
             default_kwarg["default"] = option_default
 
-        # Special-case for boolean flags: True default maps to flag_value
         if parameter_metadata.is_flag and option_default is True:
             default_kwarg["default"] = None  # let Click map internally
 
@@ -557,13 +611,11 @@ def _build_click_parameter(
             **default_kwarg,
         )(click_wrapper_function)
 
-    # These are default behaviors if no explicit metadata is provided.
+    # ---------- Defaults with no explicit metadata ----------
     if not has_default_value:
-        # If no default, it's a required positional argument.
         return click.argument(parameter_name, type=parameter_base_type, required=True)(click_wrapper_function)
 
     if is_context_injected and not is_boolean_flag:
-        # If context is injected and it's not a boolean flag, it's an option.
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
@@ -574,7 +626,6 @@ def _build_click_parameter(
         )(click_wrapper_function)
 
     if is_boolean_flag and isinstance(parameter.default, bool):
-        # Boolean flags with a default boolean value.
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             is_flag=True,
@@ -584,7 +635,6 @@ def _build_click_parameter(
         )(click_wrapper_function)
 
     if isinstance(parameter.default, Param):
-        # `Param` as a default value means it's an optional argument with a default.
         return click.argument(
             parameter_name,
             type=parameter_base_type,
@@ -593,7 +643,6 @@ def _build_click_parameter(
         )(click_wrapper_function)
 
     if parameter.default is None:
-        # Parameters with a `None` default become optional options.
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
@@ -602,18 +651,15 @@ def _build_click_parameter(
             help=effective_help_text,
         )(click_wrapper_function)
 
-    # Final fallback: optional positional with default
-    # If none of the above conditions are met, it defaults to an optional
-    # positional argument with its default value.
     final_wrapped_function = click.argument(
         parameter_name, type=parameter_base_type, default=final_default_value, required=False
     )(click_wrapper_function)
 
-    # Ensure the Click parameter reflects the optional nature and default.
     for param_in_wrapper in final_wrapped_function.params:
         if param_in_wrapper.name == parameter_name:
             param_in_wrapper.required = False
             param_in_wrapper.default = final_default_value
+
     return final_wrapped_function
 
 

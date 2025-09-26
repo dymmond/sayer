@@ -152,57 +152,49 @@ def _normalize_annotation_to_runtime_type(ann: Any) -> Any:
 def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, param_name: str = None) -> Any:
     """
     Converts a command-line interface (CLI) input value into the desired Python type.
-
-    This helper function handles specific type conversions:
-    - `Enum`: Leaves `Enum` values as strings to be validated by `Click.Choice`.
-    - `date`: Converts `datetime` objects to `date` objects if the target type is `date`.
-    - `bool`: Parses common string representations of booleans (`"true"`, `"1"`,
-      `"yes"`, `"on"`) into actual boolean values.
-    - Falls back to direct type casting for other types if the value is not
-      already of the target type.
-
-    Args:
-        value: The input value received from the CLI.
-        to_type: The target Python type to convert the value to.
-
-    Returns:
-        The converted value, or the original value if no conversion is necessary
-        or possible.
     """
+
     # Resolve postponed annotations if to_type is a string
     if isinstance(to_type, str) and func and param_name:
-        # Use get_type_hints to resolve actual type
         type_hints = _safe_get_type_hints(func, include_extras=True)
         to_type = type_hints.get(param_name, to_type)
 
-    to_type = _normalize_annotation_to_runtime_type(to_type)
+    # unwrap Annotated for inspection, but DO NOT normalize yet
+    inspect_ann = to_type
+    if get_origin(inspect_ann) is Annotated:
+        inspect_ann = get_args(inspect_ann)[0]
 
-    # container types support
-    origin = get_origin(to_type)
+    origin = get_origin(inspect_ann)
 
     # list[T]
     if origin is list and isinstance(value, (list, tuple)):
-        inner = get_args(to_type)[0]
+        (inner,) = get_args(inspect_ann) or (Any,)
         return [_convert_cli_value_to_type(item, inner, func, param_name) for item in value]
+
     # tuple[T, ...] or Tuple[T1, T2, ...]
     if origin is tuple and isinstance(value, (list, tuple)):
-        args = get_args(to_type)
-        # homogeneous: Tuple[T, ...]
+        args = get_args(inspect_ann)
         if len(args) == 2 and args[1] is Ellipsis:
             inner = args[0]
             return tuple(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
-        # heterogeneous: Tuple[T1, T2, ...]
         return tuple(
             _convert_cli_value_to_type(item, arg_type, func, param_name)
             for item, arg_type in zip(value, args, strict=False)
         )
+
     # set[T]
     if origin is set and isinstance(value, (list, tuple)):
-        inner = get_args(to_type)[0]
+        (inner,) = get_args(inspect_ann) or (Any,)
         return {_convert_cli_value_to_type(item, inner, func, param_name) for item in value}
+
     # dict[K, V] from ["key=val", ...]
     if origin is dict and isinstance(value, (list, tuple)):
-        key_t, val_t = get_args(to_type)
+        args = get_args(inspect_ann)
+        if len(args) >= 2:
+            key_t, val_t = args[0], args[1]
+        else:
+            # Fallbacks if someone typed plain `dict`
+            key_t, val_t = (str, Any)
         d: dict[Any, Any] = {}
         for item in value:
             if isinstance(item, str) and "=" in item:
@@ -216,8 +208,11 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
 
     # frozenset[T]
     if origin is frozenset and isinstance(value, (list, tuple)):
-        inner = get_args(to_type)[0]
+        (inner,) = get_args(inspect_ann) or (Any,)
         return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
+
+    # ----- Scalars: now it's safe to normalize to runtime base -----
+    to_type = _normalize_annotation_to_runtime_type(to_type)
 
     if isinstance(to_type, type) and issubclass(to_type, Enum):
         return value

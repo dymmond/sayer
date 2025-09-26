@@ -3,6 +3,38 @@ hide:
   - navigation
 ---
 
+## 0.5.4
+
+### Highlights
+
+- **Improved CLI type conversion** for complex annotations and container types.
+- **Better integration with Click for list/sequence options** (`multiple=True` now works correctly).
+- **Robust handling of modern typing features** like `Annotated`, `Union`, and `Optional`.
+
+### Added
+
+- Support for:
+    - `list[T]`, `set[T]`, `frozenset[T]` with **CSV strings** or single values.
+    - `dict[K, V]` parsing from `["key=value", ...]`.
+    - `tuple[T, ...]` and heterogeneous tuples.
+- Automatic detection of `list[...]` and `Sequence[...]` in CLI options:
+    - Maps to `multiple=True` with correct inner type for Click.
+- Safe fallback for single string values in list/set/frozenset (no more character splitting).
+
+### Changed**
+
+- `command()` now uses `_safe_get_type_hints()` instead of `get_type_hints()` for dynamic module safety.
+- `_convert_cli_value_to_type()`:
+    - Handles `Union` and `Optional` early, trying inner types in order.
+    - Normalizes annotations only after container checks.
+    - Prevents `TypeError: cannot create 'types.UnionType' instances`.
+
+### Fixed
+
+- **Character-splitting bug** for `list[str]` options when `multiple=True` was not applied.
+- **Union/Optional conversion** now returns correct types (e.g., `"42"` → `42` for `int | None`).
+- **Dynamic module loading** no longer breaks type-hint resolution.
+
 ## 0.5.3
 
 ### Highlights

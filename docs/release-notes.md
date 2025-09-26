@@ -5,7 +5,6 @@ hide:
 
 ## 0.5.3
 
-
 ### Highlights
 
 - Robust type-hint resolution for dynamic modules.

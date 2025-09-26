@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import types
+from collections.abc import Callable
 from datetime import date, datetime
 from enum import Enum
 from functools import wraps
@@ -11,7 +12,8 @@ from typing import (
     IO,
     Annotated,
     Any,
-    Callable,
+    Literal,
+    Mapping,
     Sequence,
     TypeVar,
     Union,
@@ -75,57 +77,124 @@ _PRIMITIVE_TYPE_MAP = {
 }
 
 
+def _safe_get_type_hints(func: Any, *, include_extras: bool = True) -> Mapping[str, Any]:
+    """
+    Robust type-hint resolver that tolerates dynamically loaded modules and missing sys.modules entries.
+    """
+    # Prefer the module inspect finds. Fall back to the function's globals
+    mod = inspect.getmodule(func)
+    globalns = getattr(mod, "__dict__", None) or getattr(func, "__globals__", {})
+    try:
+        return get_type_hints(func, globalns=globalns, localns=globalns, include_extras=include_extras)
+    except Exception:
+        # Try with sys.modules if available
+        module = sys.modules.get(getattr(func, "__module__", None))
+        if module is not None:
+            try:
+                return get_type_hints(
+                    func,
+                    globalns=module.__dict__,
+                    localns=module.__dict__,
+                    include_extras=include_extras,
+                )
+            except Exception:
+                ...
+
+        # Last resort: unresolved annotations dict
+        return getattr(func, "__annotations__", {}) or {}
+
+
+def _normalize_annotation_to_runtime_type(ann: Any) -> Any:
+    """
+    Reduce typing annotations to a runtime-checkable/conversion-friendly base.
+    - Annotated[T, ...] -> T
+    - Optional[T] (Union[T, None]) -> T
+    - Union[A, B, ...] -> base of first non-None arg (best-effort)
+    - Literal["x", ...] -> type of first literal (str/int/bool/...)
+    - list[int] -> list, dict[str, int] -> dict, etc.
+    - Callable[..., ...] -> collections.abc.Callable
+    - Leave Enums alone (the engine may want to treat them specially)
+    """
+    if ann is None:
+        return type(None)
+
+    origin = get_origin(ann)
+
+    # Annotated[T, ...]
+    if origin is Annotated:
+        args = get_args(ann)
+        return _normalize_annotation_to_runtime_type(args[0]) if args else Any
+
+    # Optional[T] or general Union
+    if origin is Union:
+        args = [a for a in get_args(ann) if a is not type(None)]
+        if not args:
+            return type(None)
+        # Heuristic: take the first non-None argument as base
+        return _normalize_annotation_to_runtime_type(args[0])
+
+    # Literal["x", 1, True] -> type of first literal
+    if origin is Literal:
+        lits = get_args(ann)
+        return type(lits[0]) if lits else Any
+
+    # Subscripted generics -> map to their origin
+    if origin is not None:
+        # Callable[...] -> collections.abc.Callable
+        if origin in (Callable,):
+            return Callable
+        return origin
+
+    # If it’s already a concrete type (incl. Enum subclasses), return as-is
+    return ann
+
+
 def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, param_name: str = None) -> Any:
     """
     Converts a command-line interface (CLI) input value into the desired Python type.
-
-    This helper function handles specific type conversions:
-    - `Enum`: Leaves `Enum` values as strings to be validated by `Click.Choice`.
-    - `date`: Converts `datetime` objects to `date` objects if the target type is `date`.
-    - `bool`: Parses common string representations of booleans (`"true"`, `"1"`,
-      `"yes"`, `"on"`) into actual boolean values.
-    - Falls back to direct type casting for other types if the value is not
-      already of the target type.
-
-    Args:
-        value: The input value received from the CLI.
-        to_type: The target Python type to convert the value to.
-
-    Returns:
-        The converted value, or the original value if no conversion is necessary
-        or possible.
     """
+
     # Resolve postponed annotations if to_type is a string
     if isinstance(to_type, str) and func and param_name:
-        # Use get_type_hints to resolve actual type
-        type_hints = get_type_hints(func, globalns=sys.modules[func.__module__].__dict__)
+        type_hints = _safe_get_type_hints(func, include_extras=True)
         to_type = type_hints.get(param_name, to_type)
 
-    # --- container types support ---
-    origin = get_origin(to_type)
+    # unwrap Annotated for inspection, but DO NOT normalize yet
+    inspect_ann = to_type
+    if get_origin(inspect_ann) is Annotated:
+        inspect_ann = get_args(inspect_ann)[0]
+
+    origin = get_origin(inspect_ann)
+
     # list[T]
     if origin is list and isinstance(value, (list, tuple)):
-        inner = get_args(to_type)[0]
+        (inner,) = get_args(inspect_ann) or (Any,)
         return [_convert_cli_value_to_type(item, inner, func, param_name) for item in value]
+
     # tuple[T, ...] or Tuple[T1, T2, ...]
     if origin is tuple and isinstance(value, (list, tuple)):
-        args = get_args(to_type)
-        # homogeneous: Tuple[T, ...]
+        args = get_args(inspect_ann)
         if len(args) == 2 and args[1] is Ellipsis:
             inner = args[0]
             return tuple(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
-        # heterogeneous: Tuple[T1, T2, ...]
         return tuple(
             _convert_cli_value_to_type(item, arg_type, func, param_name)
             for item, arg_type in zip(value, args, strict=False)
         )
+
     # set[T]
     if origin is set and isinstance(value, (list, tuple)):
-        inner = get_args(to_type)[0]
+        (inner,) = get_args(inspect_ann) or (Any,)
         return {_convert_cli_value_to_type(item, inner, func, param_name) for item in value}
+
     # dict[K, V] from ["key=val", ...]
     if origin is dict and isinstance(value, (list, tuple)):
-        key_t, val_t = get_args(to_type)
+        args = get_args(inspect_ann)
+        if len(args) >= 2:
+            key_t, val_t = args[0], args[1]
+        else:
+            # Fallbacks if someone typed plain `dict`
+            key_t, val_t = (str, Any)
         d: dict[Any, Any] = {}
         for item in value:
             if isinstance(item, str) and "=" in item:
@@ -139,8 +208,11 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
 
     # frozenset[T]
     if origin is frozenset and isinstance(value, (list, tuple)):
-        inner = get_args(to_type)[0]
+        (inner,) = get_args(inspect_ann) or (Any,)
         return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
+
+    #  Scalars: now it's safe to normalize to runtime base
+    to_type = _normalize_annotation_to_runtime_type(to_type)
 
     if isinstance(to_type, type) and issubclass(to_type, Enum):
         return value

@@ -5,10 +5,6 @@ hide:
 
 ## 0.5.4
 
-Here’s a **concise, structured release note** for the changes in your engine based on the uploaded file and our discussion:
-
----
-
 ### Highlights
 
 - **Improved CLI type conversion** for complex annotations and container types.

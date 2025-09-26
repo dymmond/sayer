@@ -3,6 +3,29 @@ hide:
   - navigation
 ---
 
+## 0.5.3
+
+
+### Highlights
+
+- Robust type-hint resolution for dynamic modules.
+- Runtime-safe normalization of typing constructs.
+- More predictable CLI argument conversion.
+
+### Added
+
+- `_safe_get_type_hints(include_extras=True)` with multi-strategy resolution.
+- `_normalize_annotation_to_runtime_type()` for `Annotated`, `Optional/Union`, `Literal`, and subscripted generics.
+
+### Changed
+
+- Bool parsing, `datetime→date` downcast, and container handling.
+
+### Fixed
+
+- `KeyError` from `sys.modules[func.__module__]` lookups.
+- `TypeError` on `isinstance` checks against subscripted generics.
+
 ## 0.5.2
 
 ### Fixed

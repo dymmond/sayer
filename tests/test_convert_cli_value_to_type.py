@@ -8,8 +8,6 @@ import pytest
 from click.testing import CliRunner
 
 from sayer import Option, command
-
-# Adjust the import path if different in your repo
 from sayer.core.engine import _convert_cli_value_to_type
 
 
@@ -60,7 +58,6 @@ def test_bool_parsing_truthy_and_falsey():
     assert _convert_cli_value_to_type("no", bool) is False
     assert _convert_cli_value_to_type("off", bool) is False
 
-    # Already bool passes through
     assert _convert_cli_value_to_type(True, bool) is True
 
 
@@ -75,22 +72,19 @@ class Color(Enum):
 
 
 def test_enum_is_left_as_string():
-    # Sayer leaves Enum values as strings so Click.Choice can validate.
     assert _convert_cli_value_to_type("RED", Color) == "RED"
     assert _convert_cli_value_to_type("red", Color) == "red"
 
 
 def test_optional_int_success():
-    # Ensure Union/Optional doesn't raise "cannot create 'types.UnionType' instances"
     T = int | None
     assert _convert_cli_value_to_type("42", T) == 42
 
 
 def test_union_int_str_prefers_first_type():
-    # If your conversion tries in declared order, int first succeeds
     T = int | str
+
     assert _convert_cli_value_to_type("42", T) == 42
-    # If int fails, fallback to str (stays as "foo")
     assert _convert_cli_value_to_type("foo", T) == "foo"
 
 
@@ -102,7 +96,6 @@ def test_annotated_dict_preserves_generics_for_conversion():
 
 
 def test_dict_raises_on_malformed_item():
-    # Your current implementation raises on items without "="
     with pytest.raises(ValueError):
         _convert_cli_value_to_type(["a=1", "oops", "b=2"], dict[str, int])
 

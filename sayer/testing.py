@@ -13,9 +13,13 @@ class SayerTestResult:
         self.stdout: str = getattr(result, "stdout", result.output)
         self.stderr: str = getattr(result, "stderr", "")
         self.exception: BaseException | None = result.exception
+        self.return_value: Any = getattr(result, "return_value", None)
 
     def __repr__(self) -> str:
-        return f"<SayerTestResult exit_code={self.exit_code} exception={self.exception!r}>"
+        return (
+            f"<SayerTestResult exit_code={self.exit_code} "
+            f"exception={self.exception!r} return_value={self.return_value!r}>"
+        )
 
 
 class SayerTestClient:
@@ -74,6 +78,7 @@ class SayerTestClient:
                 color=False,  # disable ANSI for simplicity
                 **kwargs,  # note: cwd and mix_stderr are not passed
             )
+
         finally:
             if cwd:
                 os.chdir(prev_dir)

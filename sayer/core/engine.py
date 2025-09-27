@@ -296,6 +296,10 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
 
     # Only perform isinstance/cast when target is a real class
     if isinstance(to_type, type):
+        # Prevent coercing None into string
+        if value is None:
+            return None
+
         if isinstance(value, to_type):
             return value
         try:
@@ -303,7 +307,9 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         except Exception:
             return value
 
-    return value  # type: ignore
+    if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:  # type: ignore
+        return None
+    return value
 
 
 def _should_parameter_use_option_style(meta_param: Param, default_value: Any) -> str | bool:  #
@@ -443,16 +449,26 @@ def _build_click_parameter(
     ):
         parameter_metadata = parameter_metadata.as_option()
 
-    # ---------- list[T] or Sequence[T] -> multiple=True, per-item type ----------
+    # ---------- Plain list/tuple without metadata -> variadic positional ----------
     base_origin = get_origin(parameter_base_type)
+    if parameter_metadata is None and base_origin in (list, tuple) and parameter.name in {"args", "argv"}:
+        inner_args = get_args(parameter_base_type)
+        inner_type = inner_args[0] if inner_args else str
+        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
+        return click.argument(
+            parameter_name,
+            nargs=-1,
+            type=click_inner_type,
+            required=False,
+        )(click_wrapper_function)
+
+    # ---------- list[T] or Sequence[T] -> multiple=True ----------
     if base_origin in (list, Sequence):
-        # Derive inner type from the BASE type, not from Annotated wrapper
         inner_args = get_args(parameter_base_type)
         inner_type = inner_args[0] if inner_args else str
         click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
 
         if isinstance(parameter_metadata, Argument):
-            # Variadic argument
             variadic_nargs = parameter_metadata.options.get("nargs", -1)
             is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
             is_required_local = False if is_variadic else getattr(parameter_metadata, "required", False)
@@ -466,7 +482,6 @@ def _build_click_parameter(
                 **arg_options,
             )(click_wrapper_function)
 
-        # Option: use multiple=True and inner type so Click aggregates as tuple[str,...]
         default_for_sequence = () if not has_default_value else parameter.default
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
@@ -491,7 +506,7 @@ def _build_click_parameter(
             help=param_help_text,
         )(click_wrapper_function)
 
-    # ---------- Implicit JSON injection for encodable complex types ----------
+    # ---------- Implicit JSON injection ----------
     simple_types = (str, bool, int, float, Enum, Path, UUID, date, datetime)
     skip_implicit_json = isinstance(parameter_base_type, type) and issubclass(parameter_base_type, simple_types)
     if (
@@ -505,7 +520,7 @@ def _build_click_parameter(
     ):
         parameter_metadata = JsonParam()
 
-    # ---------- Explicit JsonParam -> JSON string option ----------
+    # ---------- Explicit JsonParam ----------
     if isinstance(parameter_metadata, JsonParam):
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
@@ -583,13 +598,28 @@ def _build_click_parameter(
 
     # ---------- Option ----------
     if isinstance(parameter_metadata, Option):
+        # Unwrap Annotated[str | None, Option(...)]
+        raw_for_option = raw_type_annotation
+        if get_origin(raw_for_option) is Annotated:
+            ann_args = get_args(raw_for_option)
+            if ann_args:
+                raw_for_option = ann_args[0]
+
+        # Handle Optional[T] properly
+        if get_origin(raw_for_option) in (Union, UnionType):
+            union_args = get_args(raw_for_option)
+            if type(None) in union_args:
+                non_none = [a for a in union_args if a is not type(None)]
+                if len(non_none) == 1:
+                    parameter_base_type = non_none[0]
+
         if getattr(parameter_metadata, "default_factory", None):
             option_default = None
         else:
             option_default = final_default_value
 
         default_kwarg: dict[str, Any] = {}
-        if not (is_required and option_default is None):
+        if option_default is not None:
             default_kwarg["default"] = option_default
 
         if parameter_metadata.is_flag and option_default is True:
@@ -600,7 +630,7 @@ def _build_click_parameter(
             *parameter_metadata.param_decls,
             type=None if is_boolean_flag else parameter_base_type,
             is_flag=is_boolean_flag,
-            required=is_required,
+            required=is_required,  # ✅ trust computed required
             show_default=parameter_metadata.show_default,
             help=effective_help_text,
             prompt=parameter_metadata.prompt,
@@ -646,7 +676,6 @@ def _build_click_parameter(
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
-            default=None,
             show_default=True,
             help=effective_help_text,
         )(click_wrapper_function)
@@ -858,7 +887,13 @@ def command(
                         parameter_value = apply_structure(target_type_for_conversion, json_data)
 
                 # Convert non-list/Sequence types using the `_convert_cli_value_to_type` helper.
-                if get_origin(raw_type_for_conversion) not in (list, Sequence):
+                if get_origin(raw_type_for_conversion) in (list, Sequence):
+                    inner = get_args(raw_type_for_conversion)[0] if get_args(raw_type_for_conversion) else Any
+                    parameter_value = [
+                        _convert_cli_value_to_type(item, inner, function_to_decorate, param_sig.name)
+                        for item in (parameter_value or [])
+                    ]
+                else:
                     parameter_value = _convert_cli_value_to_type(
                         parameter_value,
                         target_type_for_conversion,
@@ -906,10 +941,12 @@ def command(
                 hook_func(command_name, bound_arguments, execution_result)  # type: ignore
             # Run global and command-specific `after` middleware.
             run_after(command_name, bound_arguments, execution_result)
-
+            ctx._sayer_return_value = execution_result
             return execution_result
 
         click_command_wrapper._original_func = function_to_decorate
+        click_command_wrapper.standalone_mode = False
+        click_command_wrapper._return_result = True
         current_wrapper = click_command_wrapper
 
         # Attach parameters to the Click command.

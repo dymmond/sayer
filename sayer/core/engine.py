@@ -296,6 +296,10 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
 
     # Only perform isinstance/cast when target is a real class
     if isinstance(to_type, type):
+        # Prevent coercing None into string
+        if value is None:
+            return None
+
         if isinstance(value, to_type):
             return value
         try:
@@ -619,7 +623,7 @@ def _build_click_parameter(
             option_default = final_default_value
 
         default_kwarg: dict[str, Any] = {}
-        if not (is_required and option_default is None):
+        if option_default is not None:
             default_kwarg["default"] = option_default
 
         if parameter_metadata.is_flag and option_default is True:
@@ -628,7 +632,7 @@ def _build_click_parameter(
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             *parameter_metadata.param_decls,
-            type=None if parameter_base_type is type(None) else parameter_base_type,
+            type=None if is_boolean_flag else parameter_base_type,
             is_flag=is_boolean_flag,
             required=is_required,  # ✅ trust computed required
             show_default=parameter_metadata.show_default,
@@ -676,7 +680,6 @@ def _build_click_parameter(
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             type=parameter_base_type,
-            default=None,
             show_default=True,
             help=effective_help_text,
         )(click_wrapper_function)

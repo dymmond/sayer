@@ -100,10 +100,13 @@ class Option(BaseParam):
         self.param_decls = param_decls
         self.is_flag = is_flag
 
+        # ✅ Preserve explicit None (do NOT coerce to "None" string)
+        self.default = default
+
         has_static = default is not ... and default is not None
         has_factory = default_factory is not None
-        self.default = None if default is None else default
-        # If default is explicitly None, force required=False
+
+        # ✅ Required logic: if default is None, option is not required
         if default is None and required is None:
             self.required = False
         else:

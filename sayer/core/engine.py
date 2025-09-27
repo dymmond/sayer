@@ -307,7 +307,7 @@ def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, para
         except Exception:
             return value
 
-    if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:
+    if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:  # type: ignore
         return None
     return value
 
@@ -451,11 +451,7 @@ def _build_click_parameter(
 
     # ---------- Plain list/tuple without metadata -> variadic positional ----------
     base_origin = get_origin(parameter_base_type)
-    if (
-        parameter_metadata is None
-        and base_origin in (list, tuple)
-        and parameter.name in {"args", "argv"}
-    ):
+    if parameter_metadata is None and base_origin in (list, tuple) and parameter.name in {"args", "argv"}:
         inner_args = get_args(parameter_base_type)
         inner_type = inner_args[0] if inner_args else str
         click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
@@ -518,9 +514,9 @@ def _build_click_parameter(
         and not skip_implicit_json
         and inspect.isclass(parameter_base_type)
         and any(
-        isinstance(encoder, MoldingProtocol) and encoder.is_type_structure(parameter_base_type)
-        for encoder in get_encoders()
-    )
+            isinstance(encoder, MoldingProtocol) and encoder.is_type_structure(parameter_base_type)
+            for encoder in get_encoders()
+        )
     ):
         parameter_metadata = JsonParam()
 
@@ -945,7 +941,7 @@ def command(
                 hook_func(command_name, bound_arguments, execution_result)  # type: ignore
             # Run global and command-specific `after` middleware.
             run_after(command_name, bound_arguments, execution_result)
-
+            ctx._sayer_return_value = execution_result
             return execution_result
 
         click_command_wrapper._original_func = function_to_decorate

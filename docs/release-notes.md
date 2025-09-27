@@ -3,6 +3,24 @@ hide:
   - navigation
 ---
 
+## 0.5.5
+
+### Fixed
+
+- Correctly handle `Optional` (`str | None`) options: missing flags now yield real `None` instead of `"None"`.
+- Prevent duplicate command execution in tests by removing manual `ctx.invoke()` fallback.
+- `CliRunner.invoke()` now reliably captures return values via `_return_result`.
+
+### Changed
+
+- Set `standalone_mode = False` by default to stop `sys.exit()` propagation in tests.
+- Improved internal type conversion logic to avoid coercing `None` into `"None"` for string parameters.
+
+### Improved
+
+- Stability of `SayerTestClient` with Click ≥ 8.3.0.
+- More consistent return value handling across commands and subcommands.
+
 ## 0.5.4
 
 ### Highlights
@@ -21,7 +39,7 @@ hide:
     - Maps to `multiple=True` with correct inner type for Click.
 - Safe fallback for single string values in list/set/frozenset (no more character splitting).
 
-### Changed**
+### Changed
 
 - `command()` now uses `_safe_get_type_hints()` instead of `get_type_hints()` for dynamic module safety.
 - `_convert_cli_value_to_type()`:

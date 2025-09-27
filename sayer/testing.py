@@ -78,17 +78,7 @@ class SayerTestClient:
                 color=False,  # disable ANSI for simplicity
                 **kwargs,  # note: cwd and mix_stderr are not passed
             )
-            # Patch in return_value if command supports it
-            if result.exit_code == 0 and result.exception is None:
-                if args:
-                    cmd_name = args[0]
-                    if cmd_name in self.app.cli.commands:
-                        cmd = self.app.cli.commands[cmd_name]
-                        if getattr(cmd, "_return_result", False):
-                            ctx = cmd.make_context(cmd_name, args[1:], obj={}, resilient_parsing=False)
-                            with ctx:
-                                rv = cmd.invoke(ctx)
-                            result.return_value = rv
+
         finally:
             if cwd:
                 os.chdir(prev_dir)

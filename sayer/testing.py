@@ -13,9 +13,13 @@ class SayerTestResult:
         self.stdout: str = getattr(result, "stdout", result.output)
         self.stderr: str = getattr(result, "stderr", "")
         self.exception: BaseException | None = result.exception
+        self.return_value: Any = getattr(result, "return_value", None)
 
     def __repr__(self) -> str:
-        return f"<SayerTestResult exit_code={self.exit_code} exception={self.exception!r}>"
+        return (
+            f"<SayerTestResult exit_code={self.exit_code} "
+            f"exception={self.exception!r} return_value={self.return_value!r}>"
+        )
 
 
 class SayerTestClient:
@@ -74,6 +78,17 @@ class SayerTestClient:
                 color=False,  # disable ANSI for simplicity
                 **kwargs,  # note: cwd and mix_stderr are not passed
             )
+            # Patch in return_value if command supports it
+            if result.exit_code == 0 and result.exception is None:
+                if args:
+                    cmd_name = args[0]
+                    if cmd_name in self.app.cli.commands:
+                        cmd = self.app.cli.commands[cmd_name]
+                        if getattr(cmd, "_return_result", False):
+                            ctx = cmd.make_context(cmd_name, args[1:], obj={}, resilient_parsing=False)
+                            with ctx:
+                                rv = cmd.invoke(ctx)
+                            result.return_value = rv
         finally:
             if cwd:
                 os.chdir(prev_dir)

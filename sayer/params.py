@@ -91,7 +91,6 @@ class Option(BaseParam):
             callback: A function to call to process the value after parsing.
         """
         super().__init__(**options)
-        self.default = default
         self.help = help
         self.envvar = envvar
         self.prompt = prompt
@@ -101,9 +100,14 @@ class Option(BaseParam):
         self.param_decls = param_decls
         self.is_flag = is_flag
 
-        has_static = default is not ...
+        has_static = default is not ... and default is not None
         has_factory = default_factory is not None
-        self.required = required if required is not None else not (has_static or has_factory)
+        self.default = None if default is None else default
+        # If default is explicitly None, force required=False
+        if default is None and required is None:
+            self.required = False
+        else:
+            self.required = required if required is not None else not (has_static or has_factory)
 
         self.callback = callback
         self.default_factory = default_factory

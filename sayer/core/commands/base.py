@@ -13,3 +13,9 @@ class BaseSayerCommand(ABC, click.Command):
         logic that integrates with Sayer's console output.
         """
         raise NotImplementedError("Subclasses must implement get_help method.")
+
+    def invoke(self, ctx: click.Context) -> click.Command:
+        rv = super().invoke(ctx)
+        if hasattr(ctx, "obj") and isinstance(ctx.obj, dict):
+            ctx.obj["_last_return"] = rv
+        return rv

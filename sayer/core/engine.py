@@ -698,7 +698,7 @@ def command(func: F) -> click.Command: ...
 
 @overload
 def command(
-    func: F | None = None,
+    func: None = None,
     *args: Any,
     middleware: Sequence[str | Callable[..., Any]] | None = None,
     **attrs: Any,
@@ -1077,13 +1077,13 @@ def group(
                 # If a function is provided directly, associate it with the group
                 # and apply `sayer.command`.
                 func_to_bind.__sayer_group__ = new_group_instance  # type: ignore
-                return cast(click.Command, command(func_to_bind, **opts))
+                return command(func_to_bind, **opts)
 
             def inner_decorator(function_to_decorate_for_group: F) -> click.Command:
                 # If used as `@group.command(...)`, return a decorator that
                 # first marks the function with the group, then applies `sayer.command`.
                 function_to_decorate_for_group.__sayer_group__ = new_group_instance  # type: ignore
-                return cast(click.Command, command(function_to_decorate_for_group, **opts))
+                return command(function_to_decorate_for_group, **opts)
 
             return cast(click.Command, inner_decorator)
 
@@ -1141,7 +1141,7 @@ def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *arg
 
     def decorator(fn: F) -> click.Command:
         fn.__sayer_group__ = group_instance  # type: ignore
-        return cast(click.Command, command(fn, *args, **attrs))
+        return command(fn, *args, **attrs)
 
     if function_to_bind and callable(function_to_bind) and not args and not attrs:
         return decorator(function_to_bind)

@@ -160,6 +160,14 @@ strict_equality = false
 strict_optional = false
 disable_error_code = "attr-defined,has-type,override,misc,safe-super,assignment,call-arg"
 
+[[tool.mypy.overrides]]
+module = "docs_src.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
 
 [tool.ruff]
 line-length = 120

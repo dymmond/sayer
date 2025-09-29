@@ -1,4 +1,9 @@
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+if TYPE_CHECKING:
+    import click
 
 
 class BaseParam:
@@ -69,7 +74,7 @@ class Option(BaseParam):
         hide_input: bool = False,
         show_default: bool = True,
         required: Optional[bool] = None,
-        callback: Optional[Callable[[Any], Any]] = None,
+        callback: Optional[Callable[[click.Context, click.Parameter, Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
         **options: Any,
@@ -129,7 +134,7 @@ class Argument(BaseParam):
         *param_decls: str,
         help: str | None = None,
         required: Optional[bool] = None,
-        callback: Optional[Callable[[Any], Any]] = None,
+        callback: Optional[Callable[[click.Context, click.Parameter, Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
         **options: Any,
@@ -216,7 +221,7 @@ class Param(BaseParam):
         hide_input: bool = False,
         show_default: bool = True,
         required: bool | None = None,
-        callback: Callable[[Any], Any] | None = None,
+        callback: Callable[[click.Context, click.Parameter, Any], Any] | None = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
         **options: Any,

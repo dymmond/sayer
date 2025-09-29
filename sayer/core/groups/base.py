@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any, Callable, TypeVar, cast, overload
+from typing import Any, Callable, TypeVar, cast
 
 import click
 from click import Command
@@ -44,12 +46,6 @@ class BaseSayerGroup(ABC, click.Group):
             console.print(panel)
             return e.exit_code
 
-    @overload
-    def command(self, f: T) -> T: ...
-
-    @overload
-    def command(self, *args: Any, **kwargs: Any) -> Callable[[T], T]: ...
-
     def command(self, *args: Any, **kwargs: Any) -> Any:
         """
         Registers a function as a subcommand using the Sayer command engine.
@@ -70,7 +66,7 @@ class BaseSayerGroup(ABC, click.Group):
         """
         from sayer.core.engine import command  # Lazily import to avoid circular dependencies
 
-        def decorator(func: T) -> T:
+        def decorator(func: T) -> click.Command:
             # If the user wrote @sayer.command("foo", help="…"),
             # then args[0] is the name and func is really the function.
             name_from_pos = args[0] if args and isinstance(args[0], str) else None
@@ -78,8 +74,8 @@ class BaseSayerGroup(ABC, click.Group):
             func.__sayer_group__ = self
             # Pass along both forms of name, plus any other attrs.
             return cast(
-                T,
-                command(
+                click.Command,
+                command[T](
                     func,
                     name=name_from_pos,
                     **kwargs,

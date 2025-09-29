@@ -12,7 +12,7 @@ def test_custom_command_runs_and_outputs():
         """Custom shout command"""
         click.echo("HELLO!")
 
-    app.add_custom_command("shout", shout)
+    app.add_custom_command(shout, "shout")
 
     client = SayerTestClient(app)
     result = client.invoke(["shout"])
@@ -29,7 +29,7 @@ def test_help_lists_custom_commands():
         """Custom shout command"""
         click.echo("HELLO!")
 
-    app.add_custom_command("shout", shout)
+    app.add_custom_command(shout, "shout")
 
     client = SayerTestClient(app)
     result = client.invoke(["--help"])

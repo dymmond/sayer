@@ -211,7 +211,7 @@ def shout():
     """Shout in uppercase."""
     click.echo("HELLO WORLD!")
 
-app.add_custom_command("shout", shout)
+app.add_custom_command(shout, "shout")
 ```
 
 Run:

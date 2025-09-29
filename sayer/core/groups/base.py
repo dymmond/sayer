@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, TypeVar, cast, overload
 
 import click
+from click import Command
 from rich.panel import Panel
 from rich.text import Text
 
@@ -22,6 +23,7 @@ class BaseSayerGroup(ABC, click.Group):
     command behavior and provides custom help and error rendering.
     """
 
+    __is_custom__: bool = False
     display_full_help: bool = monkay.settings.display_full_help
     display_help_length: int = monkay.settings.display_help_length
 
@@ -86,47 +88,11 @@ class BaseSayerGroup(ABC, click.Group):
 
         return decorator
 
-    def add_custom_command(
-        self,
-        name: str | None = None,
-        cmd: click.Command | None = None,
-        **attrs: Any,
-    ) -> Any:
-        """
-        Register a custom command that will appear under a 'Custom' section
-        in the help output.
-
-        Supports two forms:
-
-        **Decorator style:**
-
-            @app.add_custom_command("mycmd")
-            def mycmd():
-                ...
-
-        **Direct style:**
-
-            def mycmd(): ...
-            cmd = command(mycmd, name="mycmd")
-            app.add_custom_command("mycmd", cmd=cmd)
-        """
-        from sayer.core.engine import command  # reuse existing decorator
-
-        if cmd is not None:
-            # Direct registration
-            cmd_name = name or cmd.name
-            self._custom_commands[cmd_name] = cmd
-            self.add_command(cmd, cmd_name)
-            return cmd
-
-        def decorator(func: Callable[..., Any]) -> click.Command:
-            cmd_name = name or func.__name__.replace("_", "-")
-            built_cmd = cast(click.Command, command(func, name=cmd_name, **attrs))
-            self._custom_commands[cmd_name] = built_cmd
-            self.add_command(built_cmd, cmd_name)
-            return built_cmd
-
-        return decorator
+    def add_command(self, cmd: Command | Any, name: str | None = None, is_custom: bool = False, **kwargs: Any) -> None:
+        super().add_command(cmd, name)
+        if self.__is_custom__ or is_custom:
+            name = name or cmd.name
+            self._custom_commands[name] = cmd
 
     def set_custom_command_title(self, title: str) -> None:
         """
@@ -205,3 +171,11 @@ class BaseSayerGroup(ABC, click.Group):
                        as Sayer uses its own rendering).
         """
         raise NotImplementedError("Subclasses must implement format_help method.")
+
+    @property
+    def custom_commands(self) -> dict[str, Any]:
+        return self._custom_commands
+
+    @property
+    def custom_command_config(self) -> CustomCommandConfig:
+        return self._custom_command_config

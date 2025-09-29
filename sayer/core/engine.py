@@ -773,6 +773,7 @@ def command(
         before_execution_hooks, after_execution_hooks = resolve_middleware(middleware)
         # Check if `click.Context` is explicitly injected into the function's parameters.
         is_context_param_injected = any(p.annotation is click.Context for p in function_signature.parameters.values())
+        # Checks if should be a custom group to added
 
         click_cmd_kwargs = {
             "name": command_name,
@@ -1021,6 +1022,8 @@ def group(
     name: str,
     group_cls: type[click.Group] | None = None,
     help: str | None = None,
+    is_custom: bool = False,
+    custom_command_name: str | None = None,
     **kwargs: Any,
 ) -> click.Group:
     """
@@ -1043,6 +1046,8 @@ def group(
                    `sayer.utils.ui.SayerGroup` is used by default.
         help: An optional help string for the group, displayed when `--help`
               is invoked on the group.
+        is_custom: Whether or not the group is intended to be a custom command for display
+        custom_command_name: The name of the custom command to use. If `None`, defaults to "Custom"
 
     Returns:
         A `click.Group` instance, either newly created or retrieved from the
@@ -1054,6 +1059,11 @@ def group(
         group_class_to_use = group_cls or SayerGroup
         # Create the Click group instance.
         new_group_instance = group_class_to_use(name=name, help=help, **kwargs)
+
+        # Set the group for different sections
+        if is_custom:
+            new_group_instance.__is_custom__ = is_custom
+            new_group_instance._custom_command_config.title = custom_command_name or name.capitalize()  # noqa
 
         def _group_command_method_override(func_to_bind: F | None = None, **opts: Any) -> click.Command:  #
             """

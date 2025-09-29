@@ -7,10 +7,10 @@ hide:
 
 ### Added
 
-* `with_return_value` flag to `SayerTestClient.invoke` to capture actual callback return values in tests.
-* Now test authors can choose between full CLI behavior or direct access to command return values,
+- `with_return_value` flag to `SayerTestClient.invoke` to capture actual callback return values in tests.
+- Now test authors can choose between full CLI behavior or direct access to command return values,
 without breaking either workflow.
-* Custom Commands Support:
+- [Custom Commands Support](./features/commands.md#custom-commands):
 
   You can now register your own commands that will appear under a dedicated **“Custom”** section in the CLI help output.
   Example:
@@ -24,13 +24,34 @@ without breaking either workflow.
   app.add_custom_command("shout", shout)
   ```
 
+- [Custom Groups in Help Output](./features/groups.md#custom-groups):
+
+  You can now mark groups as *custom* (`is_custom=True`) and provide a `custom_command_name`.
+  These groups appear under their own **dedicated section** in CLI help, making it easier to distinguish framework commands from project-specific ones.
+
+  ```python
+  reports = group(
+      name="reports",
+      help="Reporting commands",
+      is_custom=True,
+      custom_command_name="Reporting Suite"
+  )
+  ```
+
+  Help output now renders custom groups in titled panels:
+
+  ```
+  Reporting Suite:
+    reports   Reporting commands
+  ```
+
 ### Changed
 
-* Updated: `SayerCommand.main()` and `.invoke()` ensure return values propagate correctly in tests.
+- Updated: `SayerCommand.main()` and `.invoke()` ensure return values propagate correctly in tests.
 
 ### Fixed
 
-* `SayerTestClient.invoke()` now returns the actual command return value via `res.return_value`.
+- `SayerTestClient.invoke()` now returns the actual command return value via `res.return_value`.
 
 ## 0.5.5
 

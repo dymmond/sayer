@@ -133,7 +133,7 @@ def render_help_for_command(
         max_cmd_len = 0
 
         for name, sub in cmd.commands.items():
-            if hasattr(cmd, "_custom_commands") and cmd._custom_commands and name in cmd._custom_commands:
+            if hasattr(cmd, "custom_commands") and cmd.custom_commands and name in cmd.custom_commands:
                 continue
 
             raw_sub_help = sub.help or ""
@@ -190,43 +190,48 @@ def render_help_for_command(
         console.print()
 
     # For custom display of commands
-    custom_panel = None
-    if hasattr(cmd, "_custom_commands") and cmd._custom_commands:
-        sub_items: list[tuple[str, str]] = []  # type: ignore
-        max_cmd_len = 0
+    if hasattr(cmd, "custom_commands") and cmd.custom_commands:
+        # Normalize items to iterable of (name, sub)
+        items = cmd.custom_commands.items() if isinstance(cmd.custom_commands, dict) else cmd.custom_commands
 
-        for name, sub in cmd._custom_commands.items():
-            raw_sub_help = sub.help or ""
+        grouped: dict[str, list[tuple[str, str]]] = {}
+
+        for name, sub in items:
+            raw_sub_help = getattr(sub, "help", "") or ""
             lines = raw_sub_help.strip().splitlines()
             summary = lines[0] if lines else ""
-            if len(name) > max_cmd_len:
-                max_cmd_len = len(name)
-            sub_items.append((name, summary))
 
-        custom_table = Table(
-            show_header=True,
-            header_style="gray50",
-            box=None,
-            pad_edge=False,
-            padding=(0, 2),
-            expand=False,
-        )
-        custom_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
-        custom_table.add_column("Description", style="gray50", ratio=1)
+            # Find the correct title
+            title = getattr(getattr(sub, "custom_command_config", None), "title", cmd.custom_command_config.title)
 
-        for name, summary in sub_items:
-            custom_table.add_row(Text(name, style="bold cyan"), summary)
+            grouped.setdefault(title, []).append((name, summary))
 
-        custom_panel = Panel(
-            custom_table,
-            title=cmd._custom_command_config.title,
-            title_align="left",
-            border_style="gray50",
-            box=box.ROUNDED,
-            padding=(0, 1),
-        )
+        # Render one panel per title
+        for title, sub_items in grouped.items():
+            max_cmd_len = max(len(name) for name, _ in sub_items)
 
-    if custom_panel:
-        console.print(custom_panel)
+            custom_table = Table(
+                show_header=True,
+                header_style="gray50",
+                box=None,
+                pad_edge=False,
+                padding=(0, 2),
+                expand=False,
+            )
+            custom_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
+            custom_table.add_column("Description", style="gray50", ratio=1)
+
+            for name, summary in sub_items:
+                custom_table.add_row(Text(name, style="bold cyan"), summary)
+
+            custom_panel = Panel(
+                custom_table,
+                title=title,
+                title_align="left",
+                border_style="gray50",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+            console.print(custom_panel)
 
     ctx.exit()

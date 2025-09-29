@@ -141,7 +141,7 @@ root.add_command(db)   # db lives under root
 def init(url: str): ...
 ```
 
-**Which to choose?**  
+**Which to choose?**
 
 Use whichever fits your style. If you want Sayer's registry to know about the subgroup, prefer the `sayer.group()` approach for the subgroup as well.
 
@@ -379,7 +379,110 @@ def migrate(step: int = 1):
     click.echo(f"Migrating by {step}")
 ```
 
----
+## Custom Groups
+
+Sayer supports marking groups as **custom** so that they appear under their own **titled section** in the help output.
+This is useful for visually separating framework-defined commands from project-specific or feature-specific groups.
+
+### Defining a Custom Group
+
+Use the `group()` factory with `is_custom=True` and give it a `custom_command_name`:
+
+```python
+from sayer import Sayer, group
+import click
+
+app = Sayer(name="myapp", help="Demo app")
+
+# A custom group with its own section title
+reports = group(
+    name="reports",
+    help="Reporting commands",
+    is_custom=True,
+    custom_command_name="Reporting Suite"
+)
+
+@reports.command(name="daily", help="Generate daily report")
+def daily():
+    click.echo("generated daily report")
+
+app.add_command(reports)
+```
+
+This will internally tell Sayer to create a different section in your command-line instead of aggregating everything in one
+go.
+
+### CLI Help Output
+
+```bash
+$ myapp --help
+```
+
+The following (similar) should show like this:
+
+```
+Usage: myapp [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  version   Show version
+
+Reporting Suite:
+  reports   Reporting commands
+```
+
+### Multiple Custom Groups
+
+If you register more than one custom group, each one appears under its own section,
+grouped by the `custom_command_name` you provide:
+
+```python
+analytics = group(
+    name="analytics",
+    help="Analytics commands",
+    is_custom=True,
+    custom_command_name="Analytics Suite"
+)
+
+app.add_command(reports)
+app.add_command(analytics)
+```
+
+Help output:
+
+```
+Reporting Suite:
+  reports     Reporting commands
+
+Analytics Suite:
+  analytics   Analytics commands
+```
+
+### Testing Custom Groups
+
+You can test them with `SayerTestClient` the same way as regular groups:
+
+```python
+from sayer.testing import SayerTestClient
+
+def test_custom_group_runs():
+    app = Sayer(name="test")
+    reports = group("reports", help="Reporting", is_custom=True, custom_command_name="Reports")
+
+    @reports.command(name="daily")
+    def daily():
+        click.echo("ok")
+
+    app.add_command(reports)
+
+    client = SayerTestClient(app)
+    result = client.invoke(["reports", "daily"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == "ok"
+```
 
 ## Best Practices
 

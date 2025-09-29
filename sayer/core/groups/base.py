@@ -2,10 +2,12 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, TypeVar, cast, overload
 
 import click
+from click import Command
 from rich.panel import Panel
 from rich.text import Text
 
 from sayer.conf import monkay
+from sayer.core.commands.config import CustomCommandConfig
 from sayer.utils.console import console
 
 T = TypeVar("T", bound=Callable[..., Any])
@@ -21,8 +23,26 @@ class BaseSayerGroup(ABC, click.Group):
     command behavior and provides custom help and error rendering.
     """
 
+    __is_custom__: bool = False
     display_full_help: bool = monkay.settings.display_full_help
     display_help_length: int = monkay.settings.display_help_length
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._custom_commands: dict[str, click.Command] = {}
+        self._custom_command_config: CustomCommandConfig = CustomCommandConfig(title="Custom")
+
+    def main(self, *args: Any, **kwargs: Any) -> Any:
+        # Always disable standalone_mode so we can control error handling
+        kwargs.setdefault("standalone_mode", False)
+        try:
+            return super().main(*args, **kwargs)
+        except click.ClickException as e:
+            usage = self.get_usage(click.Context(self))
+            body = f"[bold red]Error:[/] {e.format_message()}\n\n[bold cyan]Usage:[/]\n  {usage.strip()}"
+            panel = Panel.fit(Text.from_markup(body), title="Error", border_style="red")
+            console.print(panel)
+            return e.exit_code
 
     @overload
     def command(self, f: T) -> T: ...
@@ -67,6 +87,21 @@ class BaseSayerGroup(ABC, click.Group):
             )
 
         return decorator
+
+    def add_command(self, cmd: Command | Any, name: str | None = None, is_custom: bool = False, **kwargs: Any) -> None:
+        super().add_command(cmd, name)
+        if self.__is_custom__ or is_custom:
+            name = name or cmd.name
+            self._custom_commands[name] = cmd
+
+    def set_custom_command_title(self, title: str) -> None:
+        """
+        Sets the custom command title to a new user friendly name.
+
+        Args:
+            title: Title to be set.
+        """
+        self._custom_command_config.title = title
 
     def get_usage(self, ctx: click.Context) -> str:
         """
@@ -136,3 +171,11 @@ class BaseSayerGroup(ABC, click.Group):
                        as Sayer uses its own rendering).
         """
         raise NotImplementedError("Subclasses must implement format_help method.")
+
+    @property
+    def custom_commands(self) -> dict[str, Any]:
+        return self._custom_commands
+
+    @property
+    def custom_command_config(self) -> CustomCommandConfig:
+        return self._custom_command_config

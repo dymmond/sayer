@@ -190,6 +190,64 @@ root.add_command(sub)
 
 This ensures that nested apps retain their full group behavior and rich help formatting.
 
+## Custom Commands
+
+Sayer now supports **Custom Commands**, allowing you to register extra commands outside the normal `@command` decorator flow. These are useful when you want to extend the CLI with application-specific actions while keeping them visually separated in the help output.
+
+When you run `--help`, custom commands appear under a dedicated **Custom** section, making it clear what has been added by you versus what ships with the app.
+
+### Registering Custom Commands
+
+#### Direct Registration
+
+```python
+import click
+from sayer import Sayer, command
+
+app = Sayer(name="myapp")
+
+@command
+def shout():
+    """Shout in uppercase."""
+    click.echo("HELLO WORLD!")
+
+app.add_custom_command(shout, "shout")
+```
+
+Run:
+
+```bash
+python main.py shout
+```
+
+Output:
+
+```
+HELLO WORLD!
+```
+
+Help output (`python main.py --help`):
+
+```
+Usage: myapp [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  greet    Greet a user by name.
+  process  Process a file and config.
+
+Custom:
+  shout    Shout in uppercase.
+```
+
+### Why Use Custom Commands?
+
+* Keeps a clear separation between **framework commands** and **your own project-specific commands**.
+* Ideal for project tooling (e.g., `init-db`, `lint`, `deploy`) that you don’t want mixed into core Sayer groups.
+* Ensures consistent help formatting, even across nested apps.
+
 ## Comprehensive Best Practices
 
 * ✅ Use clear docstrings and parameter annotations for help output.

@@ -1,6 +1,8 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
+import click
+from click import Group
 from click.testing import CliRunner
 
 from sayer.core.client import app as _app
@@ -38,10 +40,11 @@ class SayerTestClient:
 
     def invoke(
         self,
-        args: List[str],
+        args: list[str],
         input: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
         cwd: Optional[str] = None,
+        with_return_value: bool = False,
         **kwargs: Any,
     ) -> SayerTestResult:
         """
@@ -51,10 +54,11 @@ class SayerTestClient:
         for the invocation (Click itself does not accept a cwd parameter).
 
         Args:
-            args: List of command-line args, e.g. ["docs", "generate"].
+            args: list of command-line args, e.g. ["docs", "generate"].
             input: Text to pipe to stdin.
             env: Extra environment variables to set.
             cwd: Working directory to run in (temporarily chdirs).
+            with_return_value: If True, return a SayerTestResult `return_value`.
             **kwargs: Other options forwarded to CliRunner.invoke().
 
         Returns:
@@ -64,26 +68,54 @@ class SayerTestClient:
         if env:
             env_vars.update(env)
 
-        # Temporarily switch cwd if requested
         prev_dir = os.getcwd()
         try:
             if cwd:
                 os.chdir(cwd)
 
+            # ✅ Leaf resolution only when explicitly requested
+            if with_return_value and isinstance(self.app.cli, Group) and args:
+                group = self.app.cli
+                remaining = args
+                cmd: click.Command | None = None
+
+                while isinstance(group, Group) and remaining:
+                    ctx = click.Context(group)
+                    cmd_name, cmd, remaining = group.resolve_command(ctx, remaining)
+                    if cmd is None:
+                        break
+                    if isinstance(cmd, Group):
+                        group = cmd
+                        continue
+                    break  # leaf found
+
+                if cmd is not None:
+                    result = self.runner.invoke(
+                        cmd,
+                        remaining,
+                        input=input,
+                        env=env_vars,
+                        color=False,
+                        standalone_mode=False if with_return_value else True,
+                        **kwargs,
+                    )
+                    return SayerTestResult(result)
+
+            # ✅ Default: invoke root group (Click handles help/errors properly)
             result = self.runner.invoke(
                 self.app.cli,
                 args,
                 input=input,
                 env=env_vars,
-                color=False,  # disable ANSI for simplicity
-                **kwargs,  # note: cwd and mix_stderr are not passed
+                color=False,
+                standalone_mode=False if with_return_value else True,
+                **kwargs,
             )
+            return SayerTestResult(result)
 
         finally:
             if cwd:
                 os.chdir(prev_dir)
-
-        return SayerTestResult(result)
 
     def isolated_filesystem(self, **kwargs: Any) -> Any:
         """

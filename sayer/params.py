@@ -24,36 +24,6 @@ class BaseParam:
         self.type: Any = options.pop("type", None)
         self.options: dict[str, Any] = options if options is not None else {}
 
-    def get_param_definitions(self) -> dict[str, Any]:
-        """
-        Returns the parameter definitions as a dictionary.
-
-        This method can be overridden by subclasses to provide specific parameter
-        definitions.
-
-        Returns:
-            A dictionary containing the parameter definitions.
-        """
-        values = self.__dict__.copy()
-
-        if not self.options:
-            values.pop("options", None)
-            return dict(values)
-
-        data: dict[str, Any] = {}
-
-        for top_key, top_value in values.items():
-            for key in self.options.keys():
-                if key == top_key:
-                    value = self.options.pop(key)
-                    data[key] = value
-                else:
-                    data[key] = top_value
-
-        if "options" in data:
-            del data["options"]
-        return data
-
 
 class Option(BaseParam):
     """

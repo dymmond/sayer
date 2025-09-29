@@ -24,7 +24,7 @@ class NameTest:
 
 
 class TestGroup(SayerGroup):
-    def add_command(self, cmd: click.Command, name: str | None = None) -> None:
+    def add_command(self, cmd: click.Command, name: str | None = None, **kwargs) -> None:
         if cmd.callback:
             cmd.callback = self.wrap_args(cmd.callback)
         return super().add_command(cmd, name)
@@ -66,7 +66,7 @@ def test_inject_custom():
 
 
 class NewGroup(SayerGroup):
-    def add_command(self, cmd: click.Command, name: str | None = None) -> None:
+    def add_command(self, cmd: click.Command, name: str | None = None, **kwargs) -> None:
         if cmd.callback:
             cmd.callback = self.wrap_args(cmd.callback)
         return super().add_command(cmd, name)

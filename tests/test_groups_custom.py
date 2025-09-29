@@ -3,7 +3,15 @@ import pytest
 from click.testing import CliRunner
 
 from sayer import Sayer, group
+from sayer.core.engine import _GROUPS
 from sayer.testing import SayerTestClient
+
+
+@pytest.fixture(autouse=True)
+def reset_groups():
+    _GROUPS.clear()
+    yield
+    _GROUPS.clear()
 
 
 @pytest.fixture
@@ -22,16 +30,14 @@ def sayer_runner(app):
     return SayerTestClient(app)
 
 
-example_group = group(name="nested", help="An example group", is_custom=True, custom_command_name="Example Group 2")
-
-
-@example_group.command(name="display", help="A command within the group")
-def grouped_command():
-    """Should simply echo once."""
-    click.echo("hello from group")
-
-
 def test_shows_custom_group(sayer_runner, app: Sayer):
+    example_group = group(name="nested", help="An example group", is_custom=True, custom_command_name="Example Group 2")
+
+    @example_group.command(name="display", help="A command within the group")
+    def grouped_command():
+        """Should simply echo once."""
+        click.echo("hello from group")
+
     app.add_command(example_group)
 
     result = sayer_runner.invoke(["nested", "display"])
@@ -41,6 +47,13 @@ def test_shows_custom_group(sayer_runner, app: Sayer):
 
 
 def test_shows_custom_group_text(app: Sayer):
+    example_group = group(name="nested", help="An example group", is_custom=True, custom_command_name="Example Group 2")
+
+    @example_group.command(name="display", help="A command within the group")
+    def grouped_command():
+        """Should simply echo once."""
+        click.echo("hello from group")
+
     app.add_command(example_group)
 
     runner = SayerTestClient(app)
@@ -52,16 +65,21 @@ def test_shows_custom_group_text(app: Sayer):
     assert "nested" in result.output
 
 
-another_group = group(name="trains", help="An example group", is_custom=True, custom_command_name="Another Group")
-
-
-@another_group.command(name="display", help="A command within the group")
-def grouped_another_command():
-    """Should simply echo once."""
-    click.echo("hello from another")
-
-
 def test_shows_custom_groups_text(app: Sayer):
+    example_group = group(name="nested", help="An example group", is_custom=True, custom_command_name="Example Group 2")
+
+    @example_group.command(name="display", help="A command within the group")
+    def grouped_command():
+        """Should simply echo once."""
+        click.echo("hello from group")
+
+    another_group = group(name="trains", help="An example group", is_custom=True, custom_command_name="Another Group")
+
+    @another_group.command(name="display", help="A command within the group")
+    def grouped_another_command():
+        """Should simply echo once."""
+        click.echo("hello from another")
+
     app.add_command(example_group)
     app.add_command(another_group)
 
@@ -77,6 +95,20 @@ def test_shows_custom_groups_text(app: Sayer):
 
 
 def test_make_calls_to_both_groups_text(app: Sayer):
+    example_group = group(name="nested", help="An example group", is_custom=True, custom_command_name="Example Group 2")
+
+    @example_group.command(name="display", help="A command within the group")
+    def grouped_command():
+        """Should simply echo once."""
+        click.echo("hello from group")
+
+    another_group = group(name="trains", help="An example group", is_custom=True, custom_command_name="Another Group")
+
+    @another_group.command(name="display", help="A command within the group")
+    def grouped_another_command():
+        """Should simply echo once."""
+        click.echo("hello from another")
+
     app.add_command(example_group)
     app.add_command(another_group)
 

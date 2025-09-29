@@ -5,6 +5,12 @@ hide:
 
 ## 0.5.6
 
+### Added
+
+* `with_return_value` flag to `SayerTestClient.invoke` to capture actual callback return values in tests.
+* Now test authors can choose between full CLI behavior or direct access to command return values,
+without breaking either workflow.
+
 ### Changed
 
 * Updated: `SayerCommand.main()` and `.invoke()` ensure return values propagate correctly in tests.

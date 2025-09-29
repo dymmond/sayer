@@ -15,6 +15,7 @@ import click
 
 from sayer.conf import monkay
 from sayer.core.commands.base import BaseSayerCommand
+from sayer.core.commands.config import CustomCommandConfig
 from sayer.core.commands.sayer import SayerCommand
 from sayer.core.engine import _build_click_parameter
 from sayer.core.groups.sayer import SayerGroup
@@ -82,6 +83,8 @@ class Sayer:
         self._initial_obj = context
         self._context_class = context_class
         self._callbacks: list[Callable[..., Any]] = []
+        self._custom_commands: dict[str, click.Command] = {}
+        self._custom_command_config: CustomCommandConfig = CustomCommandConfig(title="Custom")
 
         # Build up the keyword arguments for the Click group
         group_initialization_attributes: dict[str, Any] = {}
@@ -408,6 +411,7 @@ class Sayer:
         self,
         cmd: click.Command | Any,
         name: str | None = None,
+        is_custom: bool = False,
     ) -> None:
         """
         Add a Click Command (or a whole Sayer sub-app) to this Sayer application.
@@ -424,10 +428,15 @@ class Sayer:
         # If it's a Group (vanilla or SayerGroup), mount it directly so it
         # subcommands survive:
         if isinstance(cmd, click.Group):
+            if is_custom:
+                raise TypeError("Native click.Group does not have custom_commands. You musy use SayerCommand instead.")
             self._group.add_command(cmd, name=name)
             return
 
         if isinstance(cmd, BaseSayerCommand):
+            if is_custom:
+                self._group.add_custom_command(name, cmd)
+                return
             self._group.add_command(cmd, name=name)
             return
 
@@ -471,6 +480,26 @@ class Sayer:
         Formats the help text
         """
         return self._group.format_help(context, formatter)
+
+    def add_custom_command(self, name: str, cmd: click.Command | Any) -> None:
+        """
+        Register a custom command that will be shown in a separate "Custom" section.
+
+        Args:
+            cmd: Either a Click Command/Group, or another Sayer instance.
+            name: Name of the CLI command (kebab-case recommended).
+        """
+        self._custom_commands[name] = cmd
+        self.add_command(cmd, name, is_custom=True)  # still register with click
+
+    def set_custom_command_title(self, title: str) -> None:
+        """
+        Sets the custom command title to a new user friendly name.
+
+        Args:
+            title: Title to be set.
+        """
+        self._custom_command_config.title = title
 
     @property
     def cli(self) -> click.Group:

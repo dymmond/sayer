@@ -53,8 +53,8 @@ def render_help_for_command(
         p
         for p in cmd.params
         if isinstance(p, (click.Option, click.Argument))
-        and "--help" not in getattr(p, "opts", ())
-        and not getattr(p, "hidden", False)
+           and "--help" not in getattr(p, "opts", ())
+           and not getattr(p, "hidden", False)
     ]
 
     flags_req_def_desc: list[tuple[str, str, str, str]] = []
@@ -133,6 +133,10 @@ def render_help_for_command(
         max_cmd_len = 0
 
         for name, sub in cmd.commands.items():
+
+            if hasattr(cmd, "_custom_commands") and cmd._custom_commands and name in cmd._custom_commands:
+                continue
+
             raw_sub_help = sub.help or ""
             if not display_full_help:
                 lines = raw_sub_help.strip().splitlines()
@@ -184,5 +188,46 @@ def render_help_for_command(
 
     if commands_panel:
         console.print(commands_panel)
+        console.print()
+
+    # For custom display of commands
+    custom_panel = None
+    if hasattr(cmd, "_custom_commands") and cmd._custom_commands:
+        sub_items: list[tuple[str, str]] = []
+        max_cmd_len = 0
+
+        for name, sub in cmd._custom_commands.items():
+            raw_sub_help = sub.help or ""
+            lines = raw_sub_help.strip().splitlines()
+            summary = lines[0] if lines else ""
+            if len(name) > max_cmd_len:
+                max_cmd_len = len(name)
+            sub_items.append((name, summary))
+
+        custom_table = Table(
+            show_header=True,
+            header_style="gray50",
+            box=None,
+            pad_edge=False,
+            padding=(0, 2),
+            expand=False,
+        )
+        custom_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
+        custom_table.add_column("Description", style="gray50", ratio=1)
+
+        for name, summary in sub_items:
+            custom_table.add_row(Text(name, style="bold cyan"), summary)
+
+        custom_panel = Panel(
+            custom_table,
+            title=cmd._custom_command_config.title,
+            title_align="left",
+            border_style="gray50",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+
+    if custom_panel:
+        console.print(custom_panel)
 
     ctx.exit()

@@ -12,7 +12,6 @@ class SayerGroup(BaseSayerGroup):
     decorator use `sayer.core.engine.command` for enhanced Sayer-specific
     command behavior and provides custom help and error rendering.
     """
-
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter | None = None) -> None:
         """
         Formats and renders the help message for the command or group using
@@ -30,6 +29,5 @@ class SayerGroup(BaseSayerGroup):
         from sayer.core.console.sayer import (
             render_help_for_command,
         )
-
         # Delegate the help rendering to Sayer's custom help function.
         render_help_for_command(ctx, self.display_full_help, self.display_help_length)

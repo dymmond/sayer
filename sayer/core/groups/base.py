@@ -6,6 +6,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from sayer.conf import monkay
+from sayer.core.commands.config import CustomCommandConfig
 from sayer.utils.console import console
 
 T = TypeVar("T", bound=Callable[..., Any])
@@ -23,6 +24,11 @@ class BaseSayerGroup(ABC, click.Group):
 
     display_full_help: bool = monkay.settings.display_full_help
     display_help_length: int = monkay.settings.display_help_length
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._custom_commands: dict[str, click.Command] = {}
+        self._custom_command_config: CustomCommandConfig = CustomCommandConfig(title="Custom")
 
     @overload
     def command(self, f: T) -> T: ...
@@ -67,6 +73,57 @@ class BaseSayerGroup(ABC, click.Group):
             )
 
         return decorator
+
+    def add_custom_command(
+        self,
+        name: str | None = None,
+        cmd: click.Command | None = None,
+        **attrs: Any,
+    ):
+        """
+        Register a custom command that will appear under a 'Custom' section
+        in the help output.
+
+        Supports two forms:
+
+        **Decorator style:**
+
+            @app.add_custom_command("mycmd")
+            def mycmd():
+                ...
+
+        **Direct style:**
+
+            def mycmd(): ...
+            cmd = command(mycmd, name="mycmd")
+            app.add_custom_command("mycmd", cmd=cmd)
+        """
+        from sayer.core.engine import command  # reuse existing decorator
+
+        if cmd is not None:
+            # Direct registration
+            cmd_name = name or cmd.name
+            self._custom_commands[cmd_name] = cmd
+            self.add_command(cmd, cmd_name)
+            return cmd
+
+        def decorator(func: Callable[..., Any]) -> click.Command:
+            cmd_name = name or func.__name__.replace("_", "-")
+            built_cmd = command(func, name=cmd_name, **attrs)
+            self._custom_commands[cmd_name] = built_cmd
+            self.add_command(built_cmd, cmd_name)
+            return built_cmd
+
+        return decorator
+
+    def set_custom_command_title(self, title: str) -> None:
+        """
+        Sets the custom command title to a new user friendly name.
+
+        Args:
+            title: Title to be set.
+        """
+        self._custom_command_config.title = title
 
     def get_usage(self, ctx: click.Context) -> str:
         """

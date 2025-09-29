@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import click
 from click import Group
@@ -40,9 +40,9 @@ class SayerTestClient:
 
     def invoke(
         self,
-        args: List[str],
+        args: list[str],
         input: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
+        env: Optional[dict[str, str]] = None,
         cwd: Optional[str] = None,
         with_return_value: bool = False,
         **kwargs: Any,
@@ -54,10 +54,11 @@ class SayerTestClient:
         for the invocation (Click itself does not accept a cwd parameter).
 
         Args:
-            args: List of command-line args, e.g. ["docs", "generate"].
+            args: list of command-line args, e.g. ["docs", "generate"].
             input: Text to pipe to stdin.
             env: Extra environment variables to set.
             cwd: Working directory to run in (temporarily chdirs).
+            with_return_value: If True, return a SayerTestResult `return_value`.
             **kwargs: Other options forwarded to CliRunner.invoke().
 
         Returns:

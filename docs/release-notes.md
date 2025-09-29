@@ -3,13 +3,26 @@ hide:
   - navigation
 ---
 
-## 0.5.6
+## 0.6.0
 
 ### Added
 
 * `with_return_value` flag to `SayerTestClient.invoke` to capture actual callback return values in tests.
 * Now test authors can choose between full CLI behavior or direct access to command return values,
 without breaking either workflow.
+* Custom Commands Support:
+
+  You can now register your own commands that will appear under a dedicated **“Custom”** section in the CLI help output.
+  Example:
+
+  ```python
+  @command
+  def shout():
+      """Custom shout command"""
+      success("HELLO!")
+
+  app.add_custom_command("shout", shout)
+  ```
 
 ### Changed
 

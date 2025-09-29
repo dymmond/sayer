@@ -53,8 +53,8 @@ def render_help_for_command(
         p
         for p in cmd.params
         if isinstance(p, (click.Option, click.Argument))
-           and "--help" not in getattr(p, "opts", ())
-           and not getattr(p, "hidden", False)
+        and "--help" not in getattr(p, "opts", ())
+        and not getattr(p, "hidden", False)
     ]
 
     flags_req_def_desc: list[tuple[str, str, str, str]] = []
@@ -133,7 +133,6 @@ def render_help_for_command(
         max_cmd_len = 0
 
         for name, sub in cmd.commands.items():
-
             if hasattr(cmd, "_custom_commands") and cmd._custom_commands and name in cmd._custom_commands:
                 continue
 
@@ -193,7 +192,7 @@ def render_help_for_command(
     # For custom display of commands
     custom_panel = None
     if hasattr(cmd, "_custom_commands") and cmd._custom_commands:
-        sub_items: list[tuple[str, str]] = []
+        sub_items: list[tuple[str, str]] = []  # type: ignore
         max_cmd_len = 0
 
         for name, sub in cmd._custom_commands.items():

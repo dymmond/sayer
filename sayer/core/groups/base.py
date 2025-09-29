@@ -30,6 +30,18 @@ class BaseSayerGroup(ABC, click.Group):
         self._custom_commands: dict[str, click.Command] = {}
         self._custom_command_config: CustomCommandConfig = CustomCommandConfig(title="Custom")
 
+    def main(self, *args: Any, **kwargs: Any) -> Any:
+        # Always disable standalone_mode so we can control error handling
+        kwargs.setdefault("standalone_mode", False)
+        try:
+            return super().main(*args, **kwargs)
+        except click.ClickException as e:
+            usage = self.get_usage(click.Context(self))
+            body = f"[bold red]Error:[/] {e.format_message()}\n\n[bold cyan]Usage:[/]\n  {usage.strip()}"
+            panel = Panel.fit(Text.from_markup(body), title="Error", border_style="red")
+            console.print(panel)
+            return e.exit_code
+
     @overload
     def command(self, f: T) -> T: ...
 
@@ -79,7 +91,7 @@ class BaseSayerGroup(ABC, click.Group):
         name: str | None = None,
         cmd: click.Command | None = None,
         **attrs: Any,
-    ):
+    ) -> Any:
         """
         Register a custom command that will appear under a 'Custom' section
         in the help output.
@@ -109,7 +121,7 @@ class BaseSayerGroup(ABC, click.Group):
 
         def decorator(func: Callable[..., Any]) -> click.Command:
             cmd_name = name or func.__name__.replace("_", "-")
-            built_cmd = command(func, name=cmd_name, **attrs)
+            built_cmd = cast(click.Command, command(func, name=cmd_name, **attrs))
             self._custom_commands[cmd_name] = built_cmd
             self.add_command(built_cmd, cmd_name)
             return built_cmd

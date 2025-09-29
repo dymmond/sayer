@@ -3,6 +3,16 @@ hide:
   - navigation
 ---
 
+## 0.5.6
+
+### Changed
+
+* Updated: `SayerCommand.main()` and `.invoke()` ensure return values propagate correctly in tests.
+
+### Fixed
+
+* `SayerTestClient.invoke()` now returns the actual command return value via `res.return_value`.
+
 ## 0.5.5
 
 ### Fixed

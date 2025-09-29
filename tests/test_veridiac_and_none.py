@@ -33,9 +33,12 @@ def test_optional_str_option_none_not_stringified():
     # Not passing -m/--message should yield Python None
     client = SayerTestClient(app)
 
-    res = client.invoke(["rev"])
+    res = client.invoke(["rev"], with_return_value=True)
     assert res.exit_code == 0, res.output
     assert "message: None, is_none: True, type: NoneType" in res.output
+
+    assert res.return_value["message"] is None
+    assert res.return_value["is_none"] is True
 
     # Passing a real value should still work
     res2 = client.invoke(["rev", "-m", "hello"])

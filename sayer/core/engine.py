@@ -702,7 +702,7 @@ def command(
     *args: Any,
     middleware: Sequence[str | Callable[..., Any]] | None = None,
     **attrs: Any,
-) -> click.Command | Callable[[F], click.Command]: ...
+) -> Callable[[F], click.Command]: ...
 
 
 def command(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Callable, TypeVar
 
 import click
 from click import Command
@@ -46,7 +46,7 @@ class BaseSayerGroup(ABC, click.Group):
             console.print(panel)
             return e.exit_code
 
-    def command(self, *args: Any, **kwargs: Any) -> Any:
+    def command(self, *args: Any, **kwargs: Any) -> Callable[[T], click.Command]:
         """
         Registers a function as a subcommand using the Sayer command engine.
 
@@ -72,14 +72,13 @@ class BaseSayerGroup(ABC, click.Group):
             name_from_pos = args[0] if args and isinstance(args[0], str) else None
 
             func.__sayer_group__ = self
+            new_kwargs = kwargs.copy()
+            # allow to overwrite name
+            new_kwargs.setdefault("name", name_from_pos)
             # Pass along both forms of name, plus any other attrs.
-            return cast(
-                click.Command,
-                command[T](
-                    func,
-                    name=name_from_pos,
-                    **kwargs,
-                ),
+            return command(
+                func,
+                **new_kwargs,
             )
 
         return decorator

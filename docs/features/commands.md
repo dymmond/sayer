@@ -1,6 +1,6 @@
 # Commands
 
-This document provides an extensive, Django-style guide to Sayer’s command system. It offers detailed explanations, numerous examples, and actionable how-tos to help you fully leverage Sayer’s capabilities.
+This document provides an extensive, Django-style guide to Sayer's command system. It offers detailed explanations, numerous examples, and actionable how-tos to help you fully leverage Sayer's capabilities.
 
 ## What is a Command?
 
@@ -245,7 +245,7 @@ Custom:
 ### Why Use Custom Commands?
 
 * Keeps a clear separation between **framework commands** and **your own project-specific commands**.
-* Ideal for project tooling (e.g., `init-db`, `lint`, `deploy`) that you don’t want mixed into core Sayer groups.
+* Ideal for project tooling (e.g., `init-db`, `lint`, `deploy`) that you don't want mixed into core Sayer groups.
 * Ensures consistent help formatting, even across nested apps.
 
 ## Comprehensive Best Practices
@@ -255,7 +255,7 @@ Custom:
 * ✅ Keep commands focused; delegate complex logic to functions.
 * ✅ Use groups for modular CLI structures.
 * ✅ Use `JsonParam` for structured inputs.
-* ❌ Don’t mix `Option` and `Argument` on the same parameter.
+* ❌ Don't mix `Option` and `Argument` on the same parameter.
 * ❌ Avoid hardcoding sensitive data; use `Env` for secrets.
 
 ## Advanced Techniques

@@ -47,6 +47,7 @@ class Option(BaseParam):
         callback: Optional[Callable[[click.Context, click.Parameter, Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
+        expose_value: bool = True,
         **options: Any,
     ) -> None:
         """
@@ -74,6 +75,7 @@ class Option(BaseParam):
         self.show_default = show_default
         self.param_decls = param_decls
         self.is_flag = is_flag
+        self.expose_value = expose_value
 
         # ✅ Preserve explicit None (do NOT coerce to "None" string)
         self.default = default
@@ -107,6 +109,7 @@ class Argument(BaseParam):
         callback: Optional[Callable[[click.Context, click.Parameter, Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
+        expose_value: bool = True,
         **options: Any,
     ) -> None:
         """
@@ -123,6 +126,7 @@ class Argument(BaseParam):
         self.default = default
         self.help = help
         self.is_flag = is_flag
+        self.expose_value = expose_value
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -147,6 +151,7 @@ class Env(BaseParam):
         required: Optional[bool] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
+        expose_value: bool = True,
         **options: Any,
     ) -> None:
         """
@@ -164,6 +169,7 @@ class Env(BaseParam):
         self.envvar = envvar
         self.default = default
         self.is_flag = is_flag
+        self.expose_value = expose_value
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -194,6 +200,7 @@ class Param(BaseParam):
         callback: Callable[[click.Context, click.Parameter, Any], Any] | None = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
+        expose_value: bool = True,
         **options: Any,
     ) -> None:
         """
@@ -222,6 +229,7 @@ class Param(BaseParam):
         self.show_default = show_default
         self.param_decls = param_decls
         self.is_flag = is_flag
+        self.expose_value = expose_value
 
         has_static = default is not ...
         has_factory = default_factory is not None
@@ -254,6 +262,7 @@ class Param(BaseParam):
             default_factory=self.default_factory,
             options=self.options,
             is_flag=self.is_flag,
+            expose_value=self.expose_value,
         )
 
 

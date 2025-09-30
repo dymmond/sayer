@@ -71,7 +71,7 @@ admin = group(
 **Behavior**
 
 - If a group with the same `name` already exists, `group(name, ...)` returns the **existing** instance (idempotent by name).
-- All groups created via `sayer.group(...)` are recorded in Sayer's `_GROUPS` registry (accessible via `get_groups()`).
+- All groups created via `sayer.group(...)` are recorded in Sayer's `GROUPS` registry (accessible via `get_groups()`).
 
 !!! Note
     If you pass a custom `group_cls`, Sayer still binds the `.command` method so your commands get the full Sayer behavior.

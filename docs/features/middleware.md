@@ -1,6 +1,6 @@
 # Middleware
 
-This document provides a comprehensive, in-depth guide to Sayer’s middleware system, enriched with examples, explanations, and best practices inspired by real-world use cases and test scenarios.
+This document provides a comprehensive, in-depth guide to Sayer's middleware system, enriched with examples, explanations, and best practices inspired by real-world use cases and test scenarios.
 
 ## Overview
 

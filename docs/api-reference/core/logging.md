@@ -4,7 +4,7 @@ This document covers `sayer/core/logging.py`, which manages logging configuratio
 
 ## Overview
 
-The `logging` module provides a standardized logging setup, using Python’s `logging` module and Rich console formatting.
+The `logging` module provides a standardized logging setup, using Python's `logging` module and Rich console formatting.
 
 ## Key Component
 

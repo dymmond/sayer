@@ -1,6 +1,6 @@
 # Context Injection
 
-Sayer’s Context Injection system equips your CLI commands with automatically provided dependencies, no wiring or factory functions needed.
+Sayer's Context Injection system equips your CLI commands with automatically provided dependencies, no wiring or factory functions needed.
 
 Whether you need shared config, database sessions, custom environment loaders, or HTTP clients, you simply declare them in your function signature,
 and Sayer does the rest.
@@ -24,15 +24,15 @@ and Sayer does the rest.
 | **`State` subclasses** | Global singletons (e.g., config, feature flags, session)           | App config, feature toggles                  |
 | **Custom classes**     | Any user-defined class via `ctx.ensure_object(SomeClass)`          | Env loaders, database sessions, HTTP clients |
 
-Sayer detects these by inspecting your function’s annotations.  Any parameter whose type matches one of the above will be injected automatically.
+Sayer detects these by inspecting your function's annotations.  Any parameter whose type matches one of the above will be injected automatically.
 
 ---
 
 ## 3. How It Works
 
-Internally, Sayer’s `click_command_wrapper` does:
+Internally, Sayer's `click_command_wrapper` does:
 
-1. Inspect your command function’s signature (`inspect.signature`).
+1. Inspect your command function's signature (`inspect.signature`).
 2. For each parameter:
 
    * If annotation is `click.Context`, pass the `ctx` object.
@@ -81,7 +81,7 @@ def check_debug(config: Config):
 
 ## 5. Custom Injection via `SayerGroup`
 
-If you have a type that isn’t a `State` subclass—such as an environment loader or HTTP client—you can write a custom group class to inject it.
+If you have a type that isn't a `State` subclass—such as an environment loader or HTTP client—you can write a custom group class to inject it.
 
 ```python
 import inspect

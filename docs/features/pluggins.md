@@ -1,6 +1,6 @@
 # Plugins Feature Guide
 
-This document provides a detailed, Django-style guide to Sayer’s plugin system, with explanations, examples, and best practices.
+This document provides a detailed, Django-style guide to Sayer's plugin system, with explanations, examples, and best practices.
 
 ## Overview
 
@@ -61,7 +61,7 @@ Hello from my plugin!
 ✅ Ensure `register_func` is lightweight and free of side effects.
 ✅ Test plugins in isolation before integration.
 ❌ Avoid hard dependencies between core app and plugins.
-❌ Don’t assume the presence of optional plugins.
+❌ Don't assume the presence of optional plugins.
 
 ## Visual Diagram
 

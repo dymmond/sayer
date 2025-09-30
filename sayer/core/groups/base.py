@@ -64,7 +64,7 @@ class BaseSayerGroup(ABC, click.Group):
             A decorator that registers the function as a command or the decorated
             function itself if called directly without arguments.
         """
-        from sayer.core.engine import command  # Lazily import to avoid circular dependencies
+        from sayer.core.engine import command
 
         def decorator(func: T) -> click.Command:
             # If the user wrote @sayer.command("foo", help="…"),
@@ -73,9 +73,9 @@ class BaseSayerGroup(ABC, click.Group):
 
             func.__sayer_group__ = self
             new_kwargs = kwargs.copy()
+
             # allow to overwrite name
             new_kwargs.setdefault("name", name_from_pos)
-            # Pass along both forms of name, plus any other attrs.
             return command(
                 func,
                 **new_kwargs,

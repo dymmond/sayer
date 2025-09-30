@@ -1,6 +1,6 @@
 # Testing
 
-This guide thoroughly explains Sayer’s testing system, covering setup, usage, and advanced examples.
+This guide thoroughly explains Sayer's testing system, covering setup, usage, and advanced examples.
 
 ## Overview
 
@@ -116,4 +116,4 @@ client = SayerTestClient(app=app)
 
 ## Conclusion
 
-Sayer’s testing utilities simplify comprehensive CLI tests, letting you control inputs, environments, and verify outputs for robust command validation.
+Sayer's testing utilities simplify comprehensive CLI tests, letting you control inputs, environments, and verify outputs for robust command validation.

@@ -21,11 +21,11 @@ def render_help_for_command(
     """
     Render help in a simple layout, with:
 
-      1. ‘Usage:’ line (yellow + white).
+      1. ‘Usage:' line (yellow + white).
       2. Description as Markdown.
-      3. A single ‘Options’ box with box.ROUNDED borders in gray50,
+      3. A single ‘Options' box with box.ROUNDED borders in gray50,
          containing columns: Flags | Required | Default | Description, with spacing.
-      4. A single ‘Commands’ box with box.ROUNDED borders in gray50:
+      4. A single ‘Commands' box with box.ROUNDED borders in gray50:
          Name | Description, with spacing.
       5. Exactly one blank line between Usage, Description, Options, and Commands.
     """

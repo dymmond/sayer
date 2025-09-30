@@ -39,7 +39,7 @@ hide:
 
 This comprehensive guide will help you set up and understand Sayer.
 
-We’ll walk you through installation, project creation, and writing your first commands, all with explanations, examples, and common pitfalls.
+We'll walk you through installation, project creation, and writing your first commands, all with explanations, examples, and common pitfalls.
 
 ## Prerequisites
 
@@ -98,7 +98,7 @@ myapp/
 
 **What NOT to do:**
 
-* Don’t modify `pyproject.toml` unless you understand Python packaging.
+* Don't modify `pyproject.toml` unless you understand Python packaging.
 * Avoid hardcoding absolute paths inside your CLI; use dynamic paths.
 
 ## Writing Your First Command
@@ -143,7 +143,7 @@ Hello, Alice!
 * ✅ Use clear and concise help strings (docstrings) for commands.
 * ✅ Test your commands with various argument combinations.
 * ❌ Avoid complex logic inside commands; delegate to helper functions.
-* ❌ Don’t assume `name` will always be provided – consider adding defaults.
+* ❌ Don't assume `name` will always be provided – consider adding defaults.
 
 ## Next Steps
 
@@ -151,4 +151,4 @@ Hello, Alice!
 * Learn about [Middleware](./features/middleware.md) for hooks and validation.
 * Add complex parameters and encoders for advanced use cases.
 
-With Sayer, you’re not just writing a CLI – you’re building a robust, maintainable, and user-friendly command-line application. Let’s get started!
+With Sayer, you're not just writing a CLI – you're building a robust, maintainable, and user-friendly command-line application. Let's get started!

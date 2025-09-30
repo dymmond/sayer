@@ -1,10 +1,10 @@
 # Sayer and Sub-apps
 
-This guide offers an exhaustive, richly annotated explanation of Sayer’s **Sayer app system**, including main applications, sub-applications, command mounting, and advanced usage.
+This guide offers an exhaustive, richly annotated explanation of Sayer's **Sayer app system**, including main applications, sub-applications, command mounting, and advanced usage.
 
 ## Overview
 
-Sayer’s CLI framework is built around the **Sayer app**, a container for commands, callbacks, and middleware.
+Sayer's CLI framework is built around the **Sayer app**, a container for commands, callbacks, and middleware.
 
 Sub-apps enable modular design by nesting independent Sayer applications within a parent app, allowing reusable logic,
 dynamic structures, and clear separation of concerns.
@@ -12,7 +12,7 @@ dynamic structures, and clear separation of concerns.
 ## Key Concepts
 
 * **Sayer App (`Sayer`)**: Represents a root CLI application.
-* **Subapp**: A nested Sayer app mounted under a parent’s namespace.
+* **Subapp**: A nested Sayer app mounted under a parent's namespace.
 * **add.sayer()**: Method to mount a sub-app, including its commands and callback logic.
 * **Command Resolution**: Sayer resolves commands hierarchically from the parent to sub-apps.
 * **Middleware Integration**: Sub-apps can define their own middleware and callbacks.
@@ -118,8 +118,8 @@ main.add_sayer("reports", reports_app)
 * ✅ Clearly define app and sub-app help strings.
 * ✅ Isolate callbacks and global state to their app.
 * ❌ Avoid cross-app state dependencies.
-* ❌ Don’t overload the root app with excessive sub-apps; structure them logically.
+* ❌ Don't overload the root app with excessive sub-apps; structure them logically.
 
 ## Conclusion
 
-Sayer’s app and sub-app system enables scalable, modular CLI architectures. Mastery of this system allows developers to build flexible, maintainable command-line applications.
+Sayer's app and sub-app system enables scalable, modular CLI architectures. Mastery of this system allows developers to build flexible, maintainable command-line applications.

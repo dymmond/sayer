@@ -36,7 +36,7 @@ cli = group(name="mycli")
 ```
 
 * Creates a `SayerGroup` for nested command structures.
-* Monkey-patches Click'’'s `Group.command` to ensure Sayer’s decorators are used.
+* Monkey-patches Click'''s `Group.command` to ensure Sayer's decorators are used.
 
 ### Middleware and Context
 

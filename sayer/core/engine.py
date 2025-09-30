@@ -1,385 +1,50 @@
 import inspect
 import json
-import os
-import sys
-import types
 from collections.abc import Callable
-from datetime import date, datetime
-from enum import Enum
 from functools import wraps
-from pathlib import Path
-from types import UnionType
 from typing import (
-    IO,
     Annotated,
     Any,
-    Literal,
-    Mapping,
     Sequence,
     TypeVar,
-    Union,
     cast,
     get_args,
     get_origin,
     get_type_hints,
     overload,
 )
-from uuid import UUID
 
 import anyio
 import click
 
 from sayer.core.commands.sayer import SayerCommand
 from sayer.core.groups.sayer import SayerGroup
-from sayer.encoders import MoldingProtocol, apply_structure, get_encoders
+from sayer.core.handlers import (
+    ParameterContext,
+    _handle_argument,
+    _handle_boolean_flag,
+    _handle_defaults,
+    _handle_enum,
+    _handle_env,
+    _handle_json,
+    _handle_option,
+    _handle_sequence,
+    _handle_special_types,
+    _handle_variadic_args,
+)
+from sayer.core.utils import CommandRegistry, _extract_command_help_text, convert_cli_value_to_type
+from sayer.encoders import apply_structure
 from sayer.middleware import resolve as resolve_middleware, run_after, run_before
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State, get_state_classes
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-T = TypeVar("T")
-V = TypeVar("V")
-
-
-class CommandRegistry(dict[T, V]):
-    """
-    A specialized dictionary for storing Click commands.
-
-    This registry prevents commands from being cleared once they are
-    registered, ensuring that command definitions persist throughout the
-    application's lifecycle.
-    """
-
-    def clear(self) -> None:
-        """
-        Overrides the default `clear` method to prevent clearing registered
-        commands.
-
-        This ensures that commands, once added to the registry, remain
-        accessible and are not inadvertently removed.
-        """
-        # Never clear commands once registered
-        ...
-
-
 COMMANDS: CommandRegistry[str, click.Command] = CommandRegistry()
-_GROUPS: dict[str, click.Group] = {}
-
-# Primitive ↔ Click ParamType map
-_PRIMITIVE_TYPE_MAP = {
-    str: click.STRING,
-    int: click.INT,
-    float: click.FLOAT,
-    bool: click.BOOL,
-    UUID: click.UUID,
-    date: click.DateTime(formats=["%Y-%m-%d"]),
-    datetime: click.DateTime(),
-}
+GROUPS: dict[str, click.Group] = {}
 
 
-def _safe_get_type_hints(func: Any, *, include_extras: bool = True) -> Mapping[str, Any]:
-    """
-    Robust type-hint resolver that tolerates dynamically loaded modules and missing sys.modules entries.
-    """
-    # Prefer the module inspect finds. Fall back to the function's globals
-    mod = inspect.getmodule(func)
-    globalns = getattr(mod, "__dict__", None) or getattr(func, "__globals__", {})
-    try:
-        return get_type_hints(func, globalns=globalns, localns=globalns, include_extras=include_extras)
-    except Exception:
-        # Try with sys.modules if available
-        module = sys.modules.get(getattr(func, "__module__", None))
-        if module is not None:
-            try:
-                return get_type_hints(
-                    func,
-                    globalns=module.__dict__,
-                    localns=module.__dict__,
-                    include_extras=include_extras,
-                )
-            except Exception:
-                ...
-
-        # Last resort: unresolved annotations dict
-        return getattr(func, "__annotations__", {}) or {}
-
-
-def _normalize_annotation_to_runtime_type(ann: Any) -> Any:
-    """
-    Reduce typing annotations to a runtime-checkable/conversion-friendly base.
-    - Annotated[T, ...] -> T
-    - Optional[T] (Union[T, None]) -> T
-    - Union[A, B, ...] -> base of first non-None arg (best-effort)
-    - Literal["x", ...] -> type of first literal (str/int/bool/...)
-    - list[int] -> list, dict[str, int] -> dict, etc.
-    - Callable[..., ...] -> collections.abc.Callable
-    - Leave Enums alone (the engine may want to treat them specially)
-    """
-    if ann is None:
-        return type(None)
-
-    origin = get_origin(ann)
-
-    # Annotated[T, ...]
-    if origin is Annotated:
-        args = get_args(ann)
-        return _normalize_annotation_to_runtime_type(args[0]) if args else Any
-
-    # Optional[T] or general Union
-    if origin is Union:
-        args = [a for a in get_args(ann) if a is not type(None)]
-        if not args:
-            return type(None)
-        # Heuristic: take the first non-None argument as base
-        return _normalize_annotation_to_runtime_type(args[0])
-
-    # Literal["x", 1, True] -> type of first literal
-    if origin is Literal:
-        lits = get_args(ann)
-        return type(lits[0]) if lits else Any
-
-    # Subscripted generics -> map to their origin
-    if origin is not None:
-        # Callable[...] -> collections.abc.Callable
-        if origin in (Callable,):
-            return Callable
-        return origin
-
-    # If it’s already a concrete type (incl. Enum subclasses), return as-is
-    return ann
-
-
-def _convert_cli_value_to_type(value: Any, to_type: type, func: Any = None, param_name: str = None) -> Any:
-    """
-    Converts a command-line interface (CLI) input value into the desired Python type.
-
-    Handles:
-      - Union / Optional: tries inner types in order (prefers non-None)
-      - Containers: list[T], tuple[T...], set[T], frozenset[T], dict[K, V] (from ["k=v", ...])
-      - Enum: leaves as string (Click.Choice validates)
-      - date: downcasts datetime -> date
-      - bool: parses "true/1/yes/on" and "false/0/no/off" (case-insensitive)
-      - Scalars: casts when target is a real class
-    """
-
-    # Resolve postponed annotations if to_type is a string
-    if isinstance(to_type, str) and func and param_name:
-        type_hints = _safe_get_type_hints(func, include_extras=True)
-        to_type = type_hints.get(param_name, to_type)
-
-    # --- unwrap Annotated[T, ...] only for inspection (keep generics intact) ---
-    inspect_ann = to_type
-    if get_origin(inspect_ann) is Annotated:
-        inspect_ann = get_args(inspect_ann)[0]
-
-    # --- Union / Optional: handle early, trying inner types in order ---
-    origin = get_origin(inspect_ann)
-    if origin in (Union, UnionType):
-        inner_types = list(get_args(inspect_ann))
-        non_none = [t for t in inner_types if t is not type(None)]
-        none_in_union = len(non_none) != len(inner_types)
-
-        # try each non-None inner type in declared order
-        for inner in non_none:
-            try:
-                coerced = _convert_cli_value_to_type(value, inner, func, param_name)
-                # success heuristics:
-                # 1) coerced is instance of the inner class/type
-                if isinstance(inner, type) and isinstance(coerced, inner):
-                    return coerced
-                # 2) value changed (e.g., "42" -> 42)
-                if coerced != value:
-                    return coerced
-            except Exception:
-                continue
-
-        # if None allowed and value is an empty/none sentinel, return None
-        if none_in_union and (
-            value is None or (isinstance(value, str) and value.strip().lower() in {"", "none", "null"})
-        ):
-            return None
-
-        # nothing matched: leave as-is (or raise if you prefer strictness)
-        return value
-
-    # --- Container types (use inspect_ann so generic args are preserved) ---
-    origin = get_origin(inspect_ann)
-
-    # list[T]
-    if origin is list:
-        (inner,) = get_args(inspect_ann) or (Any,)
-        if isinstance(value, (list, tuple)):
-            return [_convert_cli_value_to_type(item, inner, func, param_name) for item in value]
-        if isinstance(value, str):
-            # CSV support; otherwise treat as a single item list
-            if "," in value:
-                return [_convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")]
-            return [_convert_cli_value_to_type(value, inner, func, param_name)]
-        # fallback: wrap scalar-ish input
-        return [_convert_cli_value_to_type(value, inner, func, param_name)]
-
-    # tuple[T, ...] or tuple[T1, T2, ...]
-    if origin is tuple and isinstance(value, (list, tuple)):
-        args = get_args(inspect_ann)
-        # homogeneous: tuple[T, ...]
-        if len(args) == 2 and args[1] is Ellipsis:
-            inner = args[0]
-            return tuple(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
-        # heterogeneous: tuple[T1, T2, ...]
-        return tuple(
-            _convert_cli_value_to_type(item, arg_type, func, param_name)
-            for item, arg_type in zip(value, args, strict=False)
-        )
-
-    # set[T]
-    if origin is set:
-        (inner,) = get_args(inspect_ann) or (Any,)
-        if isinstance(value, (list, tuple)):
-            return {_convert_cli_value_to_type(item, inner, func, param_name) for item in value}
-        if isinstance(value, str):
-            if "," in value:
-                return {_convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")}
-            return {_convert_cli_value_to_type(value, inner, func, param_name)}
-        return {_convert_cli_value_to_type(value, inner, func, param_name)}
-
-    # dict[K, V] from ["key=val", ...]
-    if origin is dict and isinstance(value, (list, tuple)):
-        args = get_args(inspect_ann)
-        if len(args) >= 2:
-            key_t, val_t = args[0], args[1]
-        else:
-            key_t, val_t = (str, Any)
-        out: dict[Any, Any] = {}
-        for item in value:
-            if isinstance(item, str) and "=" in item:
-                k_str, v_str = item.split("=", 1)
-                k = _convert_cli_value_to_type(k_str, key_t, func, param_name)
-                v = _convert_cli_value_to_type(v_str, val_t, func, param_name)
-                out[k] = v
-            else:
-                raise ValueError(f"Cannot parse dict item {item!r} for {param_name!r}")
-        return out
-
-    # frozenset[T]
-    if origin is frozenset:
-        (inner,) = get_args(inspect_ann) or (Any,)
-        if isinstance(value, (list, tuple)):
-            return frozenset(_convert_cli_value_to_type(item, inner, func, param_name) for item in value)
-        if isinstance(value, str):
-            if "," in value:
-                return frozenset(
-                    _convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")
-                )
-            return frozenset((_convert_cli_value_to_type(value, inner, func, param_name),))
-        return frozenset((_convert_cli_value_to_type(value, inner, func, param_name),))
-
-    # --- Scalars: now normalize to a runtime base and convert ---
-    to_type = _normalize_annotation_to_runtime_type(to_type)
-
-    if isinstance(to_type, type) and issubclass(to_type, Enum):
-        # Policy: leave Enum strings as-is for Click.Choice validation
-        return value
-
-    if to_type is date and isinstance(value, datetime):
-        return value.date()
-
-    if to_type is bool:
-        if isinstance(value, bool):
-            return value
-        v = str(value).strip().lower()
-        if v in ("true", "1", "yes", "on"):
-            return True
-        if v in ("false", "0", "no", "off"):
-            return False
-        # fallthrough: let casting try or return original
-
-    # Only perform isinstance/cast when target is a real class
-    if isinstance(to_type, type):
-        # Prevent coercing None into string
-        if value is None:
-            return None
-
-        if isinstance(value, to_type):
-            return value
-        try:
-            return to_type(value)
-        except Exception:
-            return value
-
-    if isinstance(value, str) and value.strip().lower() in {"none", "null", ""}:  # type: ignore
-        return None
-    return value
-
-
-def _should_parameter_use_option_style(meta_param: Param, default_value: Any) -> str | bool:  #
-    """
-    Determines if a generic `Param` metadata suggests that a command-line
-    parameter should be exposed as a **Click option** (`--param`) rather than
-    a positional **argument**.
-
-    This is decided based on the presence of certain metadata attributes that
-    are typically associated with options:
-    - `envvar`: If an environment variable is specified.
-    - `prompt`: If the user should be prompted for input.
-    - `confirmation_prompt`: If a confirmation prompt is required.
-    - `hide_input`: If the input should be hidden (e.g., for passwords).
-    - `callback`: If a custom callback function is associated.
-    - `default`: If a non-empty or non-`None` default value is provided.
-
-    Args:
-        meta_param: The `Param` metadata object associated with the parameter.
-        default_value: The default value of the parameter as defined in the
-                       function signature.
-
-    Returns:
-        True if the parameter should be an option; False otherwise.
-    """
-    return (
-        meta_param.envvar is not None
-        or meta_param.prompt
-        or meta_param.confirmation_prompt
-        or meta_param.hide_input
-        or meta_param.callback is not None
-        or (meta_param.default is not ... and meta_param.default is not None)
-    )
-
-
-def _extract_command_help_text(signature: inspect.Signature, func: Callable, attrs: Any) -> str:  #
-    """
-    Extracts the comprehensive help text for a Click command from various
-    sources, prioritized as follows:
-    1. The function's docstring.
-    2. The `help` attribute of a `Param` object used as a default value.
-    3. The `help` attribute of a `Param` object within an `Annotated` type
-       annotation.
-
-    Args:
-        signature: The `inspect.Signature` object of the command function.
-        func: The Python function decorated as a command.
-
-    Returns:
-        The extracted help text string, or an empty string if no help text
-        is found.
-    """
-    attrs_help = attrs.pop("help", None)
-    command_help_text = attrs_help or inspect.getdoc(func) or ""
-    if command_help_text:
-        return command_help_text
-
-    for parameter in signature.parameters.values():
-        if isinstance(parameter.default, Param) and parameter.default.help:
-            return parameter.default.help
-
-        annotation = parameter.annotation
-        if get_origin(annotation) is Annotated:
-            for metadata_item in get_args(annotation)[1:]:
-                if isinstance(metadata_item, Param) and metadata_item.help:
-                    return metadata_item.help
-    return ""
-
-
-def _build_click_parameter(
+def build_click_parameter(
     parameter: inspect.Parameter,
     raw_type_annotation: Any,
     parameter_base_type: type,
@@ -389,307 +54,66 @@ def _build_click_parameter(
     is_context_injected: bool,
     is_overriden_type: bool,
 ) -> Callable:
-    """
-    Dynamically attaches a Click argument or option decorator to a command
-    wrapper function based on the Python function's parameter definition.
+    """Builds a Click decorator (argument or option) for a function parameter.
 
-    This function supports a wide range of parameter configurations, including:
-    - Primitive types (`str`, `int`, `float`, `bool`).
-    - Specific types like `Path`, `UUID`, `date`, `datetime`, and `file-like` objects (`IO`).
-    - `Enum` types, which are handled as `Click.Choice` options.
-    - Collection types like `list` and `Sequence`, mapped to Click's `multiple` options.
-    - Implicit JSON injection for dataclasses, Pydantic models, or `msgspec` types
-      if a relevant `MoldingProtocol` encoder is registered.
-    - Explicit parameter metadata (`Argument`, `Env`, `Option`, `Param`, `JsonParam`)
-      to control Click's behavior (e.g., prompts, hidden input, environment variables).
-    - Boolean flags, and automatic fallback from positional arguments to options
-      if a default value is present.
-    - Context-aware default behavior for specific scenarios.
-
-    The order of checks is significant, with more specific metadata or type
-    handlers taking precedence.
+    This function acts as the entry point, coordinating the process of
+    converting a Python function parameter into a `click.Argument` or
+    `click.Option` decorator, which is then applied to a wrapper function.
+    It delegates the actual construction logic to a series of specialized
+    handler functions based on the parameter's type, metadata, and
+    other properties.
 
     Args:
-        parameter: The `inspect.Parameter` object for the current function parameter.
-        raw_type_annotation: The raw type annotation of the parameter, including
-                        any `Annotated` wrappers.
-        parameter_base_type: The resolved base type of the parameter (e.g., `str`, `int`,
-                    `MyDataclass`).
-        parameter_metadata: Optional metadata object (`Param`, `Option`, `Argument`, `Env`,
-              `JsonParam`) providing specific Click configuration.
-        param_help_text: The extracted help text for the parameter.
-        click_wrapper_function: The Click command wrapper function to which the parameter
-                 decorator will be applied.
-        is_context_injected: A boolean indicating if `click.Context` is injected into
-                      the command, which can influence default parameter behavior.
+        parameter: The `inspect.Parameter` object for the function parameter.
+        raw_type_annotation: The raw type annotation of the parameter (e.g., `list[str]`).
+        parameter_base_type: The underlying base type of the parameter (e.g., `str` for `list[str]`).
+        parameter_metadata: A metadata object (e.g., `Param`, `Option`, `Argument`)
+            if provided by the user via typing extensions.
+        param_help_text: The help text extracted from the function's docstring.
+        click_wrapper_function: The function (usually a wrapper) to which the
+            Click decorator will be applied.
+        is_context_injected: True if the parameter is a Click context object (e.g., `click.Context`).
+        is_overriden_type: True if the parameter's type was explicitly overridden.
 
     Returns:
-        The `click_wrapper_function`, now decorated with the appropriate Click
-        argument or option.
+        A callable (the Click decorator function) that, when called with
+        the wrapper function, will apply the final `click.Argument` or
+        `click.Option` to it.
+
+    Raises:
+        RuntimeError: If no specialized handler can successfully process the
+            parameter configuration.
     """
-    parameter_name = parameter.name
+    ctx = ParameterContext(
+        parameter=parameter,
+        raw_type_annotation=raw_type_annotation,
+        base_type=parameter_base_type,
+        metadata=parameter_metadata,
+        help_text=param_help_text,
+        wrapper=click_wrapper_function,
+        is_context_injected=is_context_injected,
+        is_overriden_type=is_overriden_type,
+    )
 
-    # Handle Optional/Union[T, None] by collapsing to T when unambiguous
-    origin = get_origin(parameter_base_type)
-    if origin in (Union, types.UnionType):
-        args = get_args(parameter_base_type)
-        non_none = [t for t in args if t is not type(None)]
-        if len(non_none) == 1:
-            parameter_base_type = non_none[0]
+    ctx.normalize_type()
+    _handle_special_types(ctx)  # adjusts in-place
 
-    is_boolean_flag = parameter_base_type is bool
-    has_default_value = parameter.default not in [inspect._empty, Ellipsis]
-    resolved_default_value = parameter.default if has_default_value else None
-
-    # If Param metadata suggests "option style", recast Param -> Option
-    if (
-        isinstance(parameter_metadata, Param)
-        and get_origin(raw_type_annotation) is Annotated
-        and _should_parameter_use_option_style(parameter_metadata, resolved_default_value)
+    for handler in (
+        _handle_variadic_args,
+        _handle_sequence,
+        _handle_enum,
+        _handle_json,
+        _handle_argument,
+        _handle_env,
+        _handle_option,
+        _handle_boolean_flag,
+        _handle_defaults,
     ):
-        parameter_metadata = parameter_metadata.as_option()
+        result = handler(ctx)
+        if result is not None:
+            return result
 
-    # ---------- Plain list/tuple without metadata -> variadic positional ----------
-    base_origin = get_origin(parameter_base_type)
-    if parameter_metadata is None and base_origin in (list, tuple) and parameter.name in {"args", "argv"}:
-        inner_args = get_args(parameter_base_type)
-        inner_type = inner_args[0] if inner_args else str
-        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
-        return click.argument(
-            parameter_name,
-            nargs=-1,
-            type=click_inner_type,
-            required=False,
-        )(click_wrapper_function)
-
-    # ---------- list[T] or Sequence[T] -> multiple=True ----------
-    if base_origin in (list, Sequence):
-        inner_args = get_args(parameter_base_type)
-        inner_type = inner_args[0] if inner_args else str
-        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
-
-        if isinstance(parameter_metadata, Argument):
-            variadic_nargs = parameter_metadata.options.get("nargs", -1)
-            is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
-            is_required_local = False if is_variadic else getattr(parameter_metadata, "required", False)
-            arg_options = dict(parameter_metadata.options)
-
-            arg_type = click_inner_type if not is_overriden_type else parameter_base_type
-            return click.argument(
-                parameter_name,
-                type=arg_type,
-                required=is_required_local,
-                **arg_options,
-            )(click_wrapper_function)
-
-        default_for_sequence = () if not has_default_value else parameter.default
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            type=click_inner_type if not is_overriden_type else parameter_base_type,
-            multiple=True,
-            default=default_for_sequence,
-            show_default=True,
-            help=param_help_text,
-        )(click_wrapper_function)
-
-    # ---------- Enum -> Choice ----------
-    if isinstance(parameter_base_type, type) and issubclass(parameter_base_type, Enum):
-        enum_choices = [e.value for e in parameter_base_type]
-        enum_default_value = None
-        if has_default_value:
-            enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            type=click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
-            default=enum_default_value,
-            show_default=True,
-            help=param_help_text,
-        )(click_wrapper_function)
-
-    # ---------- Implicit JSON injection ----------
-    simple_types = (str, bool, int, float, Enum, Path, UUID, date, datetime)
-    skip_implicit_json = isinstance(parameter_base_type, type) and issubclass(parameter_base_type, simple_types)
-    if (
-        parameter_metadata is None
-        and not skip_implicit_json
-        and inspect.isclass(parameter_base_type)
-        and any(
-            isinstance(encoder, MoldingProtocol) and encoder.is_type_structure(parameter_base_type)
-            for encoder in get_encoders()
-        )
-    ):
-        parameter_metadata = JsonParam()
-
-    # ---------- Explicit JsonParam ----------
-    if isinstance(parameter_metadata, JsonParam):
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            type=click.STRING if not is_overriden_type else parameter_base_type,
-            default=parameter_metadata.default,
-            required=parameter_metadata.required,
-            show_default=False,
-            help=f"{param_help_text} (JSON)",
-        )(click_wrapper_function)
-
-    # ---------- Path / UUID / date / datetime / File ----------
-    if parameter_base_type is Path:
-        parameter_base_type = click.Path(exists=False, file_okay=True, dir_okay=True, resolve_path=True)
-    if parameter_base_type is UUID:
-        parameter_base_type = click.UUID
-    if parameter_base_type is date:
-        parameter_base_type = click.DateTime(formats=["%Y-%m-%d"])
-    if parameter_base_type is datetime:
-        parameter_base_type = click.DateTime()
-    if raw_type_annotation is IO or raw_type_annotation is click.File:
-        parameter_base_type = click.File("r")
-
-    # ---------- Defaults / required ----------
-    has_metadata_default = getattr(parameter_metadata, "default", ...) not in [..., Ellipsis]
-    final_default_value = getattr(parameter_metadata, "default", resolved_default_value)
-    if final_default_value is Ellipsis:
-        final_default_value = None
-    if isinstance(final_default_value, Enum):
-        final_default_value = final_default_value.value
-    if isinstance(final_default_value, (date, datetime)):
-        final_default_value = final_default_value.isoformat()
-
-    is_required = getattr(parameter_metadata, "required", not (has_default_value or has_metadata_default))
-    effective_help_text = getattr(parameter_metadata, "help", param_help_text) or param_help_text
-
-    # ---------- Explicit Argument ----------
-    if isinstance(parameter_metadata, Argument):
-        if "nargs" in parameter_metadata.options:
-            if (
-                final_default_value is not inspect._empty
-                and final_default_value is not ...
-                and final_default_value is not None
-            ):
-                raise ValueError("Variadic arguments (nargs) cannot have a default value.")
-        else:
-            if final_default_value is not None and final_default_value is not inspect._empty:
-                parameter_metadata.options["default"] = final_default_value
-
-        wrapped = click.argument(
-            parameter_name,
-            type=parameter_base_type,
-            required=is_required,
-            **parameter_metadata.options,
-        )(click_wrapper_function)
-
-        help_text = getattr(parameter_metadata, "help", "")
-        if hasattr(wrapped, "params"):
-            for param_obj in wrapped.params:
-                if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
-                    param_obj.help = help_text
-        return wrapped
-
-    # ---------- Env ----------
-    if isinstance(parameter_metadata, Env):
-        env_resolved_value = os.getenv(parameter_metadata.envvar, parameter_metadata.default)
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            type=parameter_base_type,
-            default=(None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
-            show_default=True,
-            required=parameter_metadata.required,
-            help=f"[env:{parameter_metadata.envvar}] {effective_help_text}",
-            **parameter_metadata.options,
-        )(click_wrapper_function)
-
-    # ---------- Option ----------
-    if isinstance(parameter_metadata, Option):
-        # Unwrap Annotated[str | None, Option(...)]
-        raw_for_option = raw_type_annotation
-        if get_origin(raw_for_option) is Annotated:
-            ann_args = get_args(raw_for_option)
-            if ann_args:
-                raw_for_option = ann_args[0]
-
-        # Handle Optional[T] properly
-        if get_origin(raw_for_option) in (Union, UnionType):
-            union_args = get_args(raw_for_option)
-            if type(None) in union_args:
-                non_none = [a for a in union_args if a is not type(None)]
-                if len(non_none) == 1:
-                    parameter_base_type = non_none[0]
-
-        if getattr(parameter_metadata, "default_factory", None):
-            option_default = None
-        else:
-            option_default = final_default_value
-
-        default_kwarg: dict[str, Any] = {}
-        if option_default is not None:
-            default_kwarg["default"] = option_default
-
-        if parameter_metadata.is_flag and option_default is True:
-            default_kwarg["default"] = None  # let Click map internally
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            *parameter_metadata.param_decls,
-            type=None if is_boolean_flag else parameter_base_type,
-            is_flag=is_boolean_flag,
-            required=is_required,  # ✅ trust computed required
-            show_default=parameter_metadata.show_default,
-            help=effective_help_text,
-            prompt=parameter_metadata.prompt,
-            hide_input=parameter_metadata.hide_input,
-            callback=parameter_metadata.callback,
-            envvar=parameter_metadata.envvar,
-            **parameter_metadata.options,
-            **default_kwarg,
-        )(click_wrapper_function)
-
-    # ---------- Defaults with no explicit metadata ----------
-    if not has_default_value:
-        return click.argument(parameter_name, type=parameter_base_type, required=True)(click_wrapper_function)
-
-    if is_context_injected and not is_boolean_flag:
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            type=parameter_base_type,
-            default=final_default_value,
-            required=is_required,
-            show_default=True,
-            help=effective_help_text,
-        )(click_wrapper_function)
-
-    if is_boolean_flag and isinstance(parameter.default, bool):
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            is_flag=True,
-            default=parameter.default,
-            show_default=True,
-            help=effective_help_text,
-        )(click_wrapper_function)
-
-    if isinstance(parameter.default, Param):
-        return click.argument(
-            parameter_name,
-            type=parameter_base_type,
-            required=False,
-            default=parameter.default.default,
-        )(click_wrapper_function)
-
-    if parameter.default is None:
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            type=parameter_base_type,
-            show_default=True,
-            help=effective_help_text,
-        )(click_wrapper_function)
-
-    final_wrapped_function = click.argument(
-        parameter_name, type=parameter_base_type, default=final_default_value, required=False
-    )(click_wrapper_function)
-
-    for param_in_wrapper in final_wrapped_function.params:
-        if param_in_wrapper.name == parameter_name:
-            param_in_wrapper.required = False
-            param_in_wrapper.default = final_default_value
-
-    return final_wrapped_function
+    raise RuntimeError(f"Unsupported parameter configuration: {ctx.parameter}")
 
 
 @overload
@@ -887,15 +311,15 @@ def command(
                             raise click.BadParameter(f"Invalid JSON for '{param_sig.name}': {e}") from e
                         parameter_value = apply_structure(target_type_for_conversion, json_data)
 
-                # Convert non-list/Sequence types using the `_convert_cli_value_to_type` helper.
+                # Convert non-list/Sequence types using the `convert_cli_value_to_type` helper.
                 if get_origin(raw_type_for_conversion) in (list, Sequence):
                     inner = get_args(raw_type_for_conversion)[0] if get_args(raw_type_for_conversion) else Any
                     parameter_value = [
-                        _convert_cli_value_to_type(item, inner, function_to_decorate, param_sig.name)
+                        convert_cli_value_to_type(item, inner, function_to_decorate, param_sig.name)
                         for item in (parameter_value or [])
                     ]
                 else:
-                    parameter_value = _convert_cli_value_to_type(
+                    parameter_value = convert_cli_value_to_type(
                         parameter_value,
                         target_type_for_conversion,
                         function_to_decorate,
@@ -992,7 +416,7 @@ def command(
                 is_overriden_type = True
 
             # Build and apply the Click parameter decorator.
-            current_wrapper = _build_click_parameter(
+            current_wrapper = build_click_parameter(
                 param_inspect_obj,
                 raw_annotation_for_param,
                 param_base_type,
@@ -1054,7 +478,7 @@ def group(
         internal registry.
     """
     # Check if the group already exists to avoid re-creating it.
-    if name not in _GROUPS:
+    if name not in GROUPS:
         # Determine the group class to use; default to `SayerGroup`.
         group_class_to_use = group_cls or SayerGroup
         # Create the Click group instance.
@@ -1090,9 +514,9 @@ def group(
         # Monkey-patch the group's `command` method.
         new_group_instance.command = _group_command_method_override  # type: ignore
         # Store the created group in the internal groups registry.
-        _GROUPS[name] = new_group_instance
+        GROUPS[name] = new_group_instance
 
-    return _GROUPS[name]
+    return GROUPS[name]
 
 
 def get_commands() -> dict[str, click.Command]:
@@ -1119,7 +543,7 @@ def get_groups() -> dict[str, click.Group]:
         A dictionary where keys are group names (strings) and values are
         `click.Group` objects.
     """
-    return _GROUPS
+    return GROUPS
 
 
 def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *args: Any, **attrs: Any) -> click.Command:
@@ -1148,7 +572,7 @@ def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *arg
     return cast(click.Command, decorator)
 
 
-# Monkey-patch Click so that all groups use Sayer’s binding logic:
+# Monkey-patch Click so that all groups use Sayer's binding logic:
 # This crucial line ensures that any `click.Group` created (even outside
 # `sayer.group`) will use `sayer`'s `bind_command_to_group` when its `.command`
 # method is called. This globally enables `sayer`'s enhanced command

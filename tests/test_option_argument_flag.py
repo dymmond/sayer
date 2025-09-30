@@ -110,6 +110,7 @@ def test_argument_to_option_group_param_behaviour():
     # Then test invoking without extra: since required (default None/empty), it should error
     client = SayerTestClient(app=app)
     result = client.invoke(["cmd"])
+
     assert result.exit_code != 0
     assert "Missing argument 'EXTRA'" in result.output
 

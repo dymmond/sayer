@@ -4,6 +4,7 @@ import os
 import sys
 import types
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
 from functools import wraps
@@ -15,6 +16,7 @@ from typing import (
     Any,
     Literal,
     Mapping,
+    Optional,
     Sequence,
     TypeVar,
     Union,
@@ -78,6 +80,90 @@ _PRIMITIVE_TYPE_MAP = {
     date: click.DateTime(formats=["%Y-%m-%d"]),
     datetime: click.DateTime(),
 }
+
+
+@dataclass
+class ParameterContext:
+    parameter: inspect.Parameter
+    raw_type_annotation: Any
+    base_type: type
+    metadata: Param | Option | Argument | Env | JsonParam | None
+    help_text: str
+    wrapper: Callable
+    is_context_injected: bool
+    is_overriden_type: bool
+
+    expose: bool = field(init=False)
+    hidden: bool = field(init=False)
+    has_default: bool = field(init=False)
+    default: Any = field(init=False)
+    resolved_default: Any = field(init=False)
+    is_required: bool = field(init=False)
+
+    def __post_init__(self):
+        self.expose = getattr(self.metadata, "expose_value", True)
+        self.hidden = not self.expose
+
+        # restore compatibility
+        self.has_default = self.parameter.default not in (inspect._empty, Ellipsis)
+        self.default = self.parameter.default if self.has_default else None
+
+        self.resolved_default = self._resolve_default()
+        self.is_required = self._resolve_required()
+
+    def _resolve_default(self) -> Any:
+        if self.metadata is not None:
+            if getattr(self.metadata, "default_factory", None):
+                return None
+            if getattr(self.metadata, "default", Ellipsis) not in (Ellipsis, inspect._empty):
+                val = self.metadata.default
+                if val is Ellipsis:
+                    return None
+                if isinstance(val, (Option, Argument, Param, Env, JsonParam)):
+                    return None
+                return val
+
+        if self.has_default:
+            return self.default
+        return None
+
+    def _resolve_required(self) -> bool:
+        if isinstance(self.metadata, (Param, Option, Argument, Env)):
+            if getattr(self.metadata, "required", None) is True:
+                return True
+            if getattr(self.metadata, "required", None) is False:
+                return False  # <-- explicit False must be respected
+
+            has_metadata_default = getattr(self.metadata, "default", Ellipsis) not in (
+                Ellipsis,
+                inspect._empty,
+                Ellipsis,
+            )
+            if not (self.has_default or has_metadata_default):
+                return True
+            return False
+
+        if self.resolved_default is not None:
+            return False
+        if self.has_default:
+            return False
+
+        return True
+
+    def normalize_type(self) -> None:
+        origin = get_origin(self.base_type)
+        if origin in (Union, types.UnionType):
+            args = get_args(self.base_type)
+            non_none = [t for t in args if t is not type(None)]
+            if len(non_none) == 1:
+                self.base_type = non_none[0]
+
+        if (
+            isinstance(self.metadata, Param)
+            and get_origin(self.raw_type_annotation) is Annotated
+            and _should_parameter_use_option_style(self.metadata, self.default)
+        ):
+            self.metadata = self.metadata.as_option()
 
 
 def _safe_get_type_hints(func: Any, *, include_extras: bool = True) -> Mapping[str, Any]:
@@ -381,6 +467,343 @@ def _extract_command_help_text(signature: inspect.Signature, func: Callable, att
     return ""
 
 
+def _handle_variadic_args(ctx: ParameterContext) -> Optional[Callable]:
+    base_origin = get_origin(ctx.base_type)
+    if ctx.metadata is None and base_origin in (list, tuple) and ctx.parameter.name in {"args", "argv"}:
+        inner_args = get_args(ctx.base_type)
+        inner_type = inner_args[0] if inner_args else str
+        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
+        return click.argument(
+            ctx.parameter.name,
+            nargs=-1,
+            type=click_inner_type,
+            required=False,
+            expose_value=ctx.expose,
+        )(ctx.wrapper)
+    return None
+
+
+def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
+    base_origin = get_origin(ctx.base_type)
+    if base_origin not in (list, Sequence):
+        return None
+
+    inner_args = get_args(ctx.base_type)
+    inner_type = inner_args[0] if inner_args else str
+    click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
+
+    if isinstance(ctx.metadata, Argument):
+        variadic_nargs = ctx.metadata.options.get("nargs", -1)
+        is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
+        is_required_local = False if is_variadic else getattr(ctx.metadata, "required", False)
+        arg_options = dict(ctx.metadata.options)
+
+        arg_type = click_inner_type if not ctx.is_overriden_type else ctx.base_type
+        return click.argument(
+            ctx.parameter.name,
+            type=arg_type,
+            required=is_required_local,
+            expose_value=ctx.metadata.expose_value,
+            **arg_options,
+        )(ctx.wrapper)
+
+    default_for_sequence = ctx.resolved_default if ctx.resolved_default is not None else ()
+    kwargs = {
+        "type": click_inner_type if not ctx.is_overriden_type else ctx.base_type,
+        "multiple": True,
+        "default": default_for_sequence,
+        "show_default": True,
+        "help": ctx.help_text,
+        "expose_value": ctx.expose,
+    }
+    if SUPPORTS_HIDDEN:
+        kwargs["hidden"] = ctx.hidden
+
+    return click.option(f"--{ctx.parameter.name.replace('_', '-')}", **kwargs)(ctx.wrapper)
+
+
+def _handle_enum(ctx: ParameterContext) -> Optional[Callable]:
+    if not (isinstance(ctx.base_type, type) and issubclass(ctx.base_type, Enum)):
+        return None
+
+    enum_choices = [e.value for e in ctx.base_type]
+
+    default_val = ctx.resolved_default
+    if isinstance(default_val, Enum):
+        default_val = default_val.value
+
+    kwargs = {
+        "type": click.Choice(enum_choices) if not ctx.is_overriden_type else ctx.base_type,
+        "default": default_val,
+        "show_default": True,
+        "help": ctx.help_text,
+        "expose_value": ctx.expose,
+    }
+    if SUPPORTS_HIDDEN:
+        kwargs["hidden"] = ctx.hidden
+
+    return click.option(f"--{ctx.parameter.name.replace('_', '-')}", **kwargs)(ctx.wrapper)
+
+
+def _handle_json(ctx: ParameterContext) -> Optional[Callable]:
+    simple_types = (str, bool, int, float, Enum, Path, UUID, date, datetime)
+    skip_implicit_json = isinstance(ctx.base_type, type) and issubclass(ctx.base_type, simple_types)
+    if (
+        ctx.metadata is None
+        and not skip_implicit_json
+        and inspect.isclass(ctx.base_type)
+        and any(
+            isinstance(encoder, MoldingProtocol) and encoder.is_type_structure(ctx.base_type)
+            for encoder in get_encoders()
+        )
+    ):
+        ctx.metadata = JsonParam()
+
+    if isinstance(ctx.metadata, JsonParam):
+        kwargs = {
+            "type": click.STRING if not ctx.is_overriden_type else ctx.base_type,
+            "default": ctx.metadata.default,
+            "required": ctx.metadata.required,
+            "show_default": False,
+            "expose_value": ctx.expose,
+            "help": f"{ctx.help_text} (JSON)",
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = ctx.hidden
+
+        return click.option(f"--{ctx.parameter.name.replace('_', '-')}", **kwargs)(ctx.wrapper)
+    return None
+
+
+def _handle_special_types(ctx: ParameterContext) -> None:
+    """Adjust special known types in-place."""
+    if ctx.base_type is Path:
+        ctx.base_type = click.Path(exists=False, file_okay=True, dir_okay=True, resolve_path=True)
+    if ctx.base_type is UUID:
+        ctx.base_type = click.UUID
+    if ctx.base_type is date:
+        ctx.base_type = click.DateTime(formats=["%Y-%m-%d"])
+    if ctx.base_type is datetime:
+        ctx.base_type = click.DateTime()
+    if ctx.raw_type_annotation is IO or ctx.raw_type_annotation is click.File:
+        ctx.base_type = click.File("r")
+    return None
+
+
+def _handle_argument(ctx: ParameterContext) -> Optional[Callable]:
+    if not isinstance(ctx.metadata, Argument):
+        return None
+
+    final_default = ctx.resolved_default
+    if isinstance(final_default, (Option, Argument, Param, Env, JsonParam)):
+        final_default = None
+
+    if "nargs" in ctx.metadata.options and final_default is not None:
+        raise ValueError("Variadic arguments (nargs) cannot have a default value.")
+    if final_default is not None:
+        ctx.metadata.options["default"] = final_default
+
+    arg_kwargs = dict(ctx.metadata.options)
+    arg_kwargs.update(
+        {
+            "type": ctx.base_type,
+            "required": getattr(ctx.metadata, "required", not ctx.has_default),
+            "expose_value": getattr(ctx.metadata, "expose_value", True),
+        }
+    )
+    wrapped = click.argument(ctx.parameter.name, **arg_kwargs)(ctx.wrapper)
+
+    help_text = getattr(ctx.metadata, "help", "")
+    if hasattr(wrapped, "params"):
+        for param_obj in wrapped.params:
+            if isinstance(param_obj, click.Argument) and param_obj.name == ctx.parameter.name:
+                param_obj.help = help_text
+    return wrapped
+
+
+def _handle_env(ctx: ParameterContext) -> Optional[Callable]:
+    if not isinstance(ctx.metadata, Env):
+        return None
+
+    env_val = os.getenv(ctx.metadata.envvar, ctx.metadata.default)
+
+    kwargs = {
+        "type": ctx.base_type,
+        "default": None if getattr(ctx.metadata, "default_factory", None) else env_val,
+        "show_default": True,
+        "required": ctx.metadata.required,
+        "help": f"[env:{ctx.metadata.envvar}] {ctx.help_text}",
+        "expose_value": ctx.expose,
+        **ctx.metadata.options,
+    }
+    if SUPPORTS_HIDDEN:
+        kwargs["hidden"] = ctx.hidden
+
+    return click.option(
+        f"--{ctx.parameter.name.replace('_', '-')}",
+        **kwargs,
+    )(ctx.wrapper)
+
+
+def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
+    if not isinstance(ctx.metadata, Option):
+        return None
+
+    raw_for_option = ctx.raw_type_annotation
+    if get_origin(raw_for_option) is Annotated:
+        ann_args = get_args(raw_for_option)
+        if ann_args:
+            raw_for_option = ann_args[0]
+
+    # Handle Optional[T]
+    if get_origin(raw_for_option) in (Union, types.UnionType):
+        union_args = get_args(raw_for_option)
+        if type(None) in union_args:
+            non_none = [a for a in union_args if a is not type(None)]
+            if len(non_none) == 1:
+                ctx.base_type = non_none[0]
+
+    # Default resolution
+    if getattr(ctx.metadata, "default_factory", None):
+        option_default = None
+    else:
+        option_default = ctx.resolved_default
+
+    if isinstance(option_default, Option):
+        option_default = None
+
+    default_kwarg: dict[str, Any] = {}
+    if option_default is not None:
+        default_kwarg["default"] = option_default
+
+    if ctx.metadata.is_flag and option_default is True:
+        default_kwarg["default"] = None  # let Click handle
+
+    kwargs = {
+        "type": None if ctx.base_type is bool else ctx.base_type,
+        "is_flag": ctx.base_type is bool,
+        "required": ctx.is_required,
+        "show_default": ctx.metadata.show_default,
+        "help": ctx.help_text,
+        "prompt": ctx.metadata.prompt,
+        "hide_input": ctx.metadata.hide_input,
+        "callback": ctx.metadata.callback,
+        "envvar": ctx.metadata.envvar,
+        "expose_value": ctx.expose,
+        **ctx.metadata.options,
+        **default_kwarg,
+    }
+    if SUPPORTS_HIDDEN:
+        kwargs["hidden"] = ctx.hidden
+
+    return click.option(
+        f"--{ctx.parameter.name.replace('_', '-')}",
+        *ctx.metadata.param_decls,
+        **kwargs,
+    )(ctx.wrapper)
+
+
+def _handle_boolean_flag(ctx: ParameterContext) -> Optional[Callable]:
+    """
+    Handler for pure boolean flags, ensures defaults are actual booleans.
+    """
+    if ctx.base_type is not bool:
+        return None
+
+    kwargs = {
+        "is_flag": True,
+        "default": bool(ctx.resolved_default) if ctx.resolved_default is not None else False,
+        "show_default": True,
+        "help": ctx.help_text,
+        "expose_value": ctx.expose,
+    }
+    if SUPPORTS_HIDDEN:
+        kwargs["hidden"] = ctx.hidden
+
+    return click.option(
+        f"--{ctx.parameter.name.replace('_', '-')}",
+        **kwargs,
+    )(ctx.wrapper)
+
+
+def _handle_defaults(ctx: ParameterContext) -> Optional[Callable]:
+    """
+    Fallback handler when no explicit metadata matches.
+    Decides between click.argument and click.option depending on context.
+    """
+    # No metadata, no default → required positional
+    if ctx.is_required and ctx.resolved_default is None:
+        return click.argument(
+            ctx.parameter.name,
+            type=ctx.base_type,
+            required=True,
+        )(ctx.wrapper)
+
+    final_default = ctx.resolved_default
+
+    # Context-injected → prefer option style
+    if ctx.is_context_injected and ctx.base_type is not bool:
+        kwargs = {
+            "type": ctx.base_type,
+            "default": final_default,
+            "required": ctx.is_required,
+            "show_default": True,
+            "help": ctx.help_text,
+            "expose_value": ctx.expose,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = ctx.hidden
+        return click.option(
+            f"--{ctx.parameter.name.replace('_', '-')}",
+            **kwargs,
+        )(ctx.wrapper)
+
+    # Explicit None default → treat as optional option
+    if final_default is None and not ctx.is_required:
+        kwargs = {
+            "type": ctx.base_type,
+            "show_default": True,
+            "help": ctx.help_text,
+            "expose_value": ctx.expose,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = ctx.hidden
+        return click.option(
+            f"--{ctx.parameter.name.replace('_', '-')}",
+            **kwargs,
+        )(ctx.wrapper)
+
+    # Boolean flags with bool defaults
+    if ctx.base_type is bool and isinstance(ctx.parameter.default, bool):
+        kwargs = {
+            "is_flag": True,
+            "default": ctx.parameter.default,
+            "show_default": True,
+            "help": ctx.help_text,
+            "expose_value": ctx.expose,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = ctx.hidden
+        return click.option(
+            f"--{ctx.parameter.name.replace('_', '-')}",
+            **kwargs,
+        )(ctx.wrapper)
+
+    # Fallback: positional with default
+    wrapped = click.argument(
+        ctx.parameter.name,
+        type=ctx.base_type,
+        default=final_default,
+        required=False,
+    )(ctx.wrapper)
+
+    for param in wrapped.params:
+        if param.name == ctx.parameter.name:
+            param.required = False
+            param.default = final_default
+    return wrapped
+
+
 def _build_click_parameter(
     parameter: inspect.Parameter,
     raw_type_annotation: Any,
@@ -392,373 +815,39 @@ def _build_click_parameter(
     is_overriden_type: bool,
 ) -> Callable:
     """
-    Dynamically attaches a Click argument or option decorator to a command
-    wrapper function based on the Python function's parameter definition.
-
-    This function supports a wide range of parameter configurations, including:
-    - Primitive types (`str`, `int`, `float`, `bool`).
-    - Specific types like `Path`, `UUID`, `date`, `datetime`, and `file-like` objects (`IO`).
-    - `Enum` types, which are handled as `Click.Choice` options.
-    - Collection types like `list` and `Sequence`, mapped to Click's `multiple` options.
-    - Implicit JSON injection for dataclasses, Pydantic models, or `msgspec` types
-      if a relevant `MoldingProtocol` encoder is registered.
-    - Explicit parameter metadata (`Argument`, `Env`, `Option`, `Param`, `JsonParam`)
-      to control Click's behavior (e.g., prompts, hidden input, environment variables).
-    - Boolean flags, and automatic fallback from positional arguments to options
-      if a default value is present.
-    - Context-aware default behavior for specific scenarios.
-
-    The order of checks is significant, with more specific metadata or type
-    handlers taking precedence.
-
-    Args:
-        parameter: The `inspect.Parameter` object for the current function parameter.
-        raw_type_annotation: The raw type annotation of the parameter, including
-                        any `Annotated` wrappers.
-        parameter_base_type: The resolved base type of the parameter (e.g., `str`, `int`,
-                    `MyDataclass`).
-        parameter_metadata: Optional metadata object (`Param`, `Option`, `Argument`, `Env`,
-              `JsonParam`) providing specific Click configuration.
-        param_help_text: The extracted help text for the parameter.
-        click_wrapper_function: The Click command wrapper function to which the parameter
-                 decorator will be applied.
-        is_context_injected: A boolean indicating if `click.Context` is injected into
-                      the command, which can influence default parameter behavior.
-
-    Returns:
-        The `click_wrapper_function`, now decorated with the appropriate Click
-        argument or option.
+    Entry point: builds a Click argument/option decorator for a function parameter.
+    Delegates logic to smaller helpers based on type/metadata.
     """
-    parameter_name = parameter.name
-    expose = getattr(parameter_metadata, "expose_value", True)
-    hidden = not expose
+    ctx = ParameterContext(
+        parameter=parameter,
+        raw_type_annotation=raw_type_annotation,
+        base_type=parameter_base_type,
+        metadata=parameter_metadata,
+        help_text=param_help_text,
+        wrapper=click_wrapper_function,
+        is_context_injected=is_context_injected,
+        is_overriden_type=is_overriden_type,
+    )
 
-    # Handle Optional/Union[T, None] by collapsing to T when unambiguous
-    origin = get_origin(parameter_base_type)
-    if origin in (Union, types.UnionType):
-        args = get_args(parameter_base_type)
-        non_none = [t for t in args if t is not type(None)]
-        if len(non_none) == 1:
-            parameter_base_type = non_none[0]
+    ctx.normalize_type()
+    _handle_special_types(ctx)  # adjusts in-place
 
-    is_boolean_flag = parameter_base_type is bool
-    has_default_value = parameter.default not in [inspect._empty, Ellipsis]
-    resolved_default_value = parameter.default if has_default_value else None
-
-    # If Param metadata suggests "option style", recast Param -> Option
-    if (
-        isinstance(parameter_metadata, Param)
-        and get_origin(raw_type_annotation) is Annotated
-        and _should_parameter_use_option_style(parameter_metadata, resolved_default_value)
+    for handler in (
+        _handle_variadic_args,
+        _handle_sequence,
+        _handle_enum,
+        _handle_json,
+        _handle_argument,
+        _handle_env,
+        _handle_option,
+        _handle_boolean_flag,
+        _handle_defaults,
     ):
-        parameter_metadata = parameter_metadata.as_option()
+        result = handler(ctx)
+        if result is not None:
+            return result
 
-    # ---------- Plain list/tuple without metadata -> variadic positional ----------
-    base_origin = get_origin(parameter_base_type)
-    if parameter_metadata is None and base_origin in (list, tuple) and parameter.name in {"args", "argv"}:
-        inner_args = get_args(parameter_base_type)
-        inner_type = inner_args[0] if inner_args else str
-        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
-        return click.argument(
-            parameter_name,
-            nargs=-1,
-            type=click_inner_type,
-            required=False,
-            expose_value=getattr(parameter_metadata, "expose_value", True),
-        )(click_wrapper_function)
-
-    # ---------- list[T] or Sequence[T] -> multiple=True ----------
-    if base_origin in (list, Sequence):
-        inner_args = get_args(parameter_base_type)
-        inner_type = inner_args[0] if inner_args else str
-        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
-
-        if isinstance(parameter_metadata, Argument):
-            variadic_nargs = parameter_metadata.options.get("nargs", -1)
-            is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
-            is_required_local = False if is_variadic else getattr(parameter_metadata, "required", False)
-            arg_options = dict(parameter_metadata.options)
-
-            arg_type = click_inner_type if not is_overriden_type else parameter_base_type
-            return click.argument(
-                parameter_name,
-                type=arg_type,
-                required=is_required_local,
-                expose_value=parameter_metadata.expose_value,
-                **arg_options,
-            )(click_wrapper_function)
-
-        default_for_sequence = () if not has_default_value else parameter.default
-        kwargs = {
-            "type": click_inner_type if not is_overriden_type else parameter_base_type,
-            "multiple": True,
-            "default": default_for_sequence,
-            "show_default": True,
-            "help": param_help_text,
-            "expose_value": expose,
-        }
-
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    # ---------- Enum -> Choice ----------
-    if isinstance(parameter_base_type, type) and issubclass(parameter_base_type, Enum):
-        enum_choices = [e.value for e in parameter_base_type]
-        enum_default_value = None
-        if has_default_value:
-            enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
-
-        kwargs = {
-            "type": click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
-            "default": enum_default_value,
-            "show_default": True,
-            "help": param_help_text,
-            "expose_value": expose,
-        }
-
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    # ---------- Implicit JSON injection ----------
-    simple_types = (str, bool, int, float, Enum, Path, UUID, date, datetime)
-    skip_implicit_json = isinstance(parameter_base_type, type) and issubclass(parameter_base_type, simple_types)
-    if (
-        parameter_metadata is None
-        and not skip_implicit_json
-        and inspect.isclass(parameter_base_type)
-        and any(
-            isinstance(encoder, MoldingProtocol) and encoder.is_type_structure(parameter_base_type)
-            for encoder in get_encoders()
-        )
-    ):
-        parameter_metadata = JsonParam()
-
-    # ---------- Explicit JsonParam ----------
-    if isinstance(parameter_metadata, JsonParam):
-        kwargs = {
-            "type": click.STRING if not is_overriden_type else parameter_base_type,
-            "default": parameter_metadata.default,
-            "required": parameter_metadata.required,
-            "show_default": False,
-            "expose_value": expose,
-            "help": f"{param_help_text} (JSON)",
-        }
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    # ---------- Path / UUID / date / datetime / File ----------
-    if parameter_base_type is Path:
-        parameter_base_type = click.Path(exists=False, file_okay=True, dir_okay=True, resolve_path=True)
-    if parameter_base_type is UUID:
-        parameter_base_type = click.UUID
-    if parameter_base_type is date:
-        parameter_base_type = click.DateTime(formats=["%Y-%m-%d"])
-    if parameter_base_type is datetime:
-        parameter_base_type = click.DateTime()
-    if raw_type_annotation is IO or raw_type_annotation is click.File:
-        parameter_base_type = click.File("r")
-
-    # ---------- Defaults / required ----------
-    has_metadata_default = getattr(parameter_metadata, "default", ...) not in [..., Ellipsis]
-    final_default_value = getattr(parameter_metadata, "default", resolved_default_value)
-    if final_default_value is Ellipsis:
-        final_default_value = None
-    if isinstance(final_default_value, Enum):
-        final_default_value = final_default_value.value
-    if isinstance(final_default_value, (date, datetime)):
-        final_default_value = final_default_value.isoformat()
-
-    is_required = getattr(parameter_metadata, "required", not (has_default_value or has_metadata_default))
-    effective_help_text = getattr(parameter_metadata, "help", param_help_text) or param_help_text
-
-    # ---------- Explicit Argument ----------
-    if isinstance(parameter_metadata, Argument):
-        if "nargs" in parameter_metadata.options:
-            if (
-                final_default_value is not inspect._empty
-                and final_default_value is not ...
-                and final_default_value is not None
-            ):
-                raise ValueError("Variadic arguments (nargs) cannot have a default value.")
-        else:
-            if final_default_value is not None and final_default_value is not inspect._empty:
-                parameter_metadata.options["default"] = final_default_value
-
-        arg_kwargs = dict(parameter_metadata.options)
-        arg_kwargs.update(
-            {
-                "type": parameter_base_type,
-                "required": is_required,
-                "expose_value": getattr(parameter_metadata, "expose_value", True),
-            }
-        )
-        wrapped = click.argument(parameter_name, **arg_kwargs)(click_wrapper_function)
-
-        help_text = getattr(parameter_metadata, "help", "")
-        if hasattr(wrapped, "params"):
-            for param_obj in wrapped.params:
-                if isinstance(param_obj, click.Argument) and param_obj.name == parameter_name:
-                    param_obj.help = help_text
-        return wrapped
-
-    # ---------- Env ----------
-    if isinstance(parameter_metadata, Env):
-        env_resolved_value = os.getenv(parameter_metadata.envvar, parameter_metadata.default)
-        kwargs = {
-            "type": parameter_base_type,
-            "default": (None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
-            "show_default": True,
-            "required": parameter_metadata.required,
-            "help": f"[env:{parameter_metadata.envvar}] {effective_help_text}",
-            "expose_value": expose,
-            **parameter_metadata.options,
-        }
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    # ---------- Option ----------
-    if isinstance(parameter_metadata, Option):
-        # Unwrap Annotated[str | None, Option(...)]
-        raw_for_option = raw_type_annotation
-        if get_origin(raw_for_option) is Annotated:
-            ann_args = get_args(raw_for_option)
-            if ann_args:
-                raw_for_option = ann_args[0]
-
-        # Handle Optional[T] properly
-        if get_origin(raw_for_option) in (Union, UnionType):
-            union_args = get_args(raw_for_option)
-            if type(None) in union_args:
-                non_none = [a for a in union_args if a is not type(None)]
-                if len(non_none) == 1:
-                    parameter_base_type = non_none[0]
-
-        if getattr(parameter_metadata, "default_factory", None):
-            option_default = None
-        else:
-            option_default = final_default_value
-
-        default_kwarg: dict[str, Any] = {}
-        if option_default is not None:
-            default_kwarg["default"] = option_default
-
-        if parameter_metadata.is_flag and option_default is True:
-            default_kwarg["default"] = None  # let Click map internally
-
-        kwargs = {
-            "type": None if is_boolean_flag else parameter_base_type,
-            "is_flag": is_boolean_flag,
-            "required": is_required,
-            "show_default": parameter_metadata.show_default,
-            "help": effective_help_text,
-            "prompt": parameter_metadata.prompt,
-            "hide_input": parameter_metadata.hide_input,
-            "callback": parameter_metadata.callback,
-            "envvar": parameter_metadata.envvar,
-            "expose_value": expose,
-            **parameter_metadata.options,
-            **default_kwarg,
-        }
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            *parameter_metadata.param_decls,
-            **kwargs,
-        )(click_wrapper_function)
-
-    # ---------- Defaults with no explicit metadata ----------
-    if not has_default_value:
-        return click.argument(parameter_name, type=parameter_base_type, required=True)(click_wrapper_function)
-
-    if is_context_injected and not is_boolean_flag:
-        kwargs = {
-            "type": parameter_base_type,
-            "default": final_default_value,
-            "required": is_required,
-            "show_default": True,
-            "help": effective_help_text,
-            "expose_value": expose,
-        }
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    if is_boolean_flag and isinstance(parameter.default, bool):
-        kwargs = {
-            "is_flag": True,
-            "default": parameter.default,
-            "show_default": True,
-            "help": effective_help_text,
-            "expose_value": expose,
-        }
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    if isinstance(parameter.default, Param):
-        return click.argument(
-            parameter_name,
-            type=parameter_base_type,
-            required=False,
-            default=parameter.default.default,
-            expose_value=expose,
-        )(click_wrapper_function)
-
-    if parameter.default is None:
-        kwargs = {
-            "type": parameter_base_type,
-            "show_default": True,
-            "help": effective_help_text,
-            "expose_value": expose,
-        }
-        if SUPPORTS_HIDDEN:
-            kwargs["hidden"] = hidden
-
-        return click.option(
-            f"--{parameter_name.replace('_', '-')}",
-            **kwargs,
-        )(click_wrapper_function)
-
-    final_wrapped_function = click.argument(
-        parameter_name, type=parameter_base_type, default=final_default_value, required=False
-    )(click_wrapper_function)
-
-    for param_in_wrapper in final_wrapped_function.params:
-        if param_in_wrapper.name == parameter_name:
-            param_in_wrapper.required = False
-            param_in_wrapper.default = final_default_value
-
-    return final_wrapped_function
+    raise RuntimeError(f"Unsupported parameter configuration: {ctx.parameter}")
 
 
 @overload

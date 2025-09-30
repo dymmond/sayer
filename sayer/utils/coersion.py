@@ -39,7 +39,7 @@ def coerce_argument_to_option(param_config: click.Argument, *, force: bool = Fal
     else:
         option_kwargs["show_default"] = False
 
-    # ✅ Preserve hidden if supported
+    # Preserve hidden if supported
     if SUPPORTS_HIDDEN and getattr(param_config, "hidden", False):
         option_kwargs["hidden"] = True
 

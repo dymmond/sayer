@@ -25,22 +25,6 @@ class BaseSayerCommand(ABC, click.Command):
         self._sayer_last_return_value = return_value  # noqa
         return return_value
 
-    def collect_usage_pieces(self, ctx: click.Context):
-        """
-        Override Click's usage rendering to skip hidden parameters (silent_param).
-        """
-        rv = []
-        for param in self.get_params(ctx):
-            if getattr(param, "hidden", False):
-                continue
-
-            if not getattr(param, "expose_value", True):
-                param.opts = []
-                param.secondary_opts = []
-
-            rv.extend(param.get_usage_pieces(ctx))
-        return rv
-
     def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         """
         Override Click's usage rendering to hide parameters

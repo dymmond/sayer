@@ -236,14 +236,10 @@ class Sayer:
                 parameter_metadata = param_obj.default
 
             is_overriden_type = False
+
             if getattr(parameter_metadata, "type", None) is not None:
                 actual_param_type = parameter_metadata.type
                 is_overriden_type = True
-
-            if parameter_metadata is not None:
-                if getattr(parameter_metadata, "_sayer_registered", False):
-                    continue
-                parameter_metadata._sayer_registered = True
 
             wrapped_function = _build_click_parameter(
                 param_obj,
@@ -371,15 +367,7 @@ class Sayer:
             with arguments.
         """
 
-        def decorator(f: T) -> T:
-            stamped_function = self._apply_param_logic(f)
-            kwargs["params"] = []
-
-            return self._group.command(*args, **kwargs)(stamped_function)
-
-        if args and callable(args[0]) and not kwargs:
-            return decorator(args[0])
-        return decorator
+        return self._group.command(*args, **kwargs)
 
     def add_app(self, alias: str, app: "Sayer", override_helper_text: bool = True) -> None:
         """

@@ -1060,12 +1060,6 @@ def command(
                 param_base_type = param_metadata_for_build.type
                 is_overriden_type = True
 
-            if param_metadata_for_build is not None:
-                # Deduplication guard
-                if getattr(param_metadata_for_build, "_sayer_registered", False):
-                    continue
-                param_metadata_for_build._sayer_registered = True
-
             # Build and apply the Click parameter decorator.
             current_wrapper = _build_click_parameter(
                 param_inspect_obj,

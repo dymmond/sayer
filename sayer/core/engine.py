@@ -148,7 +148,7 @@ def _normalize_annotation_to_runtime_type(ann: Any) -> Any:
             return Callable
         return origin
 
-    # If it’s already a concrete type (incl. Enum subclasses), return as-is
+    # If it's already a concrete type (incl. Enum subclasses), return as-is
     return ann
 
 
@@ -1217,7 +1217,7 @@ def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *arg
     return cast(click.Command, decorator)
 
 
-# Monkey-patch Click so that all groups use Sayer’s binding logic:
+# Monkey-patch Click so that all groups use Sayer's binding logic:
 # This crucial line ensures that any `click.Group` created (even outside
 # `sayer.group`) will use `sayer`'s `bind_command_to_group` when its `.command`
 # method is called. This globally enables `sayer`'s enhanced command

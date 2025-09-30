@@ -5,9 +5,24 @@ hide:
 
 ## 0.6.1
 
+### Added
+
+- **Silent Parameters** via [silent_param](./features/params.md#7-silent-parameters-silent_param) decorator:
+    - Allows parameters (e.g. `Option`, `JsonParam`) to be parsed, validated, and injected from envvars/defaults without being passed to the command callback.
+    - Hidden from `--help` and usage strings, keeping secrets and auxiliary values invisible to users.
+    - Full support for environment injection (`Env`) and complex types (`JsonParam`).
+
+### Changed
+
+- Updated `generate_signature` and usage rendering to exclude hidden (`silent_param`) options.
+- Improved error output so invalid options display both `Error:` and `Usage:` consistently.
+
 ### Fixed
 
-- Typing fixes.
+- Prevented `--secret` and other silent parameters from leaking into usage/help output.
+- Corrected variadic argument handling (`nargs=-1`) when combined with defaults.
+- Fixed duplication and hidden flag inconsistencies in `collect_usage_pieces`.
+- Internal typings that were mismatching in the development.
 
 ## 0.6.0
 
@@ -157,7 +172,7 @@ of coercing into an option with `multiple=True`.
 
 ### Root Callback Behavior
 
-* Improved `invoke_without_command` handling: root callbacks are executed even without subcommands, mirroring Click’s behavior while respecting Sayer’s callback chain.
+* Improved `invoke_without_command` handling: root callbacks are executed even without subcommands, mirroring Click's behavior while respecting Sayer's callback chain.
 
 ## 0.5.0
 

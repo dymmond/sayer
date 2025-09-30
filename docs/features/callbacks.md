@@ -1,6 +1,6 @@
 # Callbacks
 
-This guide offers an exhaustive, thoroughly explained exploration of Sayer’s **@app.callback** system.
+This guide offers an exhaustive, thoroughly explained exploration of Sayer's **@app.callback** system.
 It includes detailed explanations of the purpose, behavior, and usage of callbacks, along with richly annotated examples and best practices.
 
 ## Overview
@@ -182,5 +182,5 @@ graph TD
 
 ## Conclusion
 
-Sayer’s callback system provides powerful tools for pre-command logic, configuration management, and input handling. With this complete guide,
+Sayer's callback system provides powerful tools for pre-command logic, configuration management, and input handling. With this complete guide,
 developers can confidently build sophisticated CLI applications with Sayer.

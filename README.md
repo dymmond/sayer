@@ -139,7 +139,7 @@ pytest -v
 
 Full docs available at: [https://sayer.dymmond.com](https://sayer.dymmond.com)
 
-You’ll find:
+You'll find:
 
 * Full API reference
 * Command examples

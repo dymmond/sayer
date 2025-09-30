@@ -20,13 +20,13 @@ pip install sayer
 uv pip install sayer
 ```
 
-Once installed, you’ll have everything you need to start building CLIs immediately.
+Once installed, you'll have everything you need to start building CLIs immediately.
 
 ---
 
 ## 🚀 Your First CLI
 
-Here’s a simple Hello World app using Sayer:
+Here's a simple Hello World app using Sayer:
 
 ```python
 # app.py
@@ -138,6 +138,6 @@ if __name__ == "__main__":
 * ✅ Run via `python app.py` or `sayer` script
 * ✅ Add parameters using `Option`, `Argument`, or `Env`
 
-Next, let’s build more complex commands!
+Next, let's build more complex commands!
 
 👉 [Defining Commands](./features/commands.md)

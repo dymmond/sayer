@@ -418,7 +418,7 @@ class Sayer:
         Args:
             cmd: Either a Click Command/Group, or another Sayer instance.
             name: Optional name under which to register it; if omitted,
-                  uses cmd.name (or sub-app’s own name).
+                  uses cmd.name (or sub-app's own name).
             is_custom: If `True`, this is a custom `SayerCommand`; otherwise.
         """
         # If they passed in a Sayer instance, pull out its internal group:

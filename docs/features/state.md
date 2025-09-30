@@ -38,7 +38,7 @@ def show(config: Config):
 * Sayer creates a single shared instance per subclass
 * These instances are injected into commands when used as parameters
 
-It’s zero-config and fully typed.
+It's zero-config and fully typed.
 
 ---
 

@@ -48,7 +48,7 @@ from sayer.logging import setup_logging
 setup_logging(settings)
 ```
 
-You normally don’t need to call this manually — Sayer handles it on startup.
+You normally don't need to call this manually — Sayer handles it on startup.
 
 ---
 

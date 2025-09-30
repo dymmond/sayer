@@ -1,6 +1,6 @@
 # Parameters
 
-This guide dives deep into Sayer’s parameter system, explaining **what** each feature is, **why** you’d use it, and **when** it’s most appropriate. Examples illustrate real‐world patterns.
+This guide dives deep into Sayer's parameter system, explaining **what** each feature is, **why** you'd use it, and **when** it's most appropriate. Examples illustrate real‐world patterns.
 
 ---
 
@@ -86,7 +86,7 @@ def process(
 
 **What**: Injects values from environment variables.
 
-**Why**: For secrets and configuration you don’t want on the CLI:
+**Why**: For secrets and configuration you don't want on the CLI:
 
 * API keys
 * Database URIs
@@ -207,11 +207,121 @@ Sayer now casts multiple CLI tokens into Python containers with element-wise con
 6. **Custom callbacks** and `Param.callback` hooks.
 7. **Context / State** injection.
 
-At each step, type mismatches raise `click.BadParameter`.
+---
+
+## 7. Silent Parameters (`silent_param`)
+
+### **What**
+
+A decorator for parameter metadata (`Option`, `JsonParam`, etc.) that marks a parameter as **silent** (`expose_value=False`).
+Silent parameters are **parsed and validated** like any other, but **never injected into the command callback**.
+
+### **Why**
+
+Use silent parameters when you need values available for parsing, environment fallback, or internal validation,
+but you don't want them cluttering the function signature or being exposed to business logic.
+
+Common examples:
+
+* **Secrets and tokens** — you don't want them passed around or accidentally logged.
+* **Auxiliary config** — parsed for correctness, but consumed internally by Sayer.
+* **Flags for environment overrides** — visible to the parser, invisible to callbacks.
+
+### **When**
+
+* You want a parameter to exist for CLI/environment, but keep it **out of the callback kwargs**.
+* You need to **hide** a parameter from `--help` and usage strings.
+* You still want environment injection (`Env`) or defaults applied quietly.
+
+### **Example**
+
+```python
+from typing import Annotated
+from sayer import Sayer
+from sayer.params import Option, JsonParam
+from sayer.decorators import silent_param
+
+app = Sayer(name="demo")
+
+@app.command()
+def hello(user: Annotated[str, Option()], secret: str = silent_param(Option("--secret"))):
+    # secret is parsed and validated, but not injected
+    return f"Hello {user}"
+```
+
+**CLI:**
+
+```bash
+$ demo hello --user Sayer --secret topsecret
+Hello Sayer
+```
+
+Notice:
+
+* `--secret` is accepted on the command line.
+* `secret` is not injected into `hello()` — only `user` is passed.
+* Help output hides the secret option:
+
+```bash
+$ demo hello --help
+Usage: demo hello [--user <user>]
+
+Options:
+  --user   Required
+```
+
+### **Silent with JSON**
+
+```python
+@app.command()
+def create(
+    user: Annotated[str, Option()],
+    config: dict = silent_param(JsonParam("--config")),
+):
+    return {"user": user}
+```
+
+**CLI:**
+
+```bash
+$ demo create --user Alice --config '{"debug": true}'
+{"user": "Alice"}
+```
+
+* The `config` value is parsed and validated as JSON, but not injected into the callback return.
+
+### **Silent from Environment**
+
+```python
+@app.command()
+def deploy(
+    user: Annotated[str, Option()],
+    token: str = silent_param(Option("--token", envvar="DEPLOY_TOKEN")),
+):
+    return f"Deploying as {user}"
+```
+
+```bash
+export DEPLOY_TOKEN=supersecret
+$ demo deploy --user Dana
+Deploying as Dana
+```
+
+* `DEPLOY_TOKEN` is read from the environment.
+* `token` never appears in the callback kwargs.
+
+### **Summary**
+
+* Parse & validate
+* Environment + defaults
+* Not injected into callback
+* Not shown in `--help` or usage
+
+Silent parameters give you **security** and **clarity** by keeping sensitive/internal values invisible where they don't belong.
 
 ---
 
-## 6. Best Practices
+## 8. Best Practices
 
 * **Favor `Option`** for clarity if order of args might confuse users.
 * **Use `Argument`** for natural, required sequences.

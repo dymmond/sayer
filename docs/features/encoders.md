@@ -4,7 +4,7 @@ This document provides an in-depth guide to Sayer's encoders system.
 
 ## Overview
 
-Sayer’s encoders handle how data is serialized and deserialized within CLI commands, particularly for JSON and complex types.
+Sayer's encoders handle how data is serialized and deserialized within CLI commands, particularly for JSON and complex types.
 
 ## Key Features of Sayer Encoders
 

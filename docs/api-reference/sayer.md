@@ -57,7 +57,7 @@ python main.py greet --name Alice
 * ✅ Structure commands using sub-apps or groups for large projects.
 * ✅ Use `run()` or `app()` consistently to start the CLI.
 * ❌ Avoid mixing `print` and `console.print` output.
-* ❌ Don’t directly manipulate the underlying `cli` unless necessary.
+* ❌ Don't directly manipulate the underlying `cli` unless necessary.
 
 ## Related Topics
 

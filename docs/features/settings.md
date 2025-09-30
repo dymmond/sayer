@@ -123,7 +123,7 @@ The `Settings` class is primarily used:
 
 * As the fallback configuration if `SAYER_SETTINGS_MODULE` is not defined
 * By components like `sayer.logging` and `rich` terminal integration
-* To bootstrap internal state when settings aren’t user-defined
+* To bootstrap internal state when settings aren't user-defined
 
 ---
 
@@ -217,7 +217,7 @@ def show():
     print("Debug mode:", settings.debug)
 ```
 
-No need to pass it explicitly — it’s global, and lazily loaded on first access.
+No need to pass it explicitly — it's global, and lazily loaded on first access.
 
 ---
 
@@ -251,7 +251,7 @@ SAYER_SETTINGS_MODULE=myapp.settings.Dev
 
 ### 2. Type Your Settings
 
-Sayer doesn’t enforce typing but it’s recommended:
+Sayer doesn't enforce typing but it's recommended:
 
 ```python
 class Dev:

@@ -33,6 +33,38 @@ def test_option_with_default():
     assert "Hello World" in result.output
 
 
+def test_option_with_callback():
+    def callback(ctx, param, value):
+        return f"{param.default} {value}"
+
+    @command
+    def greet(name: Annotated[str, Option(callback=callback, default="full")]):
+        click.echo(f"Hello {name}")
+
+    cmd = get_commands()["greet"]
+    runner = CliRunner()
+    result = runner.invoke(cmd, ["--name", "World"])
+
+    assert result.exit_code == 0
+    assert "Hello full World" in result.output
+
+
+def test_option_with_callback_and_default():
+    def callback(ctx, param, value):
+        return value.upper()
+
+    @command
+    def greet(name: Annotated[str, Option(callback=callback, default="World")]):
+        click.echo(f"Hello {name}")
+
+    cmd = get_commands()["greet"]
+    runner = CliRunner()
+    result = runner.invoke(cmd, [])
+
+    assert result.exit_code == 0
+    assert "Hello WORLD" in result.output
+
+
 def test_argument_required():
     @command
     def shout(word: Annotated[str, Argument()]):

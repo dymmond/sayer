@@ -1,4 +1,9 @@
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+if TYPE_CHECKING:
+    import click
 
 
 class BaseParam:
@@ -18,36 +23,6 @@ class BaseParam:
         """
         self.type: Any = options.pop("type", None)
         self.options: dict[str, Any] = options if options is not None else {}
-
-    def get_param_definitions(self) -> dict[str, Any]:
-        """
-        Returns the parameter definitions as a dictionary.
-
-        This method can be overridden by subclasses to provide specific parameter
-        definitions.
-
-        Returns:
-            A dictionary containing the parameter definitions.
-        """
-        values = self.__dict__.copy()
-
-        if not self.options:
-            values.pop("options", None)
-            return dict(values)
-
-        data: dict[str, Any] = {}
-
-        for top_key, top_value in values.items():
-            for key in self.options.keys():
-                if key == top_key:
-                    value = self.options.pop(key)
-                    data[key] = value
-                else:
-                    data[key] = top_value
-
-        if "options" in data:
-            del data["options"]
-        return data
 
 
 class Option(BaseParam):
@@ -69,7 +44,7 @@ class Option(BaseParam):
         hide_input: bool = False,
         show_default: bool = True,
         required: Optional[bool] = None,
-        callback: Optional[Callable[[Any], Any]] = None,
+        callback: Optional[Callable[[click.Context, click.Parameter, Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
         **options: Any,
@@ -129,7 +104,7 @@ class Argument(BaseParam):
         *param_decls: str,
         help: str | None = None,
         required: Optional[bool] = None,
-        callback: Optional[Callable[[Any], Any]] = None,
+        callback: Optional[Callable[[click.Context, click.Parameter, Any], Any]] = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
         **options: Any,
@@ -216,7 +191,7 @@ class Param(BaseParam):
         hide_input: bool = False,
         show_default: bool = True,
         required: bool | None = None,
-        callback: Callable[[Any], Any] | None = None,
+        callback: Callable[[click.Context, click.Parameter, Any], Any] | None = None,
         default_factory: Callable[[], Any] | None = None,
         is_flag: bool = False,
         **options: Any,

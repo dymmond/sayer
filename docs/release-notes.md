@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.6.1
+
+### Fixed
+
+- Typing fixes.
+
 ## 0.6.0
 
 ### Added

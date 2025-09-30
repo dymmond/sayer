@@ -68,10 +68,8 @@ class CommandRegistry(dict[T, V]):
 
 
 COMMANDS: CommandRegistry[str, click.Command] = CommandRegistry()
-_GROUPS: dict[str, click.Group] = {}
-
-# Primitive ↔ Click ParamType map
-_PRIMITIVE_TYPE_MAP = {
+GROUPS: dict[str, click.Group] = {}
+PRIMITIVE_TYPE_MAP = {
     str: click.STRING,
     int: click.INT,
     float: click.FLOAT,
@@ -283,47 +281,61 @@ def _safe_get_type_hints(func: Any, *, include_extras: bool = True) -> Mapping[s
 
 
 def _normalize_annotation_to_runtime_type(ann: Any) -> Any:
-    """
-    Reduce typing annotations to a runtime-checkable/conversion-friendly base.
-    - Annotated[T, ...] -> T
-    - Optional[T] (Union[T, None]) -> T
-    - Union[A, B, ...] -> base of first non-None arg (best-effort)
-    - Literal["x", ...] -> type of first literal (str/int/bool/...)
-    - list[int] -> list, dict[str, int] -> dict, etc.
-    - Callable[..., ...] -> collections.abc.Callable
-    - Leave Enums alone (the engine may want to treat them specially)
+    """Recursively reduces complex type annotations to a simple, runtime-checkable base type.
+
+    This function unwraps nested, placeholder, and generic type annotations to extract
+    the most specific concrete type suitable for runtime checks, conversions, or
+    initial parameter construction (e.g., for Click type system integration).
+
+    Args:
+        ann: The type annotation (`Any`) to be processed.
+
+    Returns:
+        The simplified base type, which may be a concrete Python type (`str`, `int`),
+        a generic origin type (`list`, `dict`), or a Click-compatible type.
+
+    The normalization rules applied are:
+    1.  **None**: Maps `None` (as a value) to the `type(None)` object.
+    2.  **Annotated**: Extracts the base type $T$ from $\text{Annotated}[T, \\dots]$.
+    3.  **Optional/Union**: Extracts the first non-`None` type $T$ from $\text{Union}[T, \text{None}]$ (i.e., $\text{Optional}[T]$) or general unions. This is a best-effort heuristic.
+    4.  **Literal**: Maps $\text{Literal}[\text{"a"}, 1]$ to the type of its first value (e.g., $\text{str}$).
+    5.  **Generics**: Maps subscripted generics (e.g., $\text{list}[\text{int}]$) to their origin (e.g., $\text{list}$).
+    6.  **Callable**: Maps $\text{typing.Callable}[\\dots]$ to $\text{collections.abc.Callable}$ for runtime compatibility.
+    7.  **Concrete Types**: Leaves simple types and `Enum` subclasses as-is.
     """
     if ann is None:
         return type(None)
 
     origin = get_origin(ann)
 
-    # Annotated[T, ...]
+    # 1. Annotated[T, ...] -> T
     if origin is Annotated:
         args = get_args(ann)
         return _normalize_annotation_to_runtime_type(args[0]) if args else Any
 
-    # Optional[T] or general Union
-    if origin is Union:
+    # 2. Optional[T] (Union[T, None]) or general Union
+    if origin in (Union, types.UnionType):
+        # Filter out type(None) to unwrap Optional[T]
         args = [a for a in get_args(ann) if a is not type(None)]
         if not args:
             return type(None)
-        # Heuristic: take the first non-None argument as base
+        # Heuristic: Recursively normalize the first non-None argument as the base
         return _normalize_annotation_to_runtime_type(args[0])
 
-    # Literal["x", 1, True] -> type of first literal
+    # 3. Literal["x", 1, True] -> type of first literal
     if origin is Literal:
         lits = get_args(ann)
         return type(lits[0]) if lits else Any
 
-    # Subscripted generics -> map to their origin
+    # 4. Subscripted generics -> map to their origin
     if origin is not None:
-        # Callable[...] -> collections.abc.Callable
-        if origin in (Callable,):
+        # 4a. Callable[...] -> collections.abc.Callable
+        if origin in (Callable, Callable):
             return Callable
+        # 4b. list[int] -> list, dict[str, int] -> dict, etc.
         return origin
 
-    # If it's already a concrete type (incl. Enum subclasses), return as-is
+    # 5. If it's already a concrete type (incl. Enum subclasses), return as-is
     return ann
 
 
@@ -587,7 +599,7 @@ def _handle_variadic_args(ctx: ParameterContext) -> Optional[Callable]:
     if ctx.metadata is None and base_origin in (list, tuple) and ctx.parameter.name in {"args", "argv"}:
         inner_args = get_args(ctx.base_type)
         inner_type = inner_args[0] if inner_args else str
-        click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
+        click_inner_type = PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
         return click.argument(
             ctx.parameter.name,
             nargs=-1,
@@ -632,7 +644,7 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
 
     inner_args = get_args(ctx.base_type)
     inner_type = inner_args[0] if inner_args else str
-    click_inner_type = _PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
+    click_inner_type = PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
 
     if isinstance(ctx.metadata, Argument):
         variadic_nargs = ctx.metadata.options.get("nargs", -1)
@@ -1591,7 +1603,7 @@ def group(
         internal registry.
     """
     # Check if the group already exists to avoid re-creating it.
-    if name not in _GROUPS:
+    if name not in GROUPS:
         # Determine the group class to use; default to `SayerGroup`.
         group_class_to_use = group_cls or SayerGroup
         # Create the Click group instance.
@@ -1627,9 +1639,9 @@ def group(
         # Monkey-patch the group's `command` method.
         new_group_instance.command = _group_command_method_override  # type: ignore
         # Store the created group in the internal groups registry.
-        _GROUPS[name] = new_group_instance
+        GROUPS[name] = new_group_instance
 
-    return _GROUPS[name]
+    return GROUPS[name]
 
 
 def get_commands() -> dict[str, click.Command]:
@@ -1656,7 +1668,7 @@ def get_groups() -> dict[str, click.Group]:
         A dictionary where keys are group names (strings) and values are
         `click.Group` objects.
     """
-    return _GROUPS
+    return GROUPS
 
 
 def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *args: Any, **attrs: Any) -> click.Command:

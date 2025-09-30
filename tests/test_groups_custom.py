@@ -3,15 +3,15 @@ import pytest
 from click.testing import CliRunner
 
 from sayer import Sayer, group
-from sayer.core.engine import _GROUPS
+from sayer.core.engine import GROUPS
 from sayer.testing import SayerTestClient
 
 
 @pytest.fixture(autouse=True)
 def reset_groups():
-    _GROUPS.clear()
+    GROUPS.clear()
     yield
-    _GROUPS.clear()
+    GROUPS.clear()
 
 
 @pytest.fixture

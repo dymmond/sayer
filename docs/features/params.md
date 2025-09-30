@@ -176,7 +176,7 @@ Sayer now casts multiple CLI tokens into Python containers with element-wise con
 
 **Implementation Details**:
 
-* Under the hood, `_convert_cli_value_to_type` inspects `typing.get_origin` and `get_args`.
+* Under the hood, `convert_cli_value_to_type` inspects `typing.get_origin` and `get_args`.
 * Lists/tuples/sets/frozensets: iterate and cast each item.
 * `dict[K,V]`: expects tokens `key=value`, splitting and casting both sides.
 

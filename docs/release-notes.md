@@ -3,7 +3,7 @@ hide:
   - navigation
 ---
 
-## 0.6.1
+## 0.7.0
 
 ### Added
 
@@ -16,6 +16,7 @@ hide:
 
 - Updated `generate_signature` and usage rendering to exclude hidden (`silent_param`) options.
 - Improved error output so invalid options display both `Error:` and `Usage:` consistently.
+- Reorganise the internals of Sayer and split functionality.
 
 ### Fixed
 
@@ -113,7 +114,7 @@ without breaking either workflow.
 ### Changed
 
 - `command()` now uses `_safe_get_type_hints()` instead of `get_type_hints()` for dynamic module safety.
-- `_convert_cli_value_to_type()`:
+- `convert_cli_value_to_type()`:
     - Handles `Union` and `Optional` early, trying inner types in order.
     - Normalizes annotations only after container checks.
     - Prevents `TypeError: cannot create 'types.UnionType' instances`.

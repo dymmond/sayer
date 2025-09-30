@@ -17,7 +17,7 @@ from sayer.conf import monkay
 from sayer.core.commands.base import BaseSayerCommand
 from sayer.core.commands.config import CustomCommandConfig
 from sayer.core.commands.sayer import SayerCommand
-from sayer.core.engine import _build_click_parameter
+from sayer.core.engine import build_click_parameter
 from sayer.core.groups.sayer import SayerGroup
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State
@@ -190,7 +190,7 @@ class Sayer:
     def _apply_param_logic(self, target_function: Callable[..., Any]) -> Callable[..., Any]:
         """
         Stamps a function (whether a command or a callback) with all `Annotated`
-        metadata by calling into the same `_build_click_parameter` logic that
+        metadata by calling into the same `build_click_parameter` logic that
         `@app.command` uses.
 
         Args:
@@ -202,7 +202,7 @@ class Sayer:
         function_signature = inspect.signature(target_function)
         type_hints = get_type_hints(target_function, include_extras=True)
         wrapped_function = target_function
-        # Check if click.Context is injected, to pass to _build_click_parameter
+        # Check if click.Context is injected, to pass to build_click_parameter
         context_param_injected = any(
             type_hints.get(p.name, p.annotation) is click.Context for p in function_signature.parameters.values()
         )
@@ -241,7 +241,7 @@ class Sayer:
                 actual_param_type = parameter_metadata.type
                 is_overriden_type = True
 
-            wrapped_function = _build_click_parameter(
+            wrapped_function = build_click_parameter(
                 param_obj,
                 raw_type_annotation,
                 actual_param_type,
@@ -310,7 +310,7 @@ class Sayer:
                         param_config.default = None
 
                     # Fallback logic for inferring 'required' if it was somehow None.
-                    # This case should ideally not be hit if `_build_click_parameter`
+                    # This case should ideally not be hit if `build_click_parameter`
                     # always sets `required` to `True` or `False`.
                     elif param_config.required is None:
                         # If a default value is explicitly provided (not None, Ellipsis, or _empty),

@@ -100,7 +100,7 @@ class ParameterContext:
     resolved_default: Any = field(init=False)
     is_required: bool = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.expose = getattr(self.metadata, "expose_value", True)
         self.hidden = not self.expose
 
@@ -143,7 +143,7 @@ class ParameterContext:
                 return True
             return False
 
-        if self.resolved_default is not None:
+        if self.resolved_default is not None:  # type: ignore
             return False
         if self.has_default:
             return False
@@ -571,7 +571,10 @@ def _handle_json(ctx: ParameterContext) -> Optional[Callable]:
         if SUPPORTS_HIDDEN:
             kwargs["hidden"] = ctx.hidden
 
-        return click.option(f"--{ctx.parameter.name.replace('_', '-')}", **kwargs)(ctx.wrapper)
+        return click.option(
+            f"--{ctx.parameter.name.replace('_', '-')}",
+            **cast(dict[str, Any], kwargs),
+        )(ctx.wrapper)
     return None
 
 
@@ -722,7 +725,7 @@ def _handle_boolean_flag(ctx: ParameterContext) -> Optional[Callable]:
 
     return click.option(
         f"--{ctx.parameter.name.replace('_', '-')}",
-        **kwargs,
+        **cast(dict[str, Any], kwargs),
     )(ctx.wrapper)
 
 

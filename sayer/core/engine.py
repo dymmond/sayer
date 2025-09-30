@@ -41,6 +41,8 @@ F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T")
 V = TypeVar("V")
 
+SUPPORTS_HIDDEN = "hidden" in inspect.signature(click.Option).parameters
+
 
 class CommandRegistry(dict[T, V]):
     """
@@ -428,6 +430,8 @@ def _build_click_parameter(
         argument or option.
     """
     parameter_name = parameter.name
+    expose = getattr(parameter_metadata, "expose_value", True)
+    hidden = not expose
 
     # Handle Optional/Union[T, None] by collapsing to T when unambiguous
     origin = get_origin(parameter_base_type)
@@ -460,6 +464,7 @@ def _build_click_parameter(
             nargs=-1,
             type=click_inner_type,
             required=False,
+            expose_value=getattr(parameter_metadata, "expose_value", True),
         )(click_wrapper_function)
 
     # ---------- list[T] or Sequence[T] -> multiple=True ----------
@@ -479,17 +484,26 @@ def _build_click_parameter(
                 parameter_name,
                 type=arg_type,
                 required=is_required_local,
+                expose_value=parameter_metadata.expose_value,
                 **arg_options,
             )(click_wrapper_function)
 
         default_for_sequence = () if not has_default_value else parameter.default
+        kwargs = {
+            "type": click_inner_type if not is_overriden_type else parameter_base_type,
+            "multiple": True,
+            "default": default_for_sequence,
+            "show_default": True,
+            "help": param_help_text,
+            "expose_value": expose,
+        }
+
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=click_inner_type if not is_overriden_type else parameter_base_type,
-            multiple=True,
-            default=default_for_sequence,
-            show_default=True,
-            help=param_help_text,
+            **kwargs,
         )(click_wrapper_function)
 
     # ---------- Enum -> Choice ----------
@@ -498,12 +512,21 @@ def _build_click_parameter(
         enum_default_value = None
         if has_default_value:
             enum_default_value = parameter.default.value if isinstance(parameter.default, Enum) else parameter.default
+
+        kwargs = {
+            "type": click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
+            "default": enum_default_value,
+            "show_default": True,
+            "help": param_help_text,
+            "expose_value": expose,
+        }
+
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=click.Choice(enum_choices) if not is_overriden_type else parameter_base_type,
-            default=enum_default_value,
-            show_default=True,
-            help=param_help_text,
+            **kwargs,
         )(click_wrapper_function)
 
     # ---------- Implicit JSON injection ----------
@@ -522,13 +545,20 @@ def _build_click_parameter(
 
     # ---------- Explicit JsonParam ----------
     if isinstance(parameter_metadata, JsonParam):
+        kwargs = {
+            "type": click.STRING if not is_overriden_type else parameter_base_type,
+            "default": parameter_metadata.default,
+            "required": parameter_metadata.required,
+            "show_default": False,
+            "expose_value": expose,
+            "help": f"{param_help_text} (JSON)",
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=click.STRING if not is_overriden_type else parameter_base_type,
-            default=parameter_metadata.default,
-            required=parameter_metadata.required,
-            show_default=False,
-            help=f"{param_help_text} (JSON)",
+            **kwargs,
         )(click_wrapper_function)
 
     # ---------- Path / UUID / date / datetime / File ----------
@@ -569,12 +599,15 @@ def _build_click_parameter(
             if final_default_value is not None and final_default_value is not inspect._empty:
                 parameter_metadata.options["default"] = final_default_value
 
-        wrapped = click.argument(
-            parameter_name,
-            type=parameter_base_type,
-            required=is_required,
-            **parameter_metadata.options,
-        )(click_wrapper_function)
+        arg_kwargs = dict(parameter_metadata.options)
+        arg_kwargs.update(
+            {
+                "type": parameter_base_type,
+                "required": is_required,
+                "expose_value": getattr(parameter_metadata, "expose_value", True),
+            }
+        )
+        wrapped = click.argument(parameter_name, **arg_kwargs)(click_wrapper_function)
 
         help_text = getattr(parameter_metadata, "help", "")
         if hasattr(wrapped, "params"):
@@ -586,14 +619,21 @@ def _build_click_parameter(
     # ---------- Env ----------
     if isinstance(parameter_metadata, Env):
         env_resolved_value = os.getenv(parameter_metadata.envvar, parameter_metadata.default)
+        kwargs = {
+            "type": parameter_base_type,
+            "default": (None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
+            "show_default": True,
+            "required": parameter_metadata.required,
+            "help": f"[env:{parameter_metadata.envvar}] {effective_help_text}",
+            "expose_value": expose,
+            **parameter_metadata.options,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=parameter_base_type,
-            default=(None if getattr(parameter_metadata, "default_factory", None) else env_resolved_value),
-            show_default=True,
-            required=parameter_metadata.required,
-            help=f"[env:{parameter_metadata.envvar}] {effective_help_text}",
-            **parameter_metadata.options,
+            **kwargs,
         )(click_wrapper_function)
 
     # ---------- Option ----------
@@ -625,20 +665,27 @@ def _build_click_parameter(
         if parameter_metadata.is_flag and option_default is True:
             default_kwarg["default"] = None  # let Click map internally
 
+        kwargs = {
+            "type": None if is_boolean_flag else parameter_base_type,
+            "is_flag": is_boolean_flag,
+            "required": is_required,
+            "show_default": parameter_metadata.show_default,
+            "help": effective_help_text,
+            "prompt": parameter_metadata.prompt,
+            "hide_input": parameter_metadata.hide_input,
+            "callback": parameter_metadata.callback,
+            "envvar": parameter_metadata.envvar,
+            "expose_value": expose,
+            **parameter_metadata.options,
+            **default_kwarg,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
             *parameter_metadata.param_decls,
-            type=None if is_boolean_flag else parameter_base_type,
-            is_flag=is_boolean_flag,
-            required=is_required,  # ✅ trust computed required
-            show_default=parameter_metadata.show_default,
-            help=effective_help_text,
-            prompt=parameter_metadata.prompt,
-            hide_input=parameter_metadata.hide_input,
-            callback=parameter_metadata.callback,
-            envvar=parameter_metadata.envvar,
-            **parameter_metadata.options,
-            **default_kwarg,
+            **kwargs,
         )(click_wrapper_function)
 
     # ---------- Defaults with no explicit metadata ----------
@@ -646,22 +693,36 @@ def _build_click_parameter(
         return click.argument(parameter_name, type=parameter_base_type, required=True)(click_wrapper_function)
 
     if is_context_injected and not is_boolean_flag:
+        kwargs = {
+            "type": parameter_base_type,
+            "default": final_default_value,
+            "required": is_required,
+            "show_default": True,
+            "help": effective_help_text,
+            "expose_value": expose,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=parameter_base_type,
-            default=final_default_value,
-            required=is_required,
-            show_default=True,
-            help=effective_help_text,
+            **kwargs,
         )(click_wrapper_function)
 
     if is_boolean_flag and isinstance(parameter.default, bool):
+        kwargs = {
+            "is_flag": True,
+            "default": parameter.default,
+            "show_default": True,
+            "help": effective_help_text,
+            "expose_value": expose,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            is_flag=True,
-            default=parameter.default,
-            show_default=True,
-            help=effective_help_text,
+            **kwargs,
         )(click_wrapper_function)
 
     if isinstance(parameter.default, Param):
@@ -670,14 +731,22 @@ def _build_click_parameter(
             type=parameter_base_type,
             required=False,
             default=parameter.default.default,
+            expose_value=expose,
         )(click_wrapper_function)
 
     if parameter.default is None:
+        kwargs = {
+            "type": parameter_base_type,
+            "show_default": True,
+            "help": effective_help_text,
+            "expose_value": expose,
+        }
+        if SUPPORTS_HIDDEN:
+            kwargs["hidden"] = hidden
+
         return click.option(
             f"--{parameter_name.replace('_', '-')}",
-            type=parameter_base_type,
-            show_default=True,
-            help=effective_help_text,
+            **kwargs,
         )(click_wrapper_function)
 
     final_wrapped_function = click.argument(
@@ -990,6 +1059,12 @@ def command(
             if getattr(param_metadata_for_build, "type", None) is not None:
                 param_base_type = param_metadata_for_build.type
                 is_overriden_type = True
+
+            if param_metadata_for_build is not None:
+                # Deduplication guard
+                if getattr(param_metadata_for_build, "_sayer_registered", False):
+                    continue
+                param_metadata_for_build._sayer_registered = True
 
             # Build and apply the Click parameter decorator.
             current_wrapper = _build_click_parameter(

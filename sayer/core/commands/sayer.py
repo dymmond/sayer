@@ -70,7 +70,13 @@ class SayerCommand(BaseSayerCommand):
 
             kwargs["_sayer_natural_call"] = True
 
+            # Filter out silent params
+            param_map = {p.name: p for p in self.params}
+            filtered_kwargs = {
+                k: v for k, v in kwargs.items() if k not in param_map or getattr(param_map[k], "expose_value", True)
+            }
+
             # If we're inside an asyncio event loop and the underlying function is async,
             # Activate a transient context so pass_context can inject it
             with click.Context(self, info_name=self.name):
-                return self.callback(**kwargs)
+                return self.callback(**filtered_kwargs)

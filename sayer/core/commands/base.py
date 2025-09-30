@@ -24,3 +24,40 @@ class BaseSayerCommand(ABC, click.Command):
         # Optionally also stash on the command instance as a robust fallback:
         self._sayer_last_return_value = return_value  # noqa
         return return_value
+
+    def collect_usage_pieces(self, ctx: click.Context):
+        """
+        Override Click's usage rendering to skip hidden parameters (silent_param).
+        """
+        rv = []
+        for param in self.get_params(ctx):
+            if getattr(param, "hidden", False):
+                continue
+
+            if not getattr(param, "expose_value", True):
+                param.opts = []
+                param.secondary_opts = []
+
+            rv.extend(param.get_usage_pieces(ctx))
+        return rv
+
+    def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """
+        Override Click's usage rendering to hide parameters
+        explicitly marked as hidden (e.g., expose_value=False).
+        """
+        original_params = self.params
+        sanitized_params = []
+        for p in original_params:
+            if getattr(p, "hidden", False):
+                p_copy = click.Option(param_decls=[], expose_value=False, hidden=True)
+                p_copy.name = p.name
+                sanitized_params.append(p_copy)
+            else:
+                sanitized_params.append(p)
+
+        self.params = sanitized_params
+        try:
+            super().format_usage(ctx, formatter)
+        finally:
+            self.params = original_params

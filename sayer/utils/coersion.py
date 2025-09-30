@@ -1,4 +1,8 @@
+import inspect
+
 import click
+
+SUPPORTS_HIDDEN = "hidden" in inspect.signature(click.Option).parameters
 
 
 def coerce_argument_to_option(param_config: click.Argument, *, force: bool = False) -> click.Parameter:
@@ -12,14 +16,12 @@ def coerce_argument_to_option(param_config: click.Argument, *, force: bool = Fal
     if not isinstance(param_config, click.Argument) or param_config.type is click.UNPROCESSED:
         return param_config
 
-    # Don't ever coerce variadic arguments
     if param_config.nargs == -1 and not force:
         return param_config
 
     if not force:
         return param_config
 
-    # Build Option from Argument
     flag_name = f"--{param_config.name.replace('_', '-')}"
     option_kwargs = {
         "param_decls": [flag_name],
@@ -28,6 +30,7 @@ def coerce_argument_to_option(param_config: click.Argument, *, force: bool = Fal
         "help": getattr(param_config, "help", None),
         "multiple": param_config.multiple,
         "nargs": param_config.nargs,
+        "expose_value": getattr(param_config, "expose_value", True),
     }
 
     if param_config.default is not None:
@@ -35,5 +38,9 @@ def coerce_argument_to_option(param_config: click.Argument, *, force: bool = Fal
         option_kwargs["show_default"] = True
     else:
         option_kwargs["show_default"] = False
+
+    # ✅ Preserve hidden if supported
+    if SUPPORTS_HIDDEN and getattr(param_config, "hidden", False):
+        option_kwargs["hidden"] = True
 
     return click.Option(**option_kwargs)

@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.7.1
+
+### Added
+
+- Python 3.14 support.
+
 ## 0.7.0
 
 ### Added

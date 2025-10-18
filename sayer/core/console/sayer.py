@@ -31,6 +31,9 @@ def render_help_for_command(
     """
     cmd = ctx.command
 
+    if getattr(cmd, "hidden", False) is True:
+        return
+
     # USAGE LINE ——
     signature = generate_signature(cmd)
     if isinstance(cmd, click.Group):
@@ -52,9 +55,9 @@ def render_help_for_command(
     user_options = [
         p
         for p in cmd.params
-        if isinstance(p, (click.Option, click.Argument))
+        if not getattr(p, "hidden", False)
+        and isinstance(p, (click.Option, click.Argument))
         and "--help" not in getattr(p, "opts", ())
-        and not getattr(p, "hidden", False)
     ]
 
     flags_req_def_desc: list[tuple[str, str, str, str]] = []
@@ -133,6 +136,8 @@ def render_help_for_command(
         max_cmd_len = 0
 
         for name, sub in cmd.commands.items():
+            if getattr(sub, "hidden", False) is True:
+                continue
             if hasattr(cmd, "custom_commands") and cmd.custom_commands and name in cmd.custom_commands:
                 continue
 

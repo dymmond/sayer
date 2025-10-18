@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.7.2
+
+### Fixed
+
+- Support for hidden commands in custom groups and main.
+
 ## 0.7.1
 
 ### Added

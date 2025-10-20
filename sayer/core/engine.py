@@ -401,6 +401,7 @@ def command(
                 for meta_item in get_args(raw_annotation_for_param)[1:]:
                     if isinstance(meta_item, (Option, Argument, Env, Param, JsonParam)):
                         param_metadata_for_build = meta_item
+                        param_help_for_build = getattr(meta_item, "help", "") or ""
                     elif isinstance(meta_item, str):
                         param_help_for_build = meta_item
             # If no metadata found in `Annotated`, check if the default value is metadata.

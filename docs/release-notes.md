@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.7.3
+
+### Fixed
+
+- Regression getting the help text for the fields.
+
 ## 0.7.2
 
 ### Fixed

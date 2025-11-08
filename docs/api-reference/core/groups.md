@@ -10,7 +10,7 @@ This document details `sayer/core/groups.py`, focusing on the `SayerGroup` class
 
 * **Automatic Command Registration**: Ensures nested commands inherit Sayer's advanced capabilities.
 * **Rich Error Handling**: Formats errors and help messages with `rich` for better UX.
-* **Custom Help Rendering**: Overrides `format_help()` to use `render_help_for_command` for beautiful, readable help output.
+* **Custom Help Rendering**: Overrides `format_help()` to use `render_help` for beautiful, readable help output.
 
 ### Example
 

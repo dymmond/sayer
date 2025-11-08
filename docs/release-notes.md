@@ -5,7 +5,10 @@ hide:
 
 ## 0.7.4
 
+### Changed
+
 - Allow default arguments outside of the fields declaration. E.g.: `Option[...] = 2"
+- Rename `render_for_help_command` to `render_help`.
 
 ## 0.7.3
 

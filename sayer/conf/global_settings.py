@@ -16,6 +16,7 @@ from typing import (
 )
 
 from sayer.__version__ import __version__  # noqa
+from sayer.core.console.sayer import RichHelpFormatter
 
 if TYPE_CHECKING:
     from sayer.logging import LoggingConfig
@@ -253,10 +254,16 @@ class Settings(BaseSettings):
     help messages are formatted correctly in different terminal sizes and
     environments.
     """
+    formatter_class: Any = RichHelpFormatter
+    """
+    The formatter used by default in Sayer and can be overridden by any
+    custom formatter class.
+    """
+
     __logging_config__: LoggingConfig | None = None
 
     @property
-    def logging_config(self) -> "LoggingConfig" | None:
+    def logging_config(self) -> "LoggingConfig | None":
         """
         Provides the configured logging setup based on current monkay.settings.
 

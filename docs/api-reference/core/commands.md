@@ -12,7 +12,7 @@ Commands are usually created using the `@command` decorator in Sayer, but `Sayer
 
 ### Key Features
 
-* **Enhanced Help**: Overrides `get_help()` to provide rich, formatted help output using Sayer's `render_help_for_command`.
+* **Enhanced Help**: Overrides `get_help()` to provide rich, formatted help output using Sayer's `render_help`.
 * **Automatic Parameter Parsing**: Supports `Annotated` types and custom parameter injection.
 
 ### Example

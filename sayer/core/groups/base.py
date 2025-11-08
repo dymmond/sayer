@@ -157,7 +157,7 @@ class BaseSayerGroup(ABC, click.Group):
         Sayer's custom Rich help renderer.
 
         This method overrides Click's default help formatting. It delegates
-        the rendering process to `sayer.core.help.render_help_for_command`,
+        the rendering process to `sayer.core.loader.render_help`,
         which is responsible for generating a richly formatted help output.
 
         Args:

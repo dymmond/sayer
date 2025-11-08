@@ -19,7 +19,7 @@ class SayerGroup(BaseSayerGroup):
         Sayer's custom Rich help renderer.
 
         This method overrides Click's default help formatting. It delegates
-        the rendering process to `sayer.core.help.render_help_for_command`,
+        the rendering process to `sayer.core.loader.render_help`,
         which is responsible for generating a richly formatted help output.
 
         Args:
@@ -27,9 +27,9 @@ class SayerGroup(BaseSayerGroup):
             formatter: An optional Click `HelpFormatter` instance (though ignored
                        as Sayer uses its own rendering).
         """
-        from sayer.core.console.sayer import (
-            render_help_for_command,
+        from sayer.core.console.loader import (
+            render_help,
         )
 
         # Delegate the help rendering to Sayer's custom help function.
-        render_help_for_command(ctx, self.display_full_help, self.display_help_length)
+        render_help(ctx, self.display_full_help, self.display_help_length)

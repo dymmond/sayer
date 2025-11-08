@@ -69,7 +69,6 @@ class RichHelpFormatter:
         # Exit
         self.ctx.exit()
 
-
     def render_usage(self) -> Padding:
         """Renders the 'Usage:' line."""
         signature = generate_signature(self.cmd)
@@ -85,11 +84,7 @@ class RichHelpFormatter:
 
     def render_description(self) -> Padding:
         """Renders the command's description as Markdown."""
-        raw_help = (
-            self.cmd.help
-            or (self.cmd.callback.__doc__ or "").strip()
-            or "No description provided."
-        )
+        raw_help = self.cmd.help or (self.cmd.callback.__doc__ or "").strip() or "No description provided."
         description_renderable = Markdown(raw_help)
         return Padding(description_renderable, (0, 0, 0, 1))
 
@@ -108,9 +103,7 @@ class RichHelpFormatter:
             padding=(0, 2),
             expand=False,
         )
-        opt_table.add_column(
-            "Flags", style="bold cyan", no_wrap=True, min_width=max_flag_len
-        )
+        opt_table.add_column("Flags", style="bold cyan", no_wrap=True, min_width=max_flag_len)
         opt_table.add_column("Required", style="red", no_wrap=True, justify="center")
         opt_table.add_column("Default", style="blue", no_wrap=True, justify="center")
         opt_table.add_column("Description", style="gray50", ratio=1)
@@ -148,9 +141,7 @@ class RichHelpFormatter:
             padding=(0, 2),
             expand=False,
         )
-        cmd_table.add_column(
-            "Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len
-        )
+        cmd_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
         cmd_table.add_column("Description", style="gray50", ratio=1)
 
         for name, summary in sub_items:
@@ -171,9 +162,7 @@ class RichHelpFormatter:
             return []
 
         items = (
-            self.cmd.custom_commands.items()
-            if isinstance(self.cmd.custom_commands, dict)
-            else self.cmd.custom_commands
+            self.cmd.custom_commands.items() if isinstance(self.cmd.custom_commands, dict) else self.cmd.custom_commands
         )
         grouped: Dict[str, List[Tuple[str, str]]] = {}
         default_title = getattr(
@@ -187,9 +176,7 @@ class RichHelpFormatter:
             lines = raw_sub_help.strip().splitlines()
             summary = lines[0] if lines else ""
 
-            title = getattr(
-                getattr(sub, "custom_command_config", None), "title", default_title
-            )
+            title = getattr(getattr(sub, "custom_command_config", None), "title", default_title)
             grouped.setdefault(title, []).append((name, summary))
 
         panels = []
@@ -204,9 +191,7 @@ class RichHelpFormatter:
                 padding=(0, 2),
                 expand=False,
             )
-            custom_table.add_column(
-                "Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len
-            )
+            custom_table.add_column("Name", style="bold cyan", no_wrap=True, min_width=max_cmd_len)
             custom_table.add_column("Description", style="gray50", ratio=1)
 
             for name, summary in sub_items:
@@ -284,11 +269,7 @@ class RichHelpFormatter:
         for name, sub in self.cmd.commands.items():
             if getattr(sub, "hidden", False) is True:
                 continue
-            if (
-                hasattr(self.cmd, "custom_commands")
-                and self.cmd.custom_commands
-                and name in self.cmd.custom_commands
-            ):
+            if hasattr(self.cmd, "custom_commands") and self.cmd.custom_commands and name in self.cmd.custom_commands:
                 continue
 
             raw_sub_help = sub.help or ""
@@ -311,52 +292,3 @@ class RichHelpFormatter:
             return f"{first_line}\n{remaining}" if remaining else first_line
         else:
             return raw_help
-
-
-def render_help_for_command(*args, **kwargs) -> None:
-    """
-    Renders help using the RichHelpFormatter class.
-
-    This function is designed to be called in two ways,
-    due to inconsistencies in the Sayer framework:
-
-    1. As a direct function: render_help_for_command(ctx)
-       (Likely used by SayerCommand.format_help)
-    2. As a 'format_help' method replacement: cmd.format_help = render_help_for_command
-       (Likely used by SayerGroup, which passes [self, ctx, formatter])
-
-    To provide a custom formatter, create a subclass of RichHelpFormatter
-    and attach it to the context, e.g.:
-    ctx.formatter_class = MyCustomHelpFormatter
-    """
-
-    ctx: click.Context
-    if args and isinstance(args[0], click.Context):
-        # Case 1: render_help_for_command(ctx)
-        ctx = args[0]
-    elif len(args) > 1 and isinstance(args[1], click.Context):
-        # Case 2: render_help_for_command(self, ctx, formatter)
-        ctx = args[1]
-    else:
-        raise TypeError(
-            "Could not find click.Context in args for render_help_for_command. "
-            f"Received args: {args}"
-        )
-
-    # Look for a custom formatter class on the context,
-    # default to our new base class.
-    FormatterClass = getattr(ctx, "formatter_class", RichHelpFormatter)
-
-    # If the formatter_class on the context is NOT one of our rich
-    # formatters (e.g., it's a default click.HelpFormatter),
-    # we MUST ignore it and use our RichHelpFormatter,
-    # otherwise we'll crash trying to call methods that don't exist.
-    try:
-        if not issubclass(FormatterClass, RichHelpFormatter):
-            FormatterClass = RichHelpFormatter
-    except TypeError:
-        # issubclass fails if FormatterClass is not a class
-        FormatterClass = RichHelpFormatter
-
-    formatter = FormatterClass(ctx)
-    formatter.render_help()

@@ -34,7 +34,7 @@ def render_help_for_command(
     if getattr(cmd, "hidden", False) is True:
         return
 
-    # USAGE LINE ——
+    # USAGE LINE
     signature = generate_signature(cmd)
     if isinstance(cmd, click.Group):
         usage_line = f"{ctx.command_path} [OPTIONS] COMMAND [ARGS]..."
@@ -64,8 +64,20 @@ def render_help_for_command(
     max_flag_len = 0
 
     for param in user_options:
-        # Build plain “flags” string: reversed so short form appears first
-        flags_str = "/".join(reversed(param.opts))
+        # Build a flags string:
+        # - For options, prefer short alias first, then long (e.g. -o/--output).
+        # - Include both primary and secondary opts from Click.
+        # - For arguments, just display the name.
+        if isinstance(param, click.Option):
+            all_opts = list(getattr(param, "opts", ())) + list(getattr(param, "secondary_opts", ()))
+            short_opts = [o for o in all_opts if o.startswith("-") and not o.startswith("--")]
+            long_opts = [o for o in all_opts if o.startswith("--")]
+            ordered = short_opts + long_opts if (short_opts or long_opts) else all_opts
+            flags_str = "/".join(ordered)
+        else:
+            # click.Argument
+            flags_str = param.name
+
         if len(flags_str) > max_flag_len:
             max_flag_len = len(flags_str)
 

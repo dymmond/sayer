@@ -3,6 +3,10 @@ hide:
   - navigation
 ---
 
+## 0.7.4
+
+- Allow default arguments outside of the fields declaration. E.g.: `Option[...] = 2"
+
 ## 0.7.3
 
 ### Fixed

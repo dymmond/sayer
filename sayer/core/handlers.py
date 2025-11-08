@@ -135,16 +135,25 @@ class ParameterContext:
         if self.metadata is not None:
             if getattr(self.metadata, "default_factory", None):
                 return None
-            if getattr(self.metadata, "default", Ellipsis) not in (Ellipsis, inspect._empty):
-                val = self.metadata.default
-                if val is Ellipsis:
+
+            meta_default = getattr(self.metadata, "default", Ellipsis)
+            if meta_default not in (Ellipsis, inspect._empty):
+                # Ignore if someone accidentally stuffs another metadata object as a default
+                if isinstance(meta_default, (Option, Argument, Param, Env, JsonParam)):
                     return None
-                if isinstance(val, (Option, Argument, Param, Env, JsonParam)):
-                    return None
-                return val
+                return meta_default
+
+            if isinstance(self.metadata, Option) and getattr(self.metadata, "envvar", None):
+                meta_default_marker = getattr(self.metadata, "default", Ellipsis)
+                if meta_default_marker in (Ellipsis, inspect._empty, None):
+                    env_val = os.getenv(self.metadata.envvar)
+                    if env_val is not None:
+                        return env_val
 
         if self.has_default:
+            # Keep falsy defaults like 0, "", [] — don't treat as missing
             return self.default
+
         return None
 
     def _resolve_required(self) -> bool:
@@ -321,12 +330,13 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
     inner_type = inner_args[0] if inner_args else str
     click_inner_type = PRIMITIVE_TYPE_MAP.get(inner_type, click.STRING)
 
+    # Argument branch
     if isinstance(ctx.metadata, Argument):
-        variadic_nargs = ctx.metadata.options.get("nargs", -1)
+        arg_options = dict(ctx.metadata.options)
+        arg_options.pop("param_decls", None)
+        variadic_nargs = arg_options.get("nargs", -1)
         is_variadic = variadic_nargs == -1 or (isinstance(variadic_nargs, int) and variadic_nargs != 1)
         is_required_local = False if is_variadic else getattr(ctx.metadata, "required", False)
-        arg_options = dict(ctx.metadata.options)
-
         arg_type = click_inner_type if not ctx.is_overriden_type else ctx.base_type
         return click.argument(
             ctx.parameter.name,
@@ -336,7 +346,38 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
             **arg_options,
         )(ctx.wrapper)
 
-    default_for_sequence = ctx.resolved_default if ctx.resolved_default is not None else ()
+    # Option branch
+    resolved = ctx.resolved_default
+
+    # Fix misordered default that is actually a decl, but only if no decls already
+    md_decl = tuple(d for d in getattr(ctx.metadata, "param_decls", ()) if d) if ctx.metadata else ()
+    if isinstance(ctx.metadata, Option) and not md_decl:
+        if isinstance(resolved, str) and resolved.startswith("-"):
+            md_decl, resolved = (resolved,), None
+        elif (
+            isinstance(resolved, (list, tuple))
+            and resolved
+            and all(isinstance(x, str) and x.startswith("-") for x in resolved)
+        ):
+            md_decl, resolved = tuple(resolved), None
+
+    # Normalize ordering: short flags before long flags for help display
+    if md_decl:
+        shorts = tuple(d for d in md_decl if d.startswith("-") and not d.startswith("--"))
+        longs = tuple(d for d in md_decl if d.startswith("--"))
+        others = tuple(d for d in md_decl if not d.startswith("-"))
+        md_decl = (*shorts, *longs, *others) if (shorts and longs) else md_decl
+
+    # Coerce default for multiple=True
+    if resolved is None:
+        default_for_sequence = ()
+    elif isinstance(resolved, tuple):
+        default_for_sequence = resolved
+    elif isinstance(resolved, list):
+        default_for_sequence = tuple(resolved)
+    else:
+        default_for_sequence = (resolved,)
+
     kwargs = {
         "type": click_inner_type if not ctx.is_overriden_type else ctx.base_type,
         "multiple": True,
@@ -348,7 +389,18 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
     if SUPPORTS_HIDDEN:
         kwargs["hidden"] = ctx.hidden
 
-    return click.option(f"--{ctx.parameter.name.replace('_', '-')}", **kwargs)(ctx.wrapper)
+    # If only short option(s) were provided and no long form, derive a long alias from the parameter name
+    if (
+        md_decl
+        and any(d.startswith("-") and not d.startswith("--") for d in md_decl)
+        and not any(d.startswith("--") for d in md_decl)
+    ):
+        md_decl = (*md_decl, f"--{ctx.parameter.name.replace('_', '-')}")
+
+    if not md_decl:
+        md_decl = (f"--{ctx.parameter.name.replace('_', '-')}",)
+
+    return click.option(*md_decl, **kwargs)(ctx.wrapper)  # type: ignore
 
 
 def _handle_enum(ctx: ParameterContext) -> Optional[Callable]:
@@ -546,6 +598,8 @@ def _handle_argument(ctx: ParameterContext) -> Optional[Callable]:
         ctx.metadata.options["default"] = final_default
 
     arg_kwargs = dict(ctx.metadata.options)
+    arg_kwargs.pop("param_decls", None)  # SAFETY
+
     arg_kwargs.update(
         {
             "type": ctx.base_type,
@@ -653,7 +707,7 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
         if ann_args:
             raw_for_option = ann_args[0]
 
-    # Handle Optional[T]
+    # unwrap Optional[T]
     if get_origin(raw_for_option) in (Union, types.UnionType):
         union_args = get_args(raw_for_option)
         if type(None) in union_args:
@@ -661,23 +715,51 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
             if len(non_none) == 1:
                 ctx.base_type = non_none[0]
 
-    # Default resolution
-    if getattr(ctx.metadata, "default_factory", None):
-        option_default = None
-    else:
-        option_default = ctx.resolved_default
-
+    # Resolve default
+    option_default = None if getattr(ctx.metadata, "default_factory", None) else ctx.resolved_default
     if isinstance(option_default, Option):
         option_default = None
+
+    # Use existing decls if provided
+    md_decl = tuple(d for d in getattr(ctx.metadata, "param_decls", ()) if d)
+
+    # Fix misordered default that is actually a decl ONLY if no decls yet
+    if not md_decl:
+        if isinstance(option_default, str) and option_default.startswith("-"):
+            md_decl, option_default = (option_default,), None
+        elif (
+            isinstance(option_default, (list, tuple))
+            and option_default
+            and all(isinstance(x, str) and x.startswith("-") for x in option_default)
+        ):
+            md_decl, option_default = tuple(option_default), None
+
+    # Normalize ordering: prefer short flags before long flags for help display
+    if md_decl:
+        shorts = tuple(d for d in md_decl if d.startswith("-") and not d.startswith("--"))
+        longs = tuple(d for d in md_decl if d.startswith("--"))
+        others = tuple(d for d in md_decl if not d.startswith("-"))
+        md_decl = (*shorts, *longs, *others) if (shorts and longs) else md_decl
+
+    # Build kwargs safely, do not leak declaration or override envvar from options
+    meta_opts = dict(ctx.metadata.options)
+    meta_opts.pop("param_decls", None)
+    meta_opts.pop("envvar", None)
 
     default_kwarg: dict[str, Any] = {}
     if option_default is not None:
         default_kwarg["default"] = option_default
-
     if ctx.metadata.is_flag and option_default is True:
-        default_kwarg["default"] = None  # let Click handle
+        default_kwarg["default"] = None
+
+    # If no default was provided but an envvar is set, eagerly read it to mirror Env behavior
+    if "default" not in default_kwarg and ctx.metadata.envvar:
+        env_val = os.getenv(ctx.metadata.envvar)
+        if env_val is not None:
+            default_kwarg["default"] = env_val
 
     kwargs = {
+        **meta_opts,  # user-supplied option kwargs first (sanitized)
         "type": None if ctx.base_type is bool else ctx.base_type,
         "is_flag": ctx.base_type is bool,
         "required": ctx.is_required,
@@ -686,19 +768,34 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
         "prompt": ctx.metadata.prompt,
         "hide_input": ctx.metadata.hide_input,
         "callback": ctx.metadata.callback,
-        "envvar": ctx.metadata.envvar,
         "expose_value": ctx.expose,
-        **ctx.metadata.options,
         **default_kwarg,
     }
+    # Set envvar last so it can't be overwritten by options
+    if ctx.metadata.envvar is not None:
+        kwargs["envvar"] = ctx.metadata.envvar
     if SUPPORTS_HIDDEN:
         kwargs["hidden"] = ctx.hidden
 
-    return click.option(
-        f"--{ctx.parameter.name.replace('_', '-')}",
-        *ctx.metadata.param_decls,
-        **kwargs,
-    )(ctx.wrapper)
+    # If only short option(s) were provided and no long form, derive a long alias from the parameter name
+    if (
+        md_decl
+        and any(d.startswith("-") and not d.startswith("--") for d in md_decl)
+        and not any(d.startswith("--") for d in md_decl)
+    ):
+        md_decl = (*md_decl, f"--{ctx.parameter.name.replace('_', '-')}")
+
+    # Final param declarations
+    if not md_decl:
+        md_decl = (f"--{ctx.parameter.name.replace('_', '-')}",)
+    # Ensure the option's internal attribute name matches the function parameter name
+    # so callbacks receive the value even when the flag's long name differs.
+    if not any(not d.startswith("-") for d in md_decl):
+        md_decl = (*md_decl, ctx.parameter.name)
+
+    wrapped = click.option(*md_decl, **kwargs)(ctx.wrapper)
+
+    return wrapped
 
 
 def _handle_boolean_flag(ctx: ParameterContext) -> Optional[Callable]:

@@ -1,6 +1,7 @@
 from typing import Annotated
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from sayer import Sayer
@@ -15,7 +16,9 @@ def _get_param(cmd: click.Command, name: str) -> click.Parameter:
     raise AssertionError(f"param {name!r} not found")
 
 
-def test_sequence_option_default_from_metadata():
+@pytest.mark.parametrize("default_arg", [pytest.param([], id="list"), pytest.param((), id="tuple")])
+@pytest.mark.parametrize("extra_name", ["--store", "--somethingelse"])
+def test_sequence_option_default_from_metadata(default_arg, extra_name):
     """
     store: Annotated[list[str], Option([], "--store", help="...")]
     Expect: default tuple(), multiple=True, and accepts repeated values.
@@ -24,7 +27,7 @@ def test_sequence_option_default_from_metadata():
 
     @app.command("meta")
     def meta(
-        store: Annotated[list[str], Option([], "--store", help="Store spec")],
+        store: Annotated[list[str], Option(default_arg, extra_name, help="Store spec")],
     ):
         click.echo(f"{tuple(store)!r}")
 
@@ -199,5 +202,127 @@ def test_sequence_option_default_empty():
 
     cmd = app.cli.get_command(None, "pydef")
     prm = _get_param(cmd, "store")
+    assert prm.multiple is True
+    assert prm.default == ()
+
+
+@pytest.mark.parametrize("default_arg", [pytest.param([], id="list"), pytest.param((), id="tuple")])
+@pytest.mark.parametrize("extra_name", ["--store", "--somethingelse"])
+def test_sequence_option_extra_long_alias_always_present(default_arg, extra_name):
+    """
+    Given a sequence option with metadata specifying an extra long flag (possibly different from the param name),
+    Sayer should *also* expose the derived name-based long alias (--store) and bind the value to the `store` param.
+    Both flags must work interchangeably and accumulate values.
+    """
+    app = Sayer(name="app7", help="defaults")
+
+    @app.command("meta2")
+    def meta2(
+        store: Annotated[list[str], Option(default_arg, extra_name, help="Store spec")],
+    ):
+        click.echo(f"{tuple(store)!r}")
+
+    runner = CliRunner()
+
+    # No flags -> default must be tuple()
+    res = runner.invoke(app.cli, ["meta2"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "()"
+
+    # Using the derived --store works
+    res = runner.invoke(app.cli, ["meta2", "--store", "a", "--store", "b"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('a', 'b')"
+
+    # Using the metadata-provided extra_name also works (even if it equals --store)
+    res = runner.invoke(app.cli, ["meta2", extra_name, "x", extra_name, "y"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('x', 'y')"
+
+    # Inspect Click param wiring
+    cmd = app.cli.get_command(None, "meta2")
+    prm = _get_param(cmd, "store")
+    assert isinstance(prm, click.Option)
+    assert prm.multiple is True
+    assert prm.default == ()
+
+
+@pytest.mark.parametrize("default_arg", [pytest.param([], id="list"), pytest.param((), id="tuple")])
+def test_sequence_option_short_only_derives_long_name(default_arg):
+    """
+    If only a short flag is provided in metadata, Sayer must derive the long alias from the param name.
+    Both '-s' and '--store' should work and accumulate.
+    """
+    app = Sayer(name="app8", help="defaults")
+
+    @app.command("shorty")
+    def shorty(
+        store: Annotated[list[str], Option(default_arg, "-s", help="Store spec")],
+    ):
+        click.echo(f"{tuple(store)!r}")
+
+    runner = CliRunner()
+
+    # No flags -> default tuple()
+    res = runner.invoke(app.cli, ["shorty"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "()"
+
+    # Using derived long flag works
+    res = runner.invoke(app.cli, ["shorty", "--store", "a", "--store", "b"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('a', 'b')"
+
+    # Using short flag works
+    res = runner.invoke(app.cli, ["shorty", "-s", "x", "-s", "y"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('x', 'y')"
+
+    # Mix short and long, order preserved
+    res = runner.invoke(app.cli, ["shorty", "--store", "m", "-s", "n", "--store", "o"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('m', 'n', 'o')"
+
+    # Inspect Click param
+    cmd = app.cli.get_command(None, "shorty")
+    prm = _get_param(cmd, "store")
+    assert isinstance(prm, click.Option)
+    assert prm.multiple is True
+    assert prm.default == ()
+
+
+@pytest.mark.parametrize("default_arg", [pytest.param([], id="list"), pytest.param((), id="tuple")])
+@pytest.mark.parametrize("extra_name", ["--alias", "--stores", "-S"])
+def test_sequence_option_param_name_binding_when_flag_differs(default_arg, extra_name):
+    """
+    Ensure that even when only alias flags are used (including a different long or a short),
+    the value is bound to the function parameter named `store` (bare name appended to param_decls).
+    """
+    app = Sayer(name="app9", help="defaults")
+
+    @app.command("bindname")
+    def bindname(
+        store: Annotated[list[str], Option(default_arg, extra_name, help="Store spec")],
+    ):
+        # Echo both the tuple and the type to ensure it's a list getting converted
+        click.echo(f"{tuple(store)!r}")
+
+    runner = CliRunner()
+
+    # Using only the alias should still bind to `store`
+    if extra_name.startswith("-") and not extra_name.startswith("--"):
+        # short-only
+        res = runner.invoke(app.cli, ["bindname", extra_name, "a", extra_name, "b"])
+    else:
+        # long-only alias
+        res = runner.invoke(app.cli, ["bindname", extra_name, "a", extra_name, "b"])
+
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('a', 'b')"
+
+    # Confirm Click param is tied to 'store'
+    cmd = app.cli.get_command(None, "bindname")
+    prm = _get_param(cmd, "store")
+    assert isinstance(prm, click.Option)
     assert prm.multiple is True
     assert prm.default == ()

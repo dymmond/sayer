@@ -368,6 +368,12 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
         others = tuple(d for d in md_decl if not d.startswith("-"))
         md_decl = (*shorts, *longs, *others) if (shorts and longs) else md_decl
 
+    # Always include a long alias derived from the parameter name (e.g., --store)
+    name_long = f"--{ctx.parameter.name.replace('_', '-')}"
+    if md_decl:
+        if not any(d == name_long for d in md_decl if d.startswith("--")):
+            md_decl = (*md_decl, name_long)
+
     # Coerce default for multiple=True
     if resolved is None:
         default_for_sequence = ()
@@ -389,16 +395,22 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
     if SUPPORTS_HIDDEN:
         kwargs["hidden"] = ctx.hidden
 
-    # If only short option(s) were provided and no long form, derive a long alias from the parameter name
+    # If only short option(s) were provided and no long form, ensure we still include the long alias
     if (
         md_decl
         and any(d.startswith("-") and not d.startswith("--") for d in md_decl)
         and not any(d.startswith("--") for d in md_decl)
     ):
-        md_decl = (*md_decl, f"--{ctx.parameter.name.replace('_', '-')}")
+        md_decl = (*md_decl, name_long)
 
+    # If no declarations were provided at all, start with the name-based long alias
     if not md_decl:
-        md_decl = (f"--{ctx.parameter.name.replace('_', '-')}",)
+        md_decl = (name_long,)
+
+    # Ensure the option's internal attribute name matches the function parameter name
+    # so Click binds the value to the handler even if the provided long flag name differs.
+    if not any(not d.startswith("-") for d in md_decl):
+        md_decl = (*md_decl, ctx.parameter.name)
 
     return click.option(*md_decl, **kwargs)(ctx.wrapper)  # type: ignore
 
@@ -741,6 +753,12 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
         others = tuple(d for d in md_decl if not d.startswith("-"))
         md_decl = (*shorts, *longs, *others) if (shorts and longs) else md_decl
 
+    # Always include a long alias derived from the parameter name (e.g., --param-name)
+    name_long = f"--{ctx.parameter.name.replace('_', '-')}"
+    if md_decl:
+        if not any(d == name_long for d in md_decl if d.startswith("--")):
+            md_decl = (*md_decl, name_long)
+
     # Build kwargs safely, do not leak declaration or override envvar from options
     meta_opts = dict(ctx.metadata.options)
     meta_opts.pop("param_decls", None)
@@ -777,17 +795,17 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
     if SUPPORTS_HIDDEN:
         kwargs["hidden"] = ctx.hidden
 
-    # If only short option(s) were provided and no long form, derive a long alias from the parameter name
+    # If only short option(s) were provided and no long form, ensure we still include the long alias
     if (
         md_decl
         and any(d.startswith("-") and not d.startswith("--") for d in md_decl)
         and not any(d.startswith("--") for d in md_decl)
     ):
-        md_decl = (*md_decl, f"--{ctx.parameter.name.replace('_', '-')}")
+        md_decl = (*md_decl, name_long)
 
-    # Final param declarations
+    # If no declarations were provided at all, start with the name-based long alias
     if not md_decl:
-        md_decl = (f"--{ctx.parameter.name.replace('_', '-')}",)
+        md_decl = (name_long,)
     # Ensure the option's internal attribute name matches the function parameter name
     # so callbacks receive the value even when the flag's long name differs.
     if not any(not d.startswith("-") for d in md_decl):

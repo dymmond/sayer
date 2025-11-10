@@ -3,6 +3,12 @@ hide:
   - navigation
 ---
 
+## 0.7.5
+
+### Fixed
+
+- Regression on default values of Option.
+
 ## 0.7.4
 
 ### Changed

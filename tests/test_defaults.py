@@ -1,6 +1,7 @@
 from typing import Annotated
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from sayer import Sayer
@@ -15,7 +16,9 @@ def _get_param(cmd: click.Command, name: str) -> click.Parameter:
     raise AssertionError(f"param {name!r} not found")
 
 
-def test_sequence_option_default_from_metadata():
+@pytest.mark.parametrize("default_arg", [pytest.param([], id="list"), pytest.param((), id="tuple")])
+@pytest.mark.parametrize("extra_name", ["--store", "--somethingelse"])
+def test_sequence_option_default_from_metadata(default_arg, extra_name):
     """
     store: Annotated[list[str], Option([], "--store", help="...")]
     Expect: default tuple(), multiple=True, and accepts repeated values.
@@ -24,7 +27,7 @@ def test_sequence_option_default_from_metadata():
 
     @app.command("meta")
     def meta(
-        store: Annotated[list[str], Option([], "--store", help="Store spec")],
+        store: Annotated[list[str], Option(default_arg, extra_name, help="Store spec")],
     ):
         click.echo(f"{tuple(store)!r}")
 

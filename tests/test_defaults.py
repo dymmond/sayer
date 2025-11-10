@@ -179,3 +179,25 @@ def test_option_without_param_decls_derives_flag_name():
     res = runner.invoke(app.cli, ["derived", "--retries", "7"])
     assert res.exit_code == 0, res.output
     assert res.output.strip() == "7"
+
+
+def test_sequence_option_default_empty():
+    app = Sayer(name="app2", help="defaults")
+
+    @app.command("pydef")
+    def pydef(store: Annotated[list[str], Option((), "--store", help="Store spec")]):
+        click.echo(f"{tuple(store)!r}")
+
+    runner = CliRunner()
+    res = runner.invoke(app.cli, ["pydef"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "()"
+
+    res = runner.invoke(app.cli, ["pydef", "--store", "x", "--store", "y"])
+    assert res.exit_code == 0, res.output
+    assert res.output.strip() == "('x', 'y')"
+
+    cmd = app.cli.get_command(None, "pydef")
+    prm = _get_param(cmd, "store")
+    assert prm.multiple is True
+    assert prm.default == ()

@@ -132,6 +132,7 @@ SAYER_SETTINGS_MODULE = "tests.settings.TestSettings"
 [tool.hatch.envs.hatch-test]
 features = ["testing"]
 template = "test"
+extra-dependencies = ["msgspec@git+https://github.com/jcrist/msgspec.git ; python_version >= '3.14.0'"]
 
 [tool.hatch.envs.test.scripts]
 # needs docker services running

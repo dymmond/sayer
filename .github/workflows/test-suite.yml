@@ -36,7 +36,7 @@ jobs:
       - name: "Install dependencies"
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          pip install hatch
+          pip install hatch virtualenv==20.39.1
       - name: "Run linting checks"
         run: "hatch run lint"
         if: ${{ matrix.python-version != '3.14' }}

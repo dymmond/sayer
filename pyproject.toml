@@ -94,6 +94,7 @@ testing = [
     "pydantic",
     "attrs",
     "msgspec",
+    "pytest-codspeed>=4.3.0",
 ]
 
 [project.scripts]

@@ -126,3 +126,8 @@ settings.color_system = "256"  # or "truecolor"
 | `info()`    | Info                | Informational messages       |
 
 These functions are designed to make your CLI feel **polished and professional** out-of-the-box.
+
+## Related
+
+- [Feature Guide: Logging](./logging.md)
+- [Developer Workflow](../workflows/dev-loop.md)

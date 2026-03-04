@@ -97,7 +97,15 @@ $ hatch run lint
 
 ### Documentation
 
-Improving the documentation is quite easy and it is placed inside the `sayer/docs` folder.
+Improving the documentation is quite easy. Source pages live in the `docs/` folder and are rendered into
+`docs/generated/` by the docs pipeline.
+
+Documentation is organized by layer:
+
+- `docs/tutorials/` for progressive learning
+- `docs/how-to/` for task-based guides
+- `docs/concepts/` for architecture and mental models
+- `docs/api-reference/` for API contracts
 
 To start the docs, run:
 

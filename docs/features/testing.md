@@ -2,6 +2,8 @@
 
 This guide thoroughly explains Sayer's testing system, covering setup, usage, and advanced examples.
 
+For project-level iteration, pair this with [Developer Workflow](../workflows/dev-loop.md).
+
 ## Overview
 
 Sayer includes testing utilities that make it easy to simulate CLI interactions and validate outputs. The core is `SayerTestClient`,
@@ -117,3 +119,9 @@ client = SayerTestClient(app=app)
 ## Conclusion
 
 Sayer's testing utilities simplify comprehensive CLI tests, letting you control inputs, environments, and verify outputs for robust command validation.
+
+## Related
+
+- [How-to: Test CLI Behavior](../how-to/test-cli.md)
+- [Tutorial 3: State, Middleware, and Testing](../tutorials/03-state-middleware-testing.md)
+- [Troubleshooting](../troubleshooting.md)

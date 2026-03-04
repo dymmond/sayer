@@ -3,6 +3,8 @@
 This guide offers an exhaustive, thoroughly explained exploration of Sayer's **@app.callback** system.
 It includes detailed explanations of the purpose, behavior, and usage of callbacks, along with richly annotated examples and best practices.
 
+Pair this guide with [Concepts: Command Lifecycle](../concepts/command-lifecycle.md) to understand callback timing in dispatch.
+
 ## Overview
 
 Sayer's `@app.callback` decorator is used to register a root-level function that is executed when the CLI is invoked. It can:
@@ -184,3 +186,9 @@ graph TD
 
 Sayer's callback system provides powerful tools for pre-command logic, configuration management, and input handling. With this complete guide,
 developers can confidently build sophisticated CLI applications with Sayer.
+
+## Related
+
+- [Concepts: Command Lifecycle](../concepts/command-lifecycle.md)
+- [How-to: Organize Groups and Sub-apps](../how-to/organize-groups-subapps.md)
+- [API Reference: Sayer](../api-reference/sayer.md)

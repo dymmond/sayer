@@ -1,42 +1,66 @@
-# Middleware
+# Middleware API Reference
 
-This document explores `sayer/middleware.py`, which manages global and named middleware in Sayer CLI applications.
+Reference for `sayer/middleware.py`.
 
-## Overview
+## Registries
 
-The `middleware` module allows developers to:
+- `_MIDDLEWARE_REGISTRY`: named middleware sets
+- `_GLOBAL_BEFORE`: before hooks applied to all commands
+- `_GLOBAL_AFTER`: after hooks applied to all commands
 
-* Register `before` and `after` hooks for commands.
-* Create named middleware sets.
-* Execute hooks with support for async and sync functions.
+## Functions
 
-## Key Functions
+### `register(name, before=(), after=())`
 
-* **register(name, before, after)**: Register a named middleware set.
-* **resolve(middleware)**: Resolve a middleware reference (by name or callables) into a `before` and `after` tuple.
-* **add_before_global(func)**: Add a global `before` hook.
-* **add_after_global(func)**: Add a global `after` hook.
-* **run_before(ctx)** and **run_after(ctx)**: Execute all applicable middleware hooks for a given context.
+Registers a named middleware set.
 
-## Example
+### `resolve(middleware)`
+
+Resolves middleware names/callables into two lists:
+
+- before hooks with signature `(command_name, args)`
+- after hooks with signature `(command_name, args, result)`
+
+### `add_before_global(hook)`
+
+Adds a global before hook.
+
+### `add_after_global(hook)`
+
+Adds a global after hook.
+
+### `run_before(cmd_name, args)`
+
+Executes global before hooks.
+
+### `run_after(cmd_name, args, result)`
+
+Executes global after hooks.
+
+## Usage Example
 
 ```python
-from sayer.middleware import register, add_before_global
+from sayer.middleware import register
 
-async def log_before(ctx):
-    print(f"Running before {ctx.command.name}")
 
-register("logger", before=[log_before], after=[])
-add_before_global(log_before)
+def before(name, args):
+    print(f"before: {name}")
+
+
+def after(name, args, result):
+    print(f"after: {name} -> {result}")
+
+
+register("audit", before=[before], after=[after])
+
+
+@command(middleware=["audit"])
+def sync_users():
+    return "ok"
 ```
 
-## Best Practices
+## Related
 
-* ✅ Use named middleware sets for reusable behavior across commands.
-* ✅ Handle errors within middleware to prevent cascading failures.
-* ✅ Use async functions for IO-bound middleware hooks.
-* ❌ Avoid long-running middleware; keep hooks fast.
-
-## Related Modules
-
-* [engine.py](./core/engine.md)
+- [Concepts: Middleware Model](../concepts/middleware-model.md)
+- [Concepts: Command Lifecycle](../concepts/command-lifecycle.md)
+- [Feature Guide: Middleware](../features/middleware.md)

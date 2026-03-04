@@ -13,6 +13,8 @@ Sayer supports middleware hooks that can run **before** and **after** command ex
 * **Named Middleware**: Defined sets attached to specific commands/groups.
 * **Execution Flow**: Middleware can be synchronous or asynchronous.
 
+See [Concepts: Middleware Model](../concepts/middleware-model.md) for ordering semantics and lifecycle context.
+
 ## Registering Middleware
 
 ### Define Named Middleware Sets
@@ -105,4 +107,17 @@ graph TD
 
 * **Error-Handling**: Wrap middleware functions in try-except blocks to handle errors without disrupting command execution.
 * **Conditional Middleware**: Dynamically add middleware based on runtime config.
-* **Testing Middleware**: Use mock hooks in tests to assert middlew
+* **Testing Middleware**: Use mock hooks in tests to assert call order and payload shape.
+
+## Failure and Ordering Semantics
+
+- If a `before` hook raises, command execution will not continue.
+- `after` hooks execute after the command returns, including async command results.
+- Keep global middleware generic and side-effect aware; use named middleware for domain-specific behavior.
+
+## Related
+
+- [Concepts: Middleware Model](../concepts/middleware-model.md)
+- [Concepts: Command Lifecycle](../concepts/command-lifecycle.md)
+- [API Reference: Middleware](../api-reference/middleware.md)
+- [How-to: Test CLI Behavior](../how-to/test-cli.md)

@@ -35,7 +35,6 @@ theme:
     - content.code.select
     - navigation.indexes
     - navigation.path
-    - navigation.tabs
 
 repo_name: dymmond/sayer
 repo_url: https://github.com/dymmond/sayer
@@ -54,9 +53,30 @@ plugins:
       trim: false
 
 nav:
-  - Introduction: index.md
-  - Features:
+  - Overview: index.md
+  - Start Here:
+      - start-here.md
       - getting-started.md
+  - Tutorials:
+      - tutorials/index.md
+      - tutorials/01-first-cli.md
+      - tutorials/02-multi-command-app.md
+      - tutorials/03-state-middleware-testing.md
+  - How-to Guides:
+      - how-to/index.md
+      - how-to/add-a-command.md
+      - how-to/organize-groups-subapps.md
+      - how-to/use-parameters.md
+      - how-to/build-plugin.md
+      - how-to/test-cli.md
+  - Concepts:
+      - concepts/index.md
+      - concepts/architecture.md
+      - concepts/command-lifecycle.md
+      - concepts/parameter-system.md
+      - concepts/state-and-injection.md
+      - concepts/middleware-model.md
+  - Features (Deep Dives):
       - features/sayer-and-apps.md
       - features/settings.md
       - features/commands.md
@@ -70,13 +90,13 @@ nav:
       - features/logging.md
       - features/builtin-commands.md
       - features/testing.md
-      - features/pluggins.md
+      - features/plugins.md
       - features/terminal-helpers.md
   - API Reference:
       - api-reference/sayer.md
-      - api-reference/encoders.md
-      - api-reference/middleware.md
       - api-reference/params.md
+      - api-reference/middleware.md
+      - api-reference/encoders.md
       - Configuration:
           - api-reference/conf/global-settings.md
           - api-reference/conf/settings.md
@@ -85,13 +105,16 @@ nav:
           - api-reference/core/engine.md
           - api-reference/core/groups.md
           - api-reference/core/logging.md
-          - api-reference/core/pluggins.md
+          - api-reference/core/plugins.md
       - Utils:
           - api-reference/utils/config.md
           - api-reference/utils/console.md
           - api-reference/utils/loader.md
           - api-reference/utils/ui.md
           - api-reference/utils/ui-helpers.md
+  - Workflows:
+      - workflows/dev-loop.md
+  - Troubleshooting: troubleshooting.md
   - Contributing: contributing.md
   - Sponsorship: sponsorship.md
   - Release Notes: release-notes.md
@@ -120,6 +143,11 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 extra:
+  social:
+    - icon: fontawesome/brands/github-alt
+      link: https://github.com/dymmond/lilya
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/XVeWXSrJ
   alternate:
     - link: /
       name: English

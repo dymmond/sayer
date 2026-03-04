@@ -2,6 +2,8 @@
 
 This guide dives deep into Sayer's parameter system, explaining **what** each feature is, **why** you'd use it, and **when** it's most appropriate. Examples illustrate real‐world patterns.
 
+For lifecycle details and binding internals, also read [Concepts: Parameter System](../concepts/parameter-system.md).
+
 ---
 
 ## 1. Core Parameter Types
@@ -331,3 +333,9 @@ Silent parameters give you **security** and **clarity** by keeping sensitive/int
 * **Document** every parameter with `help=`.
 
 With these tools, Sayer makes building rich, user-friendly Python CLIs a breeze—embrace the full power of typing, metadata, and automatic conversion!
+
+## Related
+
+- [How-to: Use Parameters](../how-to/use-parameters.md)
+- [Concepts: Parameter System](../concepts/parameter-system.md)
+- [API Reference: Params](../api-reference/params.md)

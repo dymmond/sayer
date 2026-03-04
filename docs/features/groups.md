@@ -491,3 +491,9 @@ def test_custom_group_runs():
 - Keep **group names stable**; changing them is a breaking CLI change.
 - Use **`sayer.group(...)`** for subgroups you want to **discover/test** via the registry.
 - Write **CLI tests** with `CliRunner` and **app‑level tests** with `SayerTestClient`.
+
+## Related
+
+- [How-to: Organize Groups and Sub-apps](../how-to/organize-groups-subapps.md)
+- [Concepts: Architecture](../concepts/architecture.md)
+- [API Reference: Core Groups](../api-reference/core/groups.md)

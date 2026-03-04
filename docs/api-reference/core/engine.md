@@ -1,57 +1,59 @@
-# Core Engine
+# Core Engine API Reference
 
-This document provides a comprehensive look at `sayer/core/engine.py`, the heart of Sayer's CLI mechanics.
+Reference for `sayer/core/engine.py`, which defines command/group decorators and parameter binding behavior.
 
-## Overview
+## `command(...)`
 
-The `engine` module handles:
+Transforms a Python function into a Click command with Sayer runtime behavior.
 
-* Command registration via decorators.
-* Group creation and monkey-patching.
-* Parameter binding and injection.
-* Global command registries.
+### Supports
 
-## Key Components
+- typed parameter conversion
+- `Option`, `Argument`, `Env`, `JsonParam`
+- middleware resolution and execution
+- `click.Context` and `State` injection
+- async command execution
 
-### @command Decorator
+### Signature modes
 
 ```python
-from sayer import command
-
+@command
 @command()
-def greet(name: str):
-    print(f"Hello, {name}!")
+@command("custom-name")
+@command(name="custom-name", hidden=True)
+@command(middleware=[...])
 ```
 
-* Converts a Python function into a rich CLI command.
-* Supports `Annotated` types, options, arguments, JSON parameters, and environment variables.
-* Allows middleware hooks and async commands.
+## `group(name, group_cls=None, help=None, is_custom=False, custom_command_name=None, **kwargs)`
 
-### group() Function
+Creates or retrieves a group and patches its `.command` method to use Sayer's command decorator.
 
-```python
-from sayer import group
+## `build_click_parameter(...)`
 
-cli = group(name="mycli")
-```
+Internal helper that converts an inspected function parameter plus metadata into the correct Click option/argument decorator.
 
-* Creates a `SayerGroup` for nested command structures.
-* Monkey-patches Click'''s `Group.command` to ensure Sayer's decorators are used.
+## Registries
 
-### Middleware and Context
+- `COMMANDS`: global registry of top-level commands
+- `GROUPS`: global registry of groups
 
-* Parameter binding supports custom types and callbacks.
-* Middleware `before` and `after` hooks can wrap commands for logging, validation, etc.
+## Utility Functions
 
-## Best Practices
+- `get_commands()`
+- `get_groups()`
+- `bind_command_to_group(...)`
 
-* ✅ Use `@command` and `group()` to structure CLI commands and groups.
-* ✅ Leverage parameter annotations and `Option`, `Argument`, `Env`, `JsonParam` for input parsing.
-* ✅ Use middleware for cross-cutting concerns.
+## Runtime Flow
 
-## Related Modules
+1. Inspect function signature and type hints.
+2. Build Click parameters from metadata.
+3. Bind and convert parsed values at invocation.
+4. Inject state/context.
+5. Execute middleware and command function.
+6. Return value to Click/testing layers.
 
-* [Commands](./commands.md)
-* [Groups](./groups.md)
-* [Middleware](../middleware.md)
-* [Parameters](../params.md)
+## Related
+
+- [Concepts: Command Lifecycle](../../concepts/command-lifecycle.md)
+- [Concepts: Parameter System](../../concepts/parameter-system.md)
+- [Feature Guide: Commands](../../features/commands.md)

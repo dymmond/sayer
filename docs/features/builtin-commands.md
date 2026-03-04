@@ -104,6 +104,4 @@ docs/
 
 Sayer's built-in commands are here to help you **bootstrap and document faster**.
 
-👉 See also: [Testing](./testing.md), [Encoders](./encoders.md)
-
-```
+👉 See also: [Testing](./testing.md), [Encoders](./encoders.md), [Developer Workflow](../workflows/dev-loop.md)

@@ -1,7 +1,4 @@
----
-hide:
-  - navigation
----
+# Release Notes
 
 ## 0.7.6
 

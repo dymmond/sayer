@@ -188,3 +188,9 @@ This confirms your custom wrapper successfully injects `EnvLoader`.
 5. **Testing harnesses**: swap real services for mocks by changing group or state classes.
 
 With these patterns, your CLI commands are fully decoupled, highly testable, and ready for complex workflows.
+
+## Related
+
+- [Concepts: State and Injection](../concepts/state-and-injection.md)
+- [Feature Guide: State](./state.md)
+- [How-to: Test CLI Behavior](../how-to/test-cli.md)

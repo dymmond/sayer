@@ -1,42 +1,24 @@
-# Core Commands
+# Core Commands API Reference
 
-This document provides a comprehensive reference for `sayer/core/commands.py`, focusing on the `SayerCommand` class and its role in enhancing CLI commands.
+Reference for `sayer/core/commands/base.py` and `sayer/core/commands/sayer.py`.
 
-## SayerCommand Class
+## `BaseSayerCommand`
 
-`SayerCommand` extends `click.Command` and customizes the help output.
+Abstract base command that extends `click.Command` and defines:
 
-### Initialization
+- `get_help(ctx)` (abstract)
+- `invoke(ctx)` override that stores return values (`ctx._sayer_return_value`)
 
-Commands are usually created using the `@command` decorator in Sayer, but `SayerCommand` is applied internally to wrap these commands for advanced features.
+## `SayerCommand`
 
-### Key Features
+Concrete command class used by Sayer to render enhanced help and preserve command result behavior.
 
-* **Enhanced Help**: Overrides `get_help()` to provide rich, formatted help output using Sayer's `render_help`.
-* **Automatic Parameter Parsing**: Supports `Annotated` types and custom parameter injection.
+## Why It Matters
 
-### Example
+- Return values are available to testing client wrappers.
+- Help rendering is consistently routed through Sayer's formatter.
 
-```python
-from sayer.core.commands.sayer import SayerCommand
-from click import Context
+## Related
 
-cmd = SayerCommand(
-    name="greet",
-    callback=lambda name: print(f"Hello, {name}"),
-    params=[click.Argument(["name"])],
-    help="Greet someone by name."
-)
-ctx = Context(cmd)
-```
-
-### Best Practices
-
-* ✅ Let Sayer handle command creation using `@command`. Avoid instantiating `SayerCommand` manually unless extending behavior.
-* ✅ Provide clear `help` strings to improve user experience.
-* ❌ Avoid duplicating functionality already handled by Sayer.
-
-## Related Modules
-
-* [Engine](./engine.md)
-* [Groups](./groups.md)
+- [API Reference: Core Engine](./engine.md)
+- [Feature Guide: Commands](../../features/commands.md)

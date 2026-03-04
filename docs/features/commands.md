@@ -2,6 +2,12 @@
 
 This document provides an extensive, Django-style guide to Sayer's command system. It offers detailed explanations, numerous examples, and actionable how-tos to help you fully leverage Sayer's capabilities.
 
+## Read This With
+
+- [Command Lifecycle](../concepts/command-lifecycle.md) for execution order and runtime stages.
+- [Parameter System](../concepts/parameter-system.md) for conversion and binding behavior.
+- [How-to: Add a Command](../how-to/add-a-command.md) for the shortest implementation path.
+
 ## What is a Command?
 
 A command is a Python function decorated with `@command`. Sayer automatically parses parameters using `Annotated` types and manages help, execution flow, and middleware.
@@ -284,3 +290,8 @@ graph TD
 * [Groups](../api-reference/core/groups.md)
 * [Middleware](../api-reference/middleware.md)
 * [Params](../api-reference/params.md)
+
+## Next
+
+- [How-to: Organize Groups and Sub-apps](../how-to/organize-groups-subapps.md)
+- [Tutorial 2: Multi-command App](../tutorials/02-multi-command-app.md)

@@ -13,7 +13,7 @@ dynamic structures, and clear separation of concerns.
 
 * **Sayer App (`Sayer`)**: Represents a root CLI application.
 * **Subapp**: A nested Sayer app mounted under a parent's namespace.
-* **add.sayer()**: Method to mount a sub-app, including its commands and callback logic.
+* **add_sayer() / add_app()**: Methods to mount a sub-app and expose it under an alias.
 * **Command Resolution**: Sayer resolves commands hierarchically from the parent to sub-apps.
 * **Middleware Integration**: Sub-apps can define their own middleware and callbacks.
 
@@ -39,7 +39,7 @@ from sayer import Sayer
 
 sub_app = Sayer(help="Subapp CLI")
 
-@sub-app.command()
+@sub_app.command()
 def sub_hello():
     return "Hello from sub-app!"
 
@@ -47,16 +47,20 @@ app.add_sayer("sub", sub_app)
 ```
 
 **Why**: This modularizes commands, encapsulating them under `sub` namespace.
-**How**: `add_sayer("sub", sub-app)` mounts `sub-app`'s commands as `sub sub_hello`.
+**How**: `add_sayer("sub", sub_app)` mounts `sub_app`'s commands as `sub sub-hello`.
 
-## Combining Middleware and Sub-apps
+## Combining Sub-apps and Middleware
 
 ```python
 from sayer.middleware import register
 
 register("audit", before=[lambda n,a: print(f"[Audit] {n}")])
 
-app.add_sayer("nested", sub_app, middleware=["audit"])
+@sub_app.command(middleware=["audit"])
+def report():
+    return "report generated"
+
+app.add_sayer("nested", sub_app)
 ```
 
 **Why**: Sub-apps can have their own middleware or callbacks.
@@ -67,6 +71,18 @@ app.add_sayer("nested", sub_app, middleware=["audit"])
 * **Hierarchical Resolution**: Commands are resolved from the parent down to sub-apps.
 * **Callback Isolation**: Each Sayer app can have a callback, only affecting its own commands.
 * **Scoped Middleware**: Middleware in sub-apps only applies to their scope.
+
+For the execution timeline, read [Concepts: Command Lifecycle](../concepts/command-lifecycle.md).
+
+## App Composition Diagram
+
+```mermaid
+flowchart TD
+  Root[Root Sayer app] --> Admin[admin sub-app]
+  Root --> Reports[reports sub-app]
+  Admin --> AuditCmd[audit-enabled commands]
+  Reports --> ReportCmd[report commands]
+```
 
 ## Complex Example: Nested Apps
 
@@ -123,3 +139,9 @@ main.add_sayer("reports", reports_app)
 ## Conclusion
 
 Sayer's app and sub-app system enables scalable, modular CLI architectures. Mastery of this system allows developers to build flexible, maintainable command-line applications.
+
+## Related
+
+- [Concepts: Architecture](../concepts/architecture.md)
+- [How-to: Organize Groups and Sub-apps](../how-to/organize-groups-subapps.md)
+- [API Reference: Sayer](../api-reference/sayer.md)

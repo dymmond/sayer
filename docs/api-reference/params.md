@@ -1,75 +1,74 @@
-# Parameters
+# Params API Reference
 
-This document covers `sayer/params.py`, which manages command parameter metadata and behavior in Sayer.
+Reference for `sayer/params.py`.
 
-## Overview
+## `Option`
 
-Sayer extends parameter management with flexible support for:
+Represents named CLI options (e.g. `--region`, `--verbose`).
 
-* Options (`Option`)
-* Arguments (`Argument`)
-* Environment Variables (`Env`)
-* JSON Parameters (`JsonParam`)
+### Key constructor parameters
 
-## Key Classes
+- `default`
+- `*param_decls`
+- `help`
+- `envvar`
+- `required`
+- `default_factory`
+- `is_flag`
+- `expose_value`
 
-### Option
+## `Argument`
 
-Represents a command-line option with rich metadata.
+Represents positional CLI arguments.
+
+### Key constructor parameters
+
+- `default`
+- `*param_decls`
+- `help`
+- `required`
+- `default_factory`
+- `expose_value`
+
+## `Env`
+
+Represents environment-backed parameters.
+
+### Key constructor parameters
+
+- `envvar`
+- `default`
+- `required`
+- `default_factory`
+- `expose_value`
+
+## `Param`
+
+Generic metadata type that can be normalized to `Option` (`Param.as_option()`) when option-style behavior is implied.
+
+## `JsonParam`
+
+Specialized metadata indicating JSON input that should be decoded and molded into annotated target type.
+
+## Usage Example
 
 ```python
-from sayer import Option
+from typing import Annotated
+from sayer import Option, Argument, Env, JsonParam
+
 
 @app.command()
-def cmd(verbose: Option(default=False, help="Enable verbose output")):
+def deploy(
+    service: Annotated[str, Argument()],
+    region: Annotated[str, Option("eu-west-1")],
+    token: Annotated[str, Env("API_TOKEN")],
+    config: Annotated[dict, JsonParam()],
+):
     ...
 ```
 
-* Supports prompts, env fallback, default factories.
+## Related
 
-### Argument
-
-Represents a positional argument.
-
-```python
-from sayer import Argument
-
-def cmd(file: Argument(help="Path to the file")):
-    ...
-```
-
-### Env
-
-Fetches a value from an environment variable.
-
-```python
-from typing import Annotated
-from sayer import Env
-
-def cmd(api_key: Annotated[str, Env(...)]):
-    ...
-```
-
-### JsonParam
-
-Parses JSON input into Python objects.
-
-```python
-from typing import Annotated
-from sayer import JsonParam
-
-def cmd(data: Annotated[dict, JsonParam]):
-    ...
-```
-
-## Best Practices
-
-* ✅ Use `Option` for configurable parameters with defaults.
-* ✅ Use `Argument` for required positional inputs.
-* ✅ Use `Env` and `JsonParam` for environment-configured and complex data.
-* ❌ Avoid hardcoding defaults; use dynamic or env-based defaults.
-
-## Related Modules
-
-* [engine.py](./core/engine.md)
-* [middleware.md](./middleware.md)
+- [Concepts: Parameter System](../concepts/parameter-system.md)
+- [How-to: Use Parameters](../how-to/use-parameters.md)
+- [Feature Guide: Parameters](../features/params.md)

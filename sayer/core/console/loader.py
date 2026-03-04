@@ -29,7 +29,7 @@ def render_help(*args: Any, **kwargs: Any) -> None:
         # render_help(self, ctx, formatter)
         ctx = args[1]
     else:
-        raise TypeError("Could not find click.Context in args for render_help. " f"Received args: {args}")
+        raise TypeError(f"Could not find click.Context in args for render_help. Received args: {args}")
 
     # Look for a custom formatter class on the context,
     # default to our new base class.

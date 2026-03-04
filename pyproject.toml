@@ -71,7 +71,7 @@ path = "sayer/__version__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
-    "mypy==1.9.0",
+    "ty",
     "ruff>=0.3.0,<5.0.0",
     "pre-commit>=3.3.1,<4.0.0",
     "devtools>=0.12.2",
@@ -95,6 +95,12 @@ testing = [
     "attrs",
     "msgspec",
     "pytest-codspeed>=4.3.0",
+    "ty",
+]
+docs = [
+    "zensical>=0.0.23,<0.1.0",
+    "mkdocs-meta-descriptions-plugin>=2.3.0",
+    "pyyaml>=6.0,<7.0.0",
 ]
 
 [project.scripts]
@@ -105,24 +111,19 @@ clean_pyc = "find . -type f -name \"*.pyc\" -delete"
 clean_pyi = "find . -type f -name \"*.pyi\" -delete"
 clean_pycache = "find . -type d -name \"*__pycache__*\" -delete"
 build_with_check = "hatch build; twine check dist/*"
-lint = "ruff check --fix --line-length 99  sayer tests {args}"
-format = "hatch fmt && hatch fmt --check && hatch run test:check_types"
+check_types = "ty check --error-on-warning sayer"
+lint = "ruff check --fix --line-length 99 sayer tests {args} && ty check --error-on-warning sayer"
+format = "hatch fmt && hatch fmt --check && ty check --error-on-warning sayer"
 
 [tool.hatch.envs.docs]
-dependencies = [
-    "griffe-typingdoc>=0.2.2,<1.0",
-    "mkdocs>=1.1.2,<2.0.0",
-    "mkdocs-material>=9.4.4",
-    "mdx-include>=1.4.2",
-    "mkdocs-macros-plugin>=0.4.0",
-    "mkdocs-meta-descriptions-plugin>=2.3.0",
-    "mkdocstrings[python]>=0.23.0",
-    "pyyaml>=6.0,<7.0.0",
-]
+features = ["docs"]
 
 [tool.hatch.envs.docs.scripts]
-build = "mkdocs build"
-serve = "mkdocs serve --dev-addr localhost:8000"
+prepare = "scripts/docs.py prepare"
+clean = "scripts/docs.py clean"
+build = "scripts/docs.py build --clean"
+serve = "scripts/docs.py serve"
+dev = "scripts/docs.py serve"
 
 [tool.hatch.envs.test]
 features = ["testing"]
@@ -139,37 +140,45 @@ template = "test"
 # needs docker services running
 test = "hatch test -- {args}"
 test_man = "hatch test -- {args} -s -vv"
-check_types = "mypy -p sayer"
+check_types = "ty check --error-on-warning sayer"
+
+[tool.hatch.envs.hatch-static-analysis]
+# disables custom ruff rules, required to align with pre-commit
+config-path = "none"
+dependencies = ["ruff==0.12.2"]
 
 [tool.isort]
 profile = "black"
 known_third_party = []
 src_paths = ["sayer"]
 
-[tool.mypy]
-strict = true
-warn_unused_configs = true
-warn_unreachable = true
-warn_return_any = true
-disallow_untyped_decorators = true
-disallow_any_generics = false
-implicit_reexport = false
-show_error_codes = true
-disallow_incomplete_defs = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-no_implicit_optional = false
-strict_equality = false
-strict_optional = false
-disable_error_code = "attr-defined,has-type,override,misc,safe-super,assignment,call-arg"
+[tool.ty]
 
-[[tool.mypy.overrides]]
-module = "docs_src.*"
-ignore_errors = true
+[tool.ty.src]
+exclude = ["docs_src/"]
 
-[[tool.mypy.overrides]]
-module = "tests.*"
-ignore_errors = true
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.ty.rules]
+unused-type-ignore-comment = "ignore"
+possibly-missing-attribute = "ignore"
+unresolved-attribute = "ignore"
+call-top-callable = "ignore"
+call-non-callable = "ignore"
+invalid-type-form = "ignore"
+invalid-parameter-default = "ignore"
+invalid-method-override = "ignore"
+invalid-assignment = "ignore"
+invalid-argument-type = "ignore"
+conflicting-declarations = "ignore"
+unknown-argument = "ignore"
+unsupported-operator = "ignore"
+invalid-await = "ignore"
+no-matching-overload = "ignore"
+not-iterable = "ignore"
+parameter-already-assigned = "ignore"
+redundant-cast = "ignore"
 
 
 [tool.ruff]
@@ -189,15 +198,6 @@ parallel = true
 context = '${CONTEXT}'
 source = ["tests", "sayer"]
 # omit = []
-
-[[tool.mypy.overrides]]
-module = "sayer.tests.*"
-ignore_missing_imports = true
-check_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = "docs_src.*"
-ignore_errors = true
 
 [tool.pytest.ini_options]
 addopts = ["--strict-config", "--strict-markers"]

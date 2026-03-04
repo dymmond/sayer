@@ -93,7 +93,7 @@ uv pip install sayer
 | Testability           | ✅ Yes        | CLI client for unit tests         |
 | Output Styling        | ✅ Yes        | Built-in `rich` integration       |
 | Based on Modern Tools | ✅ Hatch + UV | Modern dev setup from day 1       |
-| Full Typing           | ✅ Yes        | Mypy + Ruff compliant             |
+| Full Typing           | ✅ Yes        | Ty + Ruff compliant               |
 | Fun to Use?           | 🕺 Extremely | Let the code dance with you       |
 
 ---

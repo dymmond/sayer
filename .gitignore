@@ -3,11 +3,13 @@
 .hypothesis/
 .idea/
 .mypy_cache/
+.ty_cache/
 .pytest_cache/
 .scannerwork/
 .tox/
 .venv/
 .vscode/
+.cache/
 __pycache__/
 virtualenv/
 build/
@@ -16,6 +18,7 @@ node_modules/
 results/
 site/
 site_lang/
+docs/generated/
 target/
 
 # files

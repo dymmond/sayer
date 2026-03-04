@@ -19,7 +19,44 @@
 
 [data-md-color-scheme="default"] .md-tabs {
   background-color: var(--sayer-primary-strong);
-  color: var(--sayer-text-light);
+  color: var(--sayer-colour-default);
+}
+
+[data-md-color-scheme="default"] .md-header .md-search__button {
+  color: #fff;
+}
+
+[data-md-color-scheme="default"] .md-header .md-search__button:hover,
+[data-md-color-scheme="default"] .md-header .md-search__button:focus {
+  color: #fff;
+}
+
+[data-md-color-scheme="default"] .md-header .md-search__button:before {
+  background-color: #fff;
+}
+
+[data-md-color-scheme="default"] .md-header .md-search__button:after {
+  background: #f2f2f2;
+  color: #111;
+}
+
+[data-md-color-scheme="default"] .md-search__form {
+  background-color: #fff;
+}
+
+[data-md-color-scheme="default"] .md-search__form:hover,
+[data-md-color-scheme="default"] .md-search__form:focus-within {
+  background-color: #fff;
+}
+
+[data-md-color-scheme="default"] .md-search__input,
+[data-md-color-scheme="default"] .md-search__icon,
+[data-md-color-scheme="default"] .md-search__icon svg {
+  color: #111;
+}
+
+[data-md-color-scheme="default"] .md-search__input::placeholder {
+  color: #5f6368;
 }
 
 [data-md-color-scheme="default"] .md-sidebar,
@@ -38,4 +75,8 @@
 .md-typeset a:focus-visible {
   text-decoration: none;
   box-shadow: none;
+}
+
+.text-justify {
+  text-align: justify;
 }

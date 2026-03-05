@@ -47,9 +47,19 @@ def test_set_str_from_list():
     assert result == {"a", "b"}
 
 
+def test_set_int_from_comma_separated_string():
+    result = convert_cli_value_to_type("1, 2,1", set[int])
+    assert result == {1, 2}
+
+
 def test_frozenset_int_from_list():
     value = ["1", "2", "2"]
     result = convert_cli_value_to_type(value, frozenset[int])
+    assert result == frozenset({1, 2})
+
+
+def test_frozenset_int_from_comma_separated_string():
+    result = convert_cli_value_to_type("1, 2,2", frozenset[int])
     assert result == frozenset({1, 2})
 
 

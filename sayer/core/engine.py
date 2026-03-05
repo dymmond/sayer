@@ -373,6 +373,11 @@ def command(
         click_command_wrapper.standalone_mode = False
         click_command_wrapper._return_result = True
         current_wrapper = click_command_wrapper
+        existing_click_param_names = {
+            param.name
+            for param in getattr(function_to_decorate, "__click_params__", [])
+            if isinstance(param, click.Parameter) and param.name is not None
+        }
 
         # Attach parameters to the Click command.
         # Iterate through the original function's parameters to build Click options/arguments.
@@ -381,6 +386,11 @@ def command(
             if param_inspect_obj.annotation is click.Context or (
                 isinstance(param_inspect_obj.annotation, type) and issubclass(param_inspect_obj.annotation, State)
             ):
+                continue
+
+            # Respect existing click decorators on the function (e.g. @click.argument / @click.option)
+            # and avoid adding a second parameter with the same internal name.
+            if param_inspect_obj.name in existing_click_param_names:
                 continue
 
             # Determine the raw annotation and the primary parameter type.

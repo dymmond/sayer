@@ -37,6 +37,30 @@ PRIMITIVE_TYPE_MAP = {
 SUPPORTS_HIDDEN = "hidden" in inspect.signature(click.Option).parameters
 
 
+def _iter_option_decl_aliases(option_decls: tuple[str, ...]) -> tuple[str, ...]:
+    aliases: list[str] = []
+    for declaration in option_decls:
+        if declaration.startswith("-") and "/" in declaration:
+            aliases.extend(alias for alias in declaration.split("/") if alias)
+        else:
+            aliases.append(declaration)
+    return tuple(aliases)
+
+
+def _has_long_option_decl(option_decls: tuple[str, ...], expected: str) -> bool:
+    return any(alias == expected for alias in _iter_option_decl_aliases(option_decls) if alias.startswith("--"))
+
+
+def _has_any_long_option(option_decls: tuple[str, ...]) -> bool:
+    return any(alias.startswith("--") for alias in _iter_option_decl_aliases(option_decls))
+
+
+def _has_any_short_option(option_decls: tuple[str, ...]) -> bool:
+    return any(
+        alias.startswith("-") and not alias.startswith("--") for alias in _iter_option_decl_aliases(option_decls)
+    )
+
+
 @dataclass
 class ParameterContext:
     parameter: inspect.Parameter
@@ -371,7 +395,7 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
     # Always include a long alias derived from the parameter name (e.g., --store)
     name_long = f"--{ctx.parameter.name.replace('_', '-')}"
     if md_decl:
-        if not any(d == name_long for d in md_decl if d.startswith("--")):
+        if not _has_long_option_decl(md_decl, name_long):
             md_decl = (*md_decl, name_long)
 
     # Coerce default for multiple=True
@@ -396,11 +420,7 @@ def _handle_sequence(ctx: ParameterContext) -> Optional[Callable]:
         kwargs["hidden"] = ctx.hidden
 
     # If only short option(s) were provided and no long form, ensure we still include the long alias
-    if (
-        md_decl
-        and any(d.startswith("-") and not d.startswith("--") for d in md_decl)
-        and not any(d.startswith("--") for d in md_decl)
-    ):
+    if md_decl and _has_any_short_option(md_decl) and not _has_any_long_option(md_decl):
         md_decl = (*md_decl, name_long)
 
     # If no declarations were provided at all, start with the name-based long alias
@@ -756,7 +776,7 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
     # Always include a long alias derived from the parameter name (e.g., --param-name)
     name_long = f"--{ctx.parameter.name.replace('_', '-')}"
     if md_decl:
-        if not any(d == name_long for d in md_decl if d.startswith("--")):
+        if not _has_long_option_decl(md_decl, name_long):
             md_decl = (*md_decl, name_long)
 
     # Build kwargs safely, do not leak declaration or override envvar from options
@@ -796,11 +816,7 @@ def _handle_option(ctx: ParameterContext) -> Optional[Callable]:
         kwargs["hidden"] = ctx.hidden
 
     # If only short option(s) were provided and no long form, ensure we still include the long alias
-    if (
-        md_decl
-        and any(d.startswith("-") and not d.startswith("--") for d in md_decl)
-        and not any(d.startswith("--") for d in md_decl)
-    ):
+    if md_decl and _has_any_short_option(md_decl) and not _has_any_long_option(md_decl):
         md_decl = (*md_decl, name_long)
 
     # If no declarations were provided at all, start with the name-based long alias

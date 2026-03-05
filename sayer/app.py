@@ -16,12 +16,12 @@ import click
 from sayer.conf import monkay
 from sayer.core.commands.base import BaseSayerCommand
 from sayer.core.commands.config import CustomCommandConfig
-from sayer.core.commands.sayer import SayerCommand
+from sayer.core.commands.sayer import SayerCommand, wrap_click_command
 from sayer.core.engine import build_click_parameter
 from sayer.core.groups.sayer import SayerGroup
 from sayer.params import Argument, Env, JsonParam, Option, Param
 from sayer.state import State
-from sayer.utils.coersion import coerce_argument_to_option
+from sayer.utils.coercion import coerce_argument_to_option
 from sayer.utils.ui import warning
 
 _EMPTY_PARAMETER_SENTINEL = inspect._empty
@@ -138,10 +138,9 @@ class Sayer:
                 return original_group_invoke(ctx)
 
             # by default (invoke_without_command=False), skip root callbacks if a subcommand is being called
-            # Click<9 stores the raw tokens here; Click>=9 will populate .args instead
-            tokens = getattr(ctx, "protected_args", None)
-            if tokens is None:
-                tokens = ctx.args
+            # Click 8 keeps the next command token in _protected_args.
+            # Accessing the public protected_args property emits a deprecation warning.
+            tokens = list(getattr(ctx, "_protected_args", ()) or ctx.args)
 
             if tokens and tokens[0] in cli_group.commands and not cli_group.invoke_without_command:
                 return original_group_invoke(ctx)
@@ -438,19 +437,7 @@ class Sayer:
             return
 
         # Otherwise it's a leaf command: wrap it in SayerCommand
-        wrapped = self._command_class(
-            name=cmd.name,
-            callback=cmd.callback,
-            params=cmd.params,
-            help=cmd.help,
-            context_settings=cmd.context_settings,
-            add_help_option=cmd.add_help_option,
-            short_help=cmd.short_help,
-            epilog=cmd.epilog,
-            hidden=cmd.hidden,
-            no_args_is_help=cmd.no_args_is_help,
-            deprecated=cmd.deprecated,
-        )
+        wrapped = wrap_click_command(cmd, command_class=self._command_class)
         self._group.add_command(wrapped, name=name)
 
     def __call__(self, args: list[str] | None = None) -> Any:

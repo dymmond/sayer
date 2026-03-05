@@ -30,6 +30,11 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
+def _split_csv_items(value: str) -> list[str]:
+    """Split a comma-separated CLI value into normalized tokens."""
+    return [item.strip() for item in value.split(",")]
+
+
 class CommandRegistry(dict[T, V]):
     """
     A specialized dictionary for storing Click commands.
@@ -197,7 +202,7 @@ def convert_cli_value_to_type(
             return [convert_cli_value_to_type(item, inner, func, param_name) for item in value]
         if isinstance(value, str):
             if "," in value:
-                return [convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")]
+                return [convert_cli_value_to_type(item, inner, func, param_name) for item in _split_csv_items(value)]
             return [convert_cli_value_to_type(value, inner, func, param_name)]
         return [convert_cli_value_to_type(value, inner, func, param_name)]
 
@@ -218,7 +223,7 @@ def convert_cli_value_to_type(
             return {convert_cli_value_to_type(item, inner, func, param_name) for item in value}
         if isinstance(value, str):
             if "," in value:
-                return {convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")}
+                return {convert_cli_value_to_type(item, inner, func, param_name) for item in _split_csv_items(value)}
             return {convert_cli_value_to_type(value, inner, func, param_name)}
         return {convert_cli_value_to_type(value, inner, func, param_name)}
 
@@ -245,7 +250,7 @@ def convert_cli_value_to_type(
         if isinstance(value, str):
             if "," in value:
                 return frozenset(
-                    convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")
+                    convert_cli_value_to_type(item, inner, func, param_name) for item in _split_csv_items(value)
                 )
             return frozenset((convert_cli_value_to_type(value, inner, func, param_name),))
         return frozenset((convert_cli_value_to_type(value, inner, func, param_name),))

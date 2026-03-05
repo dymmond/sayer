@@ -1,7 +1,7 @@
 import sayer.cli.docs  # noqa
 from sayer.__version__ import get_version
 from sayer.app import Sayer
-from sayer.core.commands.sayer import SayerCommand
+from sayer.core.commands.sayer import SayerCommand, wrap_click_command
 from sayer.core.engine import get_commands, get_groups
 
 help_text = """**Sayer** CLI: Your essential command-line tool for any project.
@@ -20,20 +20,7 @@ app = Sayer(
 
 # 1️⃣ Wrap and add all *top-level* commands
 for cmd in get_commands().values():
-    cmd_cls = SayerCommand(
-        name=cmd.name,
-        callback=cmd.callback,
-        params=cmd.params,
-        help=cmd.help,
-        context_settings=cmd.context_settings,
-        add_help_option=cmd.add_help_option,
-        short_help=cmd.short_help,
-        epilog=cmd.epilog,
-        hidden=cmd.hidden,
-        no_args_is_help=cmd.no_args_is_help,
-        deprecated=cmd.deprecated,
-    )
-    app.add_command(cmd_cls)
+    app.add_command(wrap_click_command(cmd, command_class=SayerCommand))
 
 # 2️⃣ For each group, rewrap *its* subcommands before adding the group itself
 for alias, group_cmd in get_groups().items():
@@ -48,20 +35,7 @@ for alias, group_cmd in get_groups().items():
 
     # Re-add each as SayerCommand
     for name, cmd in original:
-        wrapped = SayerCommand(
-            name=cmd.name,
-            callback=cmd.callback,
-            params=cmd.params,
-            help=cmd.help,
-            context_settings=cmd.context_settings,
-            add_help_option=cmd.add_help_option,
-            short_help=cmd.short_help,
-            epilog=cmd.epilog,
-            hidden=cmd.hidden,
-            no_args_is_help=cmd.no_args_is_help,
-            deprecated=cmd.deprecated,
-        )
-        group_cmd.add_command(wrapped, name=name)
+        group_cmd.add_command(wrap_click_command(cmd, command_class=SayerCommand), name=name)
 
     # Finally register the group under the main CLI
     app.cli.add_command(group_cmd, name=alias)

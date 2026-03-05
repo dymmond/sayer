@@ -197,9 +197,7 @@ def convert_cli_value_to_type(
             return [convert_cli_value_to_type(item, inner, func, param_name) for item in value]
         if isinstance(value, str):
             if "," in value:
-                return (
-                    [convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")],
-                )
+                return [convert_cli_value_to_type(item.strip(), inner, func, param_name) for item in value.split(",")]
             return [convert_cli_value_to_type(value, inner, func, param_name)]
         return [convert_cli_value_to_type(value, inner, func, param_name)]
 

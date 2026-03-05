@@ -23,6 +23,12 @@ def test_list_int_from_list():
     assert result == [1, 2, 3]
 
 
+def test_list_int_from_comma_separated_string():
+    result = convert_cli_value_to_type("1, 2,3", list[int])
+    assert result == [1, 2, 3]
+    assert isinstance(result, list)
+
+
 def test_tuple_varlen_int():
     value = ["1", "2", "3"]
     result = convert_cli_value_to_type(value, tuple[int, ...])

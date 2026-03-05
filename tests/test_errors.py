@@ -56,3 +56,24 @@ def test_missing_argument_renders_custom_error():
     assert "Error:" in result.output
     assert "Usage:" in result.output
     assert "Missing argument 'NAME'" in result.output
+
+
+def test_click_argument_decorator_not_duplicated_by_sayer():
+    app = Sayer(name="myapp")
+
+    @app.command()
+    @click.argument("name")
+    def greet(name):
+        click.echo(f"hello {name}")
+
+    command_obj = app.cli.commands["greet"]
+    argument_params = [
+        param for param in command_obj.params if isinstance(param, click.Argument) and param.name == "name"
+    ]
+
+    assert len(argument_params) == 1
+
+    client = SayerTestClient(app)
+    result = client.invoke(["greet", "Ada"])
+    assert result.exit_code == 0
+    assert "hello Ada" in result.output

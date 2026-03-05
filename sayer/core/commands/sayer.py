@@ -80,3 +80,30 @@ class SayerCommand(BaseSayerCommand):
             # Activate a transient context so pass_context can inject it
             with click.Context(self, info_name=self.name):
                 return self.callback(**filtered_kwargs)
+
+
+def wrap_click_command(
+    command: click.Command,
+    *,
+    command_class: type[click.Command] = SayerCommand,
+) -> click.Command:
+    """
+    Rebuilds a click command using the provided command class while preserving
+    the original command configuration.
+    """
+    if isinstance(command, command_class):
+        return command
+
+    return command_class(
+        name=command.name,
+        callback=command.callback,
+        params=command.params,
+        help=command.help,
+        context_settings=command.context_settings,
+        add_help_option=command.add_help_option,
+        short_help=command.short_help,
+        epilog=command.epilog,
+        hidden=command.hidden,
+        no_args_is_help=command.no_args_is_help,
+        deprecated=command.deprecated,
+    )

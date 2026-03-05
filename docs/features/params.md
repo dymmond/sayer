@@ -180,6 +180,14 @@ Sayer now casts multiple CLI tokens into Python containers with element-wise con
 
 * Under the hood, `convert_cli_value_to_type` inspects `typing.get_origin` and `get_args`.
 * Lists/tuples/sets/frozensets: iterate and cast each item.
+* `list[T]` conversion also supports comma-separated strings in programmatic calls:
+
+```python
+from sayer.core.engine import convert_cli_value_to_type
+
+assert convert_cli_value_to_type("1, 2, 3", list[int]) == [1, 2, 3]
+```
+
 * `dict[K,V]`: expects tokens `key=value`, splitting and casting both sides.
 
 ---

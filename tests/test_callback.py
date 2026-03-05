@@ -1,3 +1,4 @@
+import warnings
 from typing import Annotated
 
 from click import Context
@@ -161,3 +162,19 @@ def test_callback_jsonparam_parsing():
     result = client.invoke(["--config", json_str])
     assert result.exit_code == 0
     assert received["config"] == {"a": 1, "b": 2}
+
+
+def test_callback_invocation_emits_no_protected_args_deprecation():
+    app = Sayer(help="TestApp", add_version_option=False, invoke_without_command=True)
+
+    @app.callback()
+    def root():
+        return None
+
+    client = SayerTestClient(app)
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        result = client.invoke([])
+
+    assert result.exit_code == 0
+    assert not any("'protected_args' is deprecated" in str(item.message) for item in captured)

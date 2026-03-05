@@ -62,6 +62,19 @@ def test_boolean_flag_default_true():
     assert "Verbose OFF" in res2.output
 
 
+def test_boolean_flag_declaration_does_not_duplicate_long_option():
+    app = Sayer(add_version_option=False, invoke_without_command=True)
+
+    @app.callback()
+    def root(verbose: bool = Option(True, "--verbose/--no-verbose", help="Be verbose")):
+        click.echo(f"verbose={verbose}")
+
+    verbose_options = [param for param in app.cli.params if isinstance(param, click.Option) and param.name == "verbose"]
+    assert len(verbose_options) == 1
+    assert verbose_options[0].opts.count("--verbose") == 1
+    assert "--no-verbose" in verbose_options[0].secondary_opts
+
+
 def test_argument_with_default_value():
     app = Sayer(add_version_option=False, invoke_without_command=True)
 

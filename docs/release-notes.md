@@ -1,5 +1,20 @@
 # Release Notes
 
+## 0.7.7
+
+### Fixed
+
+- Fixed `convert_cli_value_to_type(..., list[T])` so comma-separated strings now return a `list` instead of a tuple-wrapped list.
+- Fixed duplicate Click parameter registration when combining `@app.command()` with pre-decorated Click parameters (for example `@click.argument`).
+- Fixed duplicate `--verbose` option generation for slash-style boolean declarations like `--verbose/--no-verbose`.
+- Fixed callback token detection to avoid Click's `protected_args` deprecation warning while preserving callback/subcommand dispatch behavior.
+- Fixed local development Taskfile env variable naming to use `SAYER_SETTINGS_MODULE` consistently.
+
+### Changed
+
+- Added a canonical coercion module at `sayer.utils.coercion` and kept `sayer.utils.coersion` as a compatibility shim.
+- Centralized command wrapping logic through a shared helper to reduce duplicated wrapping code paths.
+
 ## 0.7.6
 
 ### Fixed

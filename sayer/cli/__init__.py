@@ -1,1 +1,1 @@
-from . import new  # noqa: F401
+from . import directive, docs, new  # noqa: F401

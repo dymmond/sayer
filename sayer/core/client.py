@@ -6,11 +6,10 @@ from sayer.core.engine import get_commands, get_groups
 
 help_text = """**Sayer** CLI: Your essential command-line tool for any project.
 
-The ultimate tool for managing and running your Sayer projects and apps.
+The ultimate tool for managing and running your Sayer projects and apps, as well as any of **edgy**, **lilya** and **ravyn**.
 
 Read more in the docs: https://sayer.dymmond.com
 """
-
 app = Sayer(
     name="sayer",
     help=help_text,

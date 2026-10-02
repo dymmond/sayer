@@ -3,96 +3,140 @@ import importlib.util
 import os
 import pkgutil
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Container, Iterable
 from inspect import isawaitable
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, NamedTuple, Sequence
+
+from rich.padding import Padding
 
 from sayer.utils.ui import echo, error
 
 
-def find_directives_from(*, path: os.PathLike, pattern: str, extractor: Callable[[Path, ModuleType], tuple[str, Any]], initial_directives: dict[str, tuple[Path, str, Any] | None] | None = None) -> dict[str, tuple[Path, str, Any] | None]:
+class DirectiveTuple(NamedTuple):
+    module: ModuleType
+    # relative parent
+    relative: Path
+    # absolute path to file
+    absolute: Path
+    func: Callable
+
+
+def find_directives_from(
+    path: os.PathLike,
+    *,
+    pattern: str,
+    extractor_directive: Callable[[ModuleType, Path, Path], Callable],
+    seen: Container[str] | None = None,
+) -> dict[str, DirectiveTuple | None]:
     root = Path(path)
-    directives: dict[str, Any] = initial_directives if initial_directives is not None else {}
+    directives: dict[str, DirectiveTuple | None] = {}
+    seen = seen if seen is not None else set()
     for directive_dir in root.glob(pattern):
         relative = directive_dir.relative_to(root)
+        directive_dir = directive_dir.resolve()
         if not all(part.isidentifier() and not part.startswith("_") for part in relative.parts):
             continue
 
-        for _, name, _ in pkgutil.iter_modules([directive_dir]):
-            if not name.startswith("_"):
-                full_path = relative / f"{name}.py"
+        for _, name, ispkg in pkgutil.iter_modules([directive_dir]):
+            if not name.startswith("_") and not ispkg:
+                full_path = directive_dir / f"{name}.py"
+                relative_path = relative / f"{name}.py"
                 full_path_str = str(full_path)
-                if full_path_str in directives:
+                if full_path_str in directives or full_path_str in seen:
                     continue
                 if full_path.exists():
                     spec = importlib.util.spec_from_file_location(name, full_path)
                     module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(module)
-                    app_name, imported = extractor(full_path, module)
-                    directives[full_path_str] = (full_path, app_name, imported)
+                    if spec.loader is not None:
+                        spec.loader.exec_module(module)
+                    fn = extractor_directive(module, relative_path, full_path)
+                    directives[full_path_str] = DirectiveTuple(module, relative_path, full_path, fn)
                 else:
                     directives[full_path_str] = None
     return directives
 
 
-def transpose_directives(directives: dict[str, tuple[Path, str, Any] | None]) -> tuple[dict[tuple[str, str], Any], dict[str, Any]]:
-    """Transpose directives into app.name, name dictionaries."""
+def transpose_directives(
+    directives: dict[str, DirectiveTuple | None],
+    *,
+    extractor_help: Callable[[DirectiveTuple], None | str] = lambda tup: tup.func.__doc__ or "",
+    extractor_app_name: Callable[[DirectiveTuple], str] = lambda tup: getattr(
+        tup.module, "app_name", tup.relative.parts[0]
+    ),
+) -> dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None]:
+    """
 
-    directives_by_app_and_name: dict[tuple[str, str], Any] = {}
-    directives_by_name: dict[str, Any] = {}
+    Transpose directives into dictionaries referenced by name and app_name.
+
+    Args:
+        directives: Raw directives dictionary.
+
+    Kwargs:
+        extractor_help (Callable[[ModuleType, Path, Callable], None | str]):
+            Extract the help text or `None` to not show up in help. Defaults to the doc string.
+        extractor_app_name (Callable[[ModuleType, Path, Callable], str]):
+            Extract the app_name. Defaults to the `app_name` module attribute or root folder defining the directive.
+    """
+
+    directives_by_app_and_name: dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None] = {}
     for directive_tuple in directives.values():
         if directive_tuple is not None:
-            name = directive_tuple[0].stem
-            app_name = directive_tuple[1]
-            if (app_name, name) in directives_by_app_and_name:
-                directives_by_app_and_name[(app_name, name)] = None
-            if name in directives_by_name:
-                directives_by_name[name] = None
+            name = directive_tuple[1].stem
+            app_name = extractor_app_name(directive_tuple)
+            name_tup = (name,)
+            app_name_tup = (app_name, name)
+            if app_name_tup in directives_by_app_and_name:
+                # collision
+                directives_by_app_and_name[app_name_tup] = None
+            if name_tup in directives_by_app_and_name:
+                directives_by_app_and_name[name_tup] = None
                 continue
-            directives_by_app_and_name[(app_name, name)] = directive_tuple[2]
-            directives_by_name[name] = directive_tuple[2]
-    return directives_by_app_and_name, directives_by_name
+            extracted_help = extractor_help(directive_tuple)
+            final_tup = (extracted_help, directive_tuple[3])
+            directives_by_app_and_name.setdefault(app_name_tup, final_tup)
+            directives_by_app_and_name.setdefault(name_tup, final_tup)
+    return directives_by_app_and_name
 
 
-async def execute_directive(directives_or_transposed: tuple[dict[str, Any], dict[str, Any]] | dict[str, Any], /, directive: str | None, *args: str, help_text_preamble: str = "") -> Any:
+def directive_function_or_help(
+    transposed: dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None],
+    /,
+    *,
+    directive: str | None,
+    help_text_preamble: str = "",
+) -> Callable | None:
     """Helper for executing the directive."""
-    if not isinstance(directives_or_transposed, tuple):
-        directives_by_app_and_name, directives_by_name = transpose_directives(directives_or_transposed)
-    else:
-        # already transposed
-        directives_by_app_and_name, directives_by_name = directives_or_transposed
+    collisions = tuple(k for k, v in transposed.items() if len(k) == 2 and v is None)
+    if collisions:
+        error("Following directive have collisions:\n")
+        for collision in collisions:
+            echo(f"  [red]{collision[0]}.{collision[1]}[/]\n")
+        sys.exit(1)
     if not directive:
         echo(f"{help_text_preamble}Available directives:\n")
         last_app = None
-        for app, name in sorted(directives_by_app_and_name.keys()):
-            if last_app != app:
-                echo("\n")
-                echo(f"[bold green]\\[{app}]\n")
-            echo(f"    [bold blue]{name}\n")
-            last_app = app
+        for key_tup, [help_text, _] in sorted(transposed.items(), key=lambda k, v: k):
+            if help_text is None or len(key_tup) == 1:
+                continue
+            app_name, name = key_tup
+            if last_app != app_name:
+                echo(f"\n[bold green]\\[{app_name}][/]\n")
+            echo(f"  [bold blue]{name}[/]:\n")
+            if help_text:
+                echo(Padding(help_text, (0, 0, 0, 4), expand=False))
+            last_app = app_name
         return None
     else:
-        if "." in directive:
-            tup = tuple(directive.split(".", 1))
-            if tup not in directives_by_app_and_name:
-                error(f"Fully specified directive: {directive} not found.")
-                sys.exit(1)
-            retrieved = directives_by_app_and_name[tup]
-            if retrieved is None:
-                error(f"Directive: `{directive}` could not be uniquely resolved.")
-                sys.exit(1)
-            result = retrieved(*args)
-        else:
-            if directive not in directives_by_name:
-                error(f"Directive: `{directive}` not found.")
-                sys.exit(1)
-            retrieved = directives_by_name[directive]
-            if retrieved is None:
-                error(f"Directive: `{directive}` could not be uniquely resolved.")
-                sys.exit(1)
-            result = retrieved(*args)
-        if isawaitable(result):
-            result = await result
-        return result
+        search_tuple = tuple(directive.rsplit(".", 1))
+        if search_tuple not in transposed:
+            error(f"Specified directive: {directive} not found.")
+            sys.exit(1)
+        retrieved = transposed[search_tuple]
+        if retrieved is None:
+            error(
+                f"Specified directive: {directive} could not be uniquely identified. Please provide also the `app_name`."
+            )
+            sys.exit(1)
+        return retrieved[1]

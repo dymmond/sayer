@@ -4,13 +4,14 @@ from collections.abc import Callable
 from inspect import isawaitable, isroutine
 from pathlib import Path
 from types import ModuleType
-from typing import Any, ClassVar, TypeVar, Sequence
+from typing import Any, ClassVar, Sequence, TypeVar
 
-from sayer.utils.directives import directive_function_or_help, find_directives_from, transpose_directives
+from sayer.utils.directives import directive_function_or_help, find_directives_from_files, transpose_directives, find_directives_from_module
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 success = object()
+
 
 class BaseDirective(ABC):
     __is_custom_directive__: ClassVar[bool] = True
@@ -22,7 +23,7 @@ class BaseDirective(ABC):
         pass
 
 
-def extractor_directive(module: ModuleType, relative: Path, absolute: Path):
+def extractor_directive(module: ModuleType, relative):
     found: Callable | None = None
     for attr in dir(module):
         obj = getattr(module, attr)
@@ -34,7 +35,7 @@ def extractor_directive(module: ModuleType, relative: Path, absolute: Path):
             else:
                 continue
             if found is not None:
-                raise RuntimeError(f"Detected multiple directives in the same file: `{relative}`.")
+                raise RuntimeError(f"Detected multiple directives in the same file: `{module.__file__}`.")
             found = new_found
     return found
 
@@ -46,12 +47,24 @@ def extractor_help(tup: Any) -> str | None:
 
 
 def find_directive(path: os.PathLike, directive: str | None):
-    directives = find_directives_from(path, pattern="**/directives/operations", extractor_directive=extractor_directive)
+    directives = find_directives_from_files(
+        path, patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py"], extractor_directive=extractor_directive
+    )
     transposed = transpose_directives(directives, extractor_help=extractor_help)
     return directive_function_or_help(transposed, directive=directive)
 
 
-def execute_directive(path: os.PathLike, directive: str | None, args: Sequence[Any] = (), kwargs: dict[str, Any] | None = None):
+def find_directive_system(directive: str | None, patterns: any):
+    from ..testdirectives_module import valid3
+    directives = find_directives_from_module(
+        valid3, patterns=patterns, extractor_directive=extractor_directive
+    )
+    transposed = transpose_directives(directives, extractor_help=extractor_help, extractor_app_name=lambda x: valid3.__name__.rsplit(".", 1)[-1])
+    return directive_function_or_help(transposed, directive=directive)
+
+def execute_directive(
+    path: os.PathLike, directive: str | None, args: Sequence[Any] = (), kwargs: dict[str, Any] | None = None
+):
     retrieved = find_directive(path, directive)
     if retrieved is not None:
         kwargs = {} if kwargs is None else kwargs

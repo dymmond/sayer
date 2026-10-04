@@ -1,10 +1,11 @@
 from pathlib import Path
 import pytest
 
-from .testdirectives.definitions import execute_directive, find_directive
+from . import testdirectives
+from .testdirectives.definitions import execute_directive, find_directive, find_directive_system
 
 @pytest.mark.parametrize("name", [
-    "class_based_hidden", "class_based_shown", "hidden", "shown"
+    "class_based_hidden", "class_based_shown", "hidden", "shown", "packaged_op"
 ])
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_find_directive_simple(name, prefixed):
@@ -22,11 +23,23 @@ def test_execute_directive_simple(name, prefixed):
         name = f"valid_module.{name}"
     execute_directive(Path(__file__).parent / "testdirectives", name)
 
+
+@pytest.mark.parametrize("patterns", [("[!_]*.py", "*/__init__.py"), None])
+@pytest.mark.parametrize("name", [
+    "hidden3", "shown3", "packaged_op3"
+])
+@pytest.mark.parametrize("prefixed", [True, False])
+def test_find_directive_system(name, prefixed, patterns):
+    if prefixed:
+        name = f"valid3.{name}"
+    result = find_directive_system(name, patterns)
+    assert result
+
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_find_directive_app_name(prefixed):
     name = "app_name"
     if prefixed:
-        name = f"foo.{name}"
+        name = f".ff...foo.{name}"
     result = find_directive(Path(__file__).parent / "testdirectives", name)
     assert result
 
@@ -34,7 +47,7 @@ def test_find_directive_app_name(prefixed):
 def test_execute_directive_app_name(prefixed):
     name = "app_name"
     if prefixed:
-        name = f"foo.{name}"
+        name = f".ff...foo.{name}"
     execute_directive(Path(__file__).parent / "testdirectives", name)
 
 @pytest.mark.parametrize("prefixed", [True, False])
@@ -54,7 +67,8 @@ def test_find_directive_invalid_path_app_name(prefixed):
     assert result
 
 
-@pytest.mark.parametrize("name", ["notknown", "packaged_op"])
+# the both last would require to cross an invalid directory
+@pytest.mark.parametrize("name", ["notknown", "shown2", "app_name2"])
 def test_find_invalid_directives(name):
     with pytest.raises(SystemExit):
         find_directive(Path(__file__).parent / "testdirectives", name)

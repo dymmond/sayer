@@ -3,66 +3,91 @@ import importlib.util
 import os
 import pkgutil
 import sys
-from collections.abc import Callable, Container, Iterable
-from inspect import isawaitable
+from collections.abc import Callable, Collection, Container
 from pathlib import Path
 from types import ModuleType
-from typing import Any, NamedTuple, Sequence
+from typing import NamedTuple
 
 from rich.padding import Padding
 
 from sayer.utils.ui import echo, error
 
 
-class DirectiveTuple(NamedTuple):
+class _DirectiveTuple(NamedTuple):
     module: ModuleType
-    # relative parent
     relative: Path
-    # absolute path to file
-    absolute: Path
     func: Callable
 
+def find_directives_from_module(
+    module: str | ModuleType,
+    *,
+    patterns: Collection[str] | None  = None,
+    extractor_directive: Callable[[ModuleType, Path], Callable | None],
+    seen: Container[tuple[str, str]] | None = None,
+) -> dict[tuple[str, str], _DirectiveTuple | None]:
+    directives: dict[tuple[str, str], _DirectiveTuple | None] = {}
+    seen = seen if seen is not None else set()
+    if isinstance(module, str):
+        module = importlib.import_module(module)
+    root = Path(module.__file__).parent
+    for submodule_name in dir(module):
+        if not submodule_name.startswith("_"):
+            submodule = getattr(module, submodule_name)
+            if not isinstance(submodule, ModuleType):
+                continue
+            full_name_str = submodule.__file__
+            relative = Path(full_name_str).relative_to(root)
+            id_tup = (str(root), full_name_str)
+            if id_tup in directives or id_tup in seen:
+                continue
+            if patterns is not None and not any(relative.full_match(pattern) for pattern in patterns):
+                continue
+            fn = extractor_directive(submodule, relative)
+            if fn is not None:
+                directives[id_tup] = _DirectiveTuple(submodule, relative, fn)
+    return directives
 
-def find_directives_from(
+def find_directives_from_files(
     path: os.PathLike,
     *,
-    pattern: str,
-    extractor_directive: Callable[[ModuleType, Path, Path], Callable],
-    seen: Container[str] | None = None,
-) -> dict[str, DirectiveTuple | None]:
-    root = Path(path)
-    directives: dict[str, DirectiveTuple | None] = {}
+    patterns: Collection[str],
+    extractor_directive: Callable[[ModuleType, Path], Callable | None],
+    seen: Container[tuple[str, str]] | None = None,
+) -> dict[tuple[str, str], _DirectiveTuple | None]:
+    directives: dict[tuple[str, str], _DirectiveTuple | None] = {}
     seen = seen if seen is not None else set()
-    for directive_dir in root.glob(pattern):
-        relative = directive_dir.relative_to(root)
-        directive_dir = directive_dir.resolve()
-        if not all(part.isidentifier() and not part.startswith("_") for part in relative.parts):
-            continue
-
-        for _, name, ispkg in pkgutil.iter_modules([directive_dir]):
-            if not name.startswith("_") and not ispkg:
-                full_path = directive_dir / f"{name}.py"
-                relative_path = relative / f"{name}.py"
-                full_path_str = str(full_path)
-                if full_path_str in directives or full_path_str in seen:
-                    continue
-                if full_path.exists():
-                    spec = importlib.util.spec_from_file_location(name, full_path)
-                    module = importlib.util.module_from_spec(spec)
-                    if spec.loader is not None:
-                        spec.loader.exec_module(module)
-                    fn = extractor_directive(module, relative_path, full_path)
-                    directives[full_path_str] = DirectiveTuple(module, relative_path, full_path, fn)
-                else:
-                    directives[full_path_str] = None
+    root = Path(path)
+    paths = [
+        p
+        for p, _, _ in root.walk()
+        if all(not x.startswith("_") and x.isidentifier() for x in p.relative_to(root).parts)
+    ]
+    for finder, name, ispkg in  pkgutil.iter_modules(paths):
+        if not name.startswith("_"):
+            full_name_str = (
+                f"{finder.path}{os.sep}{name}{os.sep}__init__.py" if ispkg else f"{finder.path}{os.sep}{name}.py"
+            )
+            relative = Path(full_name_str).relative_to(root)
+            id_tup = (str(root), full_name_str)
+            if id_tup in directives or id_tup in seen:
+                continue
+            if not any(relative.full_match(pattern) for pattern in patterns):
+                continue
+            spec = finder.find_spec(name, None)
+            module = importlib.util.module_from_spec(spec)
+            if spec.loader is not None:
+                spec.loader.exec_module(module)
+            fn = extractor_directive(module, relative)
+            if fn is not None:
+                directives[id_tup] = _DirectiveTuple(module, relative, fn)
     return directives
 
 
 def transpose_directives(
-    directives: dict[str, DirectiveTuple | None],
+    directives: dict[tuple[str, str], _DirectiveTuple | None],
     *,
-    extractor_help: Callable[[DirectiveTuple], None | str] = lambda tup: tup.func.__doc__ or "",
-    extractor_app_name: Callable[[DirectiveTuple], str] = lambda tup: getattr(
+    extractor_help: Callable[[_DirectiveTuple], None | str] = lambda tup: tup.func.__doc__ or "",
+    extractor_app_name: Callable[[_DirectiveTuple], str] = lambda tup: getattr(
         tup.module, "app_name", tup.relative.parts[0]
     ),
 ) -> dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None]:
@@ -79,11 +104,10 @@ def transpose_directives(
         extractor_app_name (Callable[[ModuleType, Path, Callable], str]):
             Extract the app_name. Defaults to the `app_name` module attribute or root folder defining the directive.
     """
-
     directives_by_app_and_name: dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None] = {}
     for directive_tuple in directives.values():
         if directive_tuple is not None:
-            name = directive_tuple[1].stem
+            name = directive_tuple[1].parent.name if directive_tuple[1].name == "__init__.py" else directive_tuple[1].stem
             app_name = extractor_app_name(directive_tuple)
             name_tup = (name,)
             app_name_tup = (app_name, name)
@@ -94,7 +118,7 @@ def transpose_directives(
                 directives_by_app_and_name[name_tup] = None
                 continue
             extracted_help = extractor_help(directive_tuple)
-            final_tup = (extracted_help, directive_tuple[3])
+            final_tup = (extracted_help, directive_tuple[2])
             directives_by_app_and_name.setdefault(app_name_tup, final_tup)
             directives_by_app_and_name.setdefault(name_tup, final_tup)
     return directives_by_app_and_name

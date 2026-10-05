@@ -3,7 +3,7 @@ import importlib.util
 import os
 import pkgutil
 import sys
-from collections.abc import Callable, Collection, Container
+from collections.abc import Callable, Collection, Container, Mapping
 from pathlib import Path
 from types import ModuleType
 from typing import NamedTuple
@@ -103,6 +103,8 @@ def transpose_directives(
             Extract the help text or `None` to not show up in help. Defaults to the doc string.
         extractor_app_name (Callable[[ModuleType, Path, Callable], str]):
             Extract the app_name. Defaults to the `app_name` module attribute or root folder defining the directive.
+    Returns:
+        Dict mapping with `None` for ambigious directives. Full collisions (two tuple key resolving to None) should be treated as error.
     """
     directives_by_app_and_name: dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None] = {}
     for directive_tuple in directives.values():
@@ -125,13 +127,26 @@ def transpose_directives(
 
 
 def directive_function_or_help(
-    transposed: dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None],
+    transposed: Mapping[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None],
     /,
     *,
     directive: str | None,
-    help_text_preamble: str = "",
+    help_text_preamble: str = "Available directives:\n",
 ) -> Callable | None:
-    """Helper for executing the directive."""
+    """
+    Helper for retrieving the directive, displaying a proper error or help in case of no directive or errornous command.
+
+    Args:
+        transposed (dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None]):
+            Contains the name, app_name.name mappings of the directives to help and actual callables
+    Kwargs:
+        directive (str | None): If empty or `None` display the found directives. Otherwise try to resolve
+        help_text_preamble: (str):
+            Preamble to echo when outputing help. Defaults to "Available directives:\n".
+            Note: should end with newline.
+    Raises:
+        SysExit(1): For errors (wrong directive, colliding directive).
+    """
     collisions = tuple(k for k, v in transposed.items() if len(k) == 2 and v is None)
     if collisions:
         error("Following directive have collisions:\n")
@@ -139,7 +154,8 @@ def directive_function_or_help(
             echo(f"  [red]{collision[0]}.{collision[1]}[/]\n")
         sys.exit(1)
     if not directive:
-        echo(f"{help_text_preamble}Available directives:\n")
+        if help_text_preamble:
+            echo(help_text_preamble)
         last_app = None
         for key_tup, [help_text, _] in sorted(transposed.items(), key=lambda k, v: k):
             if help_text is None or len(key_tup) == 1:

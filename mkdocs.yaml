@@ -78,6 +78,7 @@ nav:
       - concepts/middleware-model.md
   - Features (Deep Dives):
       - features/sayer-and-apps.md
+      - features/directives.md
       - features/settings.md
       - features/commands.md
       - features/groups.md

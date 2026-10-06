@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from .testdirectives.definitions import execute_directive, find_directive, find_directive_system, find_directive_zipapp
+from .testdirectives.definitions import (
+    execute_directive,
+    find_directive,
+    find_directive_system,
+    find_directive_zipapp,
+)
 
 
 @pytest.mark.parametrize("name", ["class_based_hidden", "class_based_shown", "hidden", "shown", "packaged_op"])
@@ -24,7 +29,10 @@ def test_execute_directive_simple(name, prefixed):
 
 @pytest.mark.parametrize("name", ["hidden3", "shown3", "packaged_op3"])
 @pytest.mark.parametrize("prefixed", [True, False])
-@pytest.mark.parametrize("app_name_func", [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid3", id="fixed")])
+@pytest.mark.parametrize(
+    "app_name_func",
+    [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid3", id="fixed")],
+)
 def test_find_directive_system(name, prefixed, app_name_func):
     if prefixed:
         name = f"valid3.{name}"
@@ -34,7 +42,10 @@ def test_find_directive_system(name, prefixed, app_name_func):
 
 @pytest.mark.parametrize("name", ["hidden4", "shown4", "packaged_op4"])
 @pytest.mark.parametrize("prefixed", [True, False])
-@pytest.mark.parametrize("app_name_func", [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid4", id="fixed")])
+@pytest.mark.parametrize(
+    "app_name_func",
+    [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid4", id="fixed")],
+)
 def test_find_directive_zipapp(name, prefixed, app_name_func):
     if prefixed:
         name = f"valid4.{name}"

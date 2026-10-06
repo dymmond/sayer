@@ -1,9 +1,9 @@
-import sys
-from pathlib import Path
 import os
+import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from inspect import isroutine
+from pathlib import Path
 from types import ModuleType
 from typing import Any, ClassVar, TypeVar
 
@@ -28,6 +28,22 @@ class BaseDirective(ABC):
     def run(*args) -> None:
         pass
 
+
+def directive(
+    func: F | None = None,
+    *,
+    display_in_cli: bool = False,
+) -> Callable[[F], F]:
+
+    def wrapper(f: F) -> F:
+        f.__is_custom_directive__ = True  # type: ignore[attr-defined]
+        f.__display_in_cli__ = display_in_cli  # type: ignore[attr-defined]
+        return f
+
+    if func is not None:
+        return wrapper(func)
+
+    return wrapper
 
 def extractor_directive(module: ModuleType, relative):
     found: Callable | None = None
@@ -69,21 +85,17 @@ def find_directive_system(directive: str | None, extractor_app_name: Any = None)
         extractor_directive=extractor_directive,
     )
     assert directives
-    transposed = transpose_directives(
-        directives,
-        extractor_help=extractor_help,
-        extractor_app_name=extractor_app_name
-    )
+    transposed = transpose_directives(directives, extractor_help=extractor_help, extractor_app_name=extractor_app_name)
     return directive_function_or_help(transposed, directive=directive)
 
 
 def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None):
-
     test_directive_path = Path(__file__).parent / "zipped.zip"
     assert test_directive_path.exists()
     sys.path.append(str(test_directive_path))
     try:
         import valid4
+
         directives = find_directives_from_module(
             valid4,
             patterns=["**/directives/[!_]*.pyc", "**/directives/*/__init__.pyc"],
@@ -91,9 +103,7 @@ def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None)
         )
         assert directives
         transposed = transpose_directives(
-            directives,
-            extractor_help=extractor_help,
-            extractor_app_name=extractor_app_name
+            directives, extractor_help=extractor_help, extractor_app_name=extractor_app_name
         )
     finally:
         sys.path.pop()
@@ -108,38 +118,3 @@ def execute_directive(
         kwargs = {} if kwargs is None else kwargs
         retrieved = retrieved(*args, **kwargs)
         assert retrieved is success
-
-
-def directive(
-    func: F | None = None,
-    *,
-    display_in_cli: bool = False,
-) -> Callable[[F], F]:
-    """
-    Marks a function-based Sayer CLI command as a custom Lilya directive.
-
-    This decorator factory allows optional configuration via parameters, such as `show_on_cli`.
-
-    Example usage:
-
-        @directive(display_in_cli=True)
-        @command(name="create")
-        async def create(name: Annotated[str, Option(help="Your name")]):
-            ...
-
-    Parameters:
-        display_in_cli (bool): Whether the directive should be visible in the CLI help output.
-
-    Returns:
-        Callable: A decorator that marks the function as a custom directive.
-    """
-
-    def wrapper(f: F) -> F:
-        f.__is_custom_directive__ = True  # type: ignore[attr-defined]
-        f.__display_in_cli__ = display_in_cli  # type: ignore[attr-defined]
-        return f
-
-    if func is not None:
-        return wrapper(func)
-
-    return wrapper

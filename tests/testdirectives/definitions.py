@@ -1,12 +1,18 @@
+import sys
+from pathlib import Path
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable
-from inspect import isawaitable, isroutine
-from pathlib import Path
+from collections.abc import Callable, Sequence
+from inspect import isroutine
 from types import ModuleType
-from typing import Any, ClassVar, Sequence, TypeVar
+from typing import Any, ClassVar, TypeVar
 
-from sayer.utils.directives import directive_function_or_help, find_directives_from_files, transpose_directives, find_directives_from_module
+from sayer.utils.directives import (
+    directive_function_or_help,
+    find_directives_from_module,
+    find_directives_from_path,
+    transpose_directives,
+)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -47,20 +53,52 @@ def extractor_help(tup: Any) -> str | None:
 
 
 def find_directive(path: os.PathLike, directive: str | None):
-    directives = find_directives_from_files(
-        path, patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py"], extractor_directive=extractor_directive
+    directives = find_directives_from_path(
+        path,
+        patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py"],
+        extractor_directive=extractor_directive,
     )
     transposed = transpose_directives(directives, extractor_help=extractor_help)
     return directive_function_or_help(transposed, directive=directive)
 
 
-def find_directive_system(directive: str | None, patterns: any):
-    from ..testdirectives_module import valid3
+def find_directive_system(directive: str | None, extractor_app_name: Any = None):
     directives = find_directives_from_module(
-        valid3, patterns=patterns, extractor_directive=extractor_directive
+        "tests.testdirectives.valid3",
+        patterns=["**/directives/[!_]*.py", "**/directives/*/__init__.py"],
+        extractor_directive=extractor_directive,
     )
-    transposed = transpose_directives(directives, extractor_help=extractor_help, extractor_app_name=lambda x: valid3.__name__.rsplit(".", 1)[-1])
+    assert directives
+    transposed = transpose_directives(
+        directives,
+        extractor_help=extractor_help,
+        extractor_app_name=extractor_app_name
+    )
     return directive_function_or_help(transposed, directive=directive)
+
+
+def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None):
+
+    test_directive_path = Path(__file__).parent / "zipped.zip"
+    assert test_directive_path.exists()
+    sys.path.append(str(test_directive_path))
+    try:
+        import valid4
+        directives = find_directives_from_module(
+            valid4,
+            patterns=["**/directives/[!_]*.pyc", "**/directives/*/__init__.pyc"],
+            extractor_directive=extractor_directive,
+        )
+        assert directives
+        transposed = transpose_directives(
+            directives,
+            extractor_help=extractor_help,
+            extractor_app_name=extractor_app_name
+        )
+    finally:
+        sys.path.pop()
+    return directive_function_or_help(transposed, directive=directive)
+
 
 def execute_directive(
     path: os.PathLike, directive: str | None, args: Sequence[Any] = (), kwargs: dict[str, Any] | None = None

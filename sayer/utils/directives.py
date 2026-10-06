@@ -243,7 +243,7 @@ def directive_function_or_help(
     /,
     *,
     directive: str | None,
-    help_text_preamble: str = "Available directives:\n",
+    help_text_preamble: str = "Available directives:",
 ) -> Callable | None:
     """
     Helper for retrieving the directive, displaying a proper error or help in case of no directive or errornous command.
@@ -261,9 +261,9 @@ def directive_function_or_help(
     """
     collisions = tuple(k for k, v in transposed.items() if len(k) == 2 and v is None)
     if collisions:
-        error("Following directive have collisions:\n")
+        error("Following directive have collisions:")
         for collision in collisions:
-            echo(f"  [red]{collision[0]}.{collision[1]}[/]\n")
+            echo(f"  [red]{collision[0]}.{collision[1]}[/]")
         sys.exit(1)
     if not directive:
         if help_text_preamble:
@@ -274,8 +274,8 @@ def directive_function_or_help(
                 continue
             app_name, name = key_tup
             if last_app != app_name:
-                echo(f"\n[bold green]\\[{app_name}][/]\n")
-            echo(f"  [bold blue]{name}[/]:\n")
+                echo(f"\n[bold green]\\[{app_name}][/]")
+            echo(f"  [bold blue]{name}[/]:")
             if help_text:
                 echo(Padding(help_text, (0, 0, 0, 4), expand=False))
             last_app = app_name

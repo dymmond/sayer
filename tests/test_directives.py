@@ -70,10 +70,18 @@ def test_execute_directive_app_name(prefixed):
 
 def test_execute_directive_help(capsys):
     name1 = "app_name"
-    name2 = f".ff...foo.{name1}"
+    package = "\n[.ff...foo]\n"
+    name2 = f"\n  {name1}"
+    package_and_name = f"{package}  {name1}:\n"
+    package_and_name_and_help = f"{package}  {name1}:\n    With app name.\n"
     assert execute_directive(Path(__file__).parent / "testdirectives", "") is None
-    assert name1 in capsys.stdout
-    assert name2 in capsys.stdout
+    out, err = capsys.readouterr()
+    assert "Available directives:\n" in out
+    assert f"  {name1}:\n" in out
+    assert package in out
+    assert name2 in out
+    assert package_and_name in out
+    assert package_and_name_and_help in out
 
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_find_directive_invalid_path(prefixed):

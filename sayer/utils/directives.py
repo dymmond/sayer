@@ -167,8 +167,6 @@ def find_directives_from_module(
                 ignore1=ignore,
                 ignore2=directives,
                 use_files=False,
-                # don't import twice
-                strip_none_directives=False
             )
         )
     return directives

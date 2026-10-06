@@ -18,7 +18,6 @@ def test_find_directive_simple(name, prefixed):
     result = find_directive(Path(__file__).parent / "testdirectives", name)
     assert result
 
-
 @pytest.mark.parametrize("name", ["class_based_hidden", "class_based_shown", "hidden", "shown"])
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_execute_directive_simple(name, prefixed):
@@ -69,6 +68,12 @@ def test_execute_directive_app_name(prefixed):
         name = f".ff...foo.{name}"
     execute_directive(Path(__file__).parent / "testdirectives", name)
 
+def test_execute_directive_help(capsys):
+    name1 = "app_name"
+    name2 = f".ff...foo.{name1}"
+    assert execute_directive(Path(__file__).parent / "testdirectives", "") is None
+    assert name1 in capsys.stdout
+    assert name2 in capsys.stdout
 
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_find_directive_invalid_path(prefixed):

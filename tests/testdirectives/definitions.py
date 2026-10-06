@@ -54,6 +54,7 @@ def extractor_directive(module: ModuleType, relative):
                 new_found = obj
             elif obj.__name__ == "Directive":
                 new_found = obj.run
+                setattr(new_found, "__display_in_cli__", obj.__display_in_cli__)  # noqa
             else:
                 continue
             if found is not None:
@@ -118,3 +119,4 @@ def execute_directive(
         kwargs = {} if kwargs is None else kwargs
         retrieved = retrieved(*args, **kwargs)
         assert retrieved is success
+    return retrieved

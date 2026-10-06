@@ -269,7 +269,7 @@ def directive_function_or_help(
         if help_text_preamble:
             echo(help_text_preamble)
         last_app = None
-        for key_tup, [help_text, _] in sorted(transposed.items(), key=lambda item: item[0]):
+        for key_tup, [help_text, _] in sorted((item for item in transposed.items() if item[1] is not None), key=lambda item: item[0]):
             if help_text is None or len(key_tup) == 1:
                 continue
             app_name, name = key_tup

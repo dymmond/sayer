@@ -7,7 +7,7 @@ It simplifies and unifies the logic used by `lilya` and `ravyn`.
 The helper code consists of conversion functions:
 
 - `find_directives_from_module` (limited to a module or package) and `find_directives_from_path` (more versatile) directive collectors. You can however use any collector,
-  which outputs `Mapping[(rootstring, subpath), tuple[module, RootPath, RelativePath, function_or_callable to use] | None]`.
+  which outputs `Mapping[string path to origin, tuple[module, RootPath, RelativePath, function_or_callable to use] | None]`.
 - `transpose_directives`: which transposes the mapping to `Mapping[tuple[directive name] | tuple[app name, directive name], tuple[help_string | None, function_or_callable] | None]`. 
   Provide value `None` for collisions.
 - `directive_function_or_help`: For extracting the function or providing help in case of either no provided directive name, directive name collisions or an ambiguous directive name.

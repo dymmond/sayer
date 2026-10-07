@@ -117,7 +117,7 @@ def find_directives_from_path(
     Extract directives from a path (which may exists virtually).
 
     Args:
-        module (str | ModuleType): String to module or the imported module. A package is also a module.
+        path (os.PathLike): Path to scan for directives.
 
     Kwargs:
         patterns (Collection[str]): Glob pattern to match.

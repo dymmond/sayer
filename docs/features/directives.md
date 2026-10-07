@@ -137,11 +137,11 @@ directives = find_directives_from_module(
 ```
 
 !!! Warning
-Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
-Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
+    Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
+    Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
 
 !!! Note
-You will need to check for `.pyc` files because site-packages can be zipped.
+    You will need to check for `.pyc` files because site-packages can be zipped.
 
 ### `use_files=True` vs `use_files=False`
 

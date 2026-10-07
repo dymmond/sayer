@@ -119,7 +119,7 @@ def extractor_directive(module: ModuleType, relative: Path):
             if isroutine(obj):
                 new_found = obj
             elif obj.__name__ == "Directive":
-                new_found = obj.run
+                new_found = obj()
             else:
                 continue
             if found is not None:

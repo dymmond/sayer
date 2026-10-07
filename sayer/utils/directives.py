@@ -35,14 +35,14 @@ def _find_directives_from_path(
     use_files: bool | None,
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
-    used_path = Path(path).absolute()
+    # path maybe not resolvable
+    used_path = Path(path)
     # if exists, bypass loading modules and glob directly
     if use_files is not False and used_path.exists():
-        # don't resolve first
+        # to prevent duplicates, resolve
+        used_path = used_path.resolve()
         if root is None:
             root = cast("RootPath", used_path)
-        # to prevent duplicates
-        used_path = used_path.resolve()
         if sys.version_info < (3, 12):
             paths = [
                 p
@@ -62,6 +62,8 @@ def _find_directives_from_path(
         # empty
         return directives
     else:
+        # maybe not resolvable, so just use absolute
+        used_path = used_path.absolute()
         iterable = pkgutil.walk_packages([path])
         import_pkgs = True
     if root is None:

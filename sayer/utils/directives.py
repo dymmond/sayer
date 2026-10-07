@@ -268,8 +268,7 @@ def directive_function_or_help(
     Kwargs:
         directive (str | None): If empty or `None` display the found directives. Otherwise try to resolve
         help_text_preamble: (str):
-            Preamble to echo when outputing help. Defaults to "Available directives:\n".
-            Note: should end with newline.
+            Preamble to echo when outputing help. Defaults to "Available directives:".
     Raises:
         SysExit(1): For errors (wrong or ambigous provided directive, colliding directives).
     """

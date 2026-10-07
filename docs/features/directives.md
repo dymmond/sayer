@@ -2,7 +2,7 @@
 
 Sometimes you want to add directives (that are auto-detectable cli functions) to a project.
 The directive feature provides the boilerplate to do so.
-It simplifies and unifies the logic used by `lilya` and `ravyn`.
+It simplifies and unifies the logic used by `lilya` and `ravyn`.  Or any other system that requires the concept of directives,
 
 The helper code consists of conversion functions:
 
@@ -51,9 +51,8 @@ class BaseDirective(ABC):
     __is_custom_directive__: ClassVar[bool] = True
     __display_in_cli__: ClassVar[bool] = False
 
-    @classmethod
     @abstractmethod
-    def run(*args) -> None:
+    def __call__(*args) -> None:
         pass
 ```
 
@@ -63,8 +62,8 @@ And use it like this:
 class Directive(BaseDirective):
     __display_in_cli__ = True
 
-    def run():
-        return success
+    def __call__():
+        ...
 ```
 
 
@@ -74,6 +73,7 @@ When using the file based collector, you can specify something like
 
 ``` python
 from sayer.utils.directives import find_directives_from_path
+
 def extractor_directive(module: ModuleType, relative: Path):
     found: Callable | None = None
     for attr in dir(module):
@@ -82,14 +82,16 @@ def extractor_directive(module: ModuleType, relative: Path):
             if isroutine(obj):
                 new_found = obj
             elif obj.__name__ == "Directive":
-                new_found = obj.run
+                new_found = obj()
             else:
                 continue
             if found is not None:
                 raise RuntimeError(f"Detected multiple directives in the same file: `{module.__file__}`.")
             found = new_found
     return found
+
 internal_file_paths_to_not_collect = {str(Path("sayer/cli/foo.py").resolve())}
+
 directives = find_directives_from_path(
     path,
     patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py", "**/directives/operations/[!_]*.pyc", "**/directives/operations/*/__init__.pyc"], extractor_directive=extractor_directive,
@@ -266,4 +268,4 @@ async def directive(
 ```
 
 If `directive_function_or_help` returns `None` the help was requested. You can change the help preamble (shown when directive is empty and the availabe directives are listed),
-by providing a custom `help_text_preamble` parameter. The preamble should end with `\n`.
+by providing a custom `help_text_preamble` parameter.

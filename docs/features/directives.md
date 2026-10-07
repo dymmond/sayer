@@ -8,7 +8,7 @@ The helper code consists of conversion functions:
 
 - `find_directives_from_module` (limited to a module or package) and `find_directives_from_path` (more versatile) directive collectors. You can however use any collector,
   which outputs `Mapping[string path to origin, tuple[module, RootPath, RelativePath, function_or_callable to use] | None]`.
-- `transpose_directives`: which transposes the mapping to `Mapping[tuple[directive name] | tuple[app name, directive name], tuple[help_string | None, function_or_callable] | None]`. 
+- `transpose_directives`: which transposes the mapping to `Mapping[tuple[directive name] | tuple[app name, directive name], tuple[help_string | None, function_or_callable] | None]`.
   Provide value `None` for collisions.
 - `directive_function_or_help`: For extracting the function or providing help in case of either no provided directive name, directive name collisions or an ambiguous directive name.
 
@@ -18,7 +18,7 @@ Writing a directive is quite simple:
 
 ### Function based:
 
-``` python
+```python
 def directive(
     func: F | None = None,
     *,
@@ -37,7 +37,7 @@ def directive(
 
 And use it like this:
 
-``` python
+```python
 @directive(display_in_cli=True)
 def testfunc():
     return success
@@ -46,7 +46,7 @@ def testfunc():
 
 ### Class based:
 
-``` python
+```python
 class BaseDirective(ABC):
     __is_custom_directive__: ClassVar[bool] = True
     __display_in_cli__: ClassVar[bool] = False
@@ -58,7 +58,7 @@ class BaseDirective(ABC):
 
 And use it like this:
 
-``` python
+```python
 class Directive(BaseDirective):
     __display_in_cli__ = True
 
@@ -66,12 +66,11 @@ class Directive(BaseDirective):
         ...
 ```
 
-
 ## Collecting
 
 When using the file based collector, you can specify something like
 
-``` python
+```python
 from sayer.utils.directives import find_directives_from_path
 
 def extractor_directive(module: ModuleType, relative: Path):
@@ -108,7 +107,7 @@ directives = find_directives_from_path(
 
 the same for the module based collector (note: the submodules must be reachable like for `use_files=False`)
 
-``` python
+```python
 from sayer.utils.directives import find_directives_from_module
 
 def extractor_directive(module: ModuleType, relative: Path):
@@ -138,12 +137,11 @@ directives = find_directives_from_module(
 ```
 
 !!! Warning
-    Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
-    Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
+Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
+Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
 
 !!! Note
-    You will need to check for `.pyc` files because site-packages can be zipped.
-
+You will need to check for `.pyc` files because site-packages can be zipped.
 
 ### `use_files=True` vs `use_files=False`
 
@@ -162,7 +160,7 @@ Recommendation: leave `use_files=None` (the default) to automatically select the
 ## Transposing
 
 You have now the mapping from files to directives (and `None` placeholders). The next step is to transpose to directive names and app names.
-This can be done via `transpose_directives`. 
+This can be done via `transpose_directives`.
 
 To get a valid format to fetch directives it must be transposed via `transpose_directives`.
 
@@ -171,6 +169,7 @@ from sayer.utils.directives import find_directives_from_module, transpose_direct
 directives = ...
 transposed = transpose_directives(directives)
 ```
+
 That was it. You might want to remove some directives from the help:
 
 ```python
@@ -205,7 +204,7 @@ transposed = transpose_directives(
 
 The last step is to integrate everything via `directive_function_or_help`
 
-``` python
+```python
 import sys
 from inspect import isawaitable
 from pathlib import Path

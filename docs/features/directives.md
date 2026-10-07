@@ -2,7 +2,7 @@
 
 Sometimes you want to add directives (that are auto-detectable cli functions) to a project.
 The directive feature provides the boilerplate to do so.
-It simplifies and unifies the logic used by `lilya` and `ravyn`.  Or any other system that requires the concept of directives,
+It simplifies and unifies the logic used by `lilya` and `ravyn` and can be adapted for any other system that requires the concept of directives.
 
 The helper code consists of conversion functions:
 
@@ -52,7 +52,7 @@ class BaseDirective(ABC):
     __display_in_cli__: ClassVar[bool] = False
 
     @abstractmethod
-    def __call__(*args) -> None:
+    def __call__(self, *args) -> None:
         pass
 ```
 
@@ -62,7 +62,7 @@ And use it like this:
 class Directive(BaseDirective):
     __display_in_cli__ = True
 
-    def __call__():
+    def __call__(self):
         ...
 ```
 

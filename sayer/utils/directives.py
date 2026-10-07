@@ -1,3 +1,4 @@
+from itertools import chain
 import importlib
 import importlib.util
 import os
@@ -42,14 +43,23 @@ def _find_directives_from_path(
             root = cast("RootPath", used_path)
         # to prevent duplicates
         used_path = used_path.resolve()
-        paths = [
-            p
-            for p, _, _ in used_path.walk()
-            if all(not x.startswith("_") and x.isidentifier() for x in p.relative_to(root).parts)
-        ]
-        iterable = pkgutil.iter_modules(paths)
+        if sys.version_info < (3, 12):
+            paths = [
+                p
+                for p, _, _ in os.walk(used_path)
+                if all(not part.startswith("_") and part.isidentifier() for part in Path(p).relative_to(root).parts)
+            ]
+        else:
+            paths = [
+                p
+                for p, _, _ in used_path.walk()
+                if all(not part.startswith("_") and part.isidentifier() for part in p.relative_to(root).parts)
+            ]
+        # we doesn't want to flatten the paths to one big module
+        iterable = chain.from_iterable(pkgutil.iter_modules([path]) for path in paths)
         import_pkgs = False
     elif use_files:
+        # empty
         return directives
     else:
         iterable = pkgutil.walk_packages([path])
@@ -65,7 +75,7 @@ def _find_directives_from_path(
                 continue
             spec = finder.find_spec(name, None)
             module = importlib.util.module_from_spec(spec)
-            sys.modules[module.__name__] = module
+            sys.modules[spec.name] = module
             if spec.loader is not None:
                 spec.loader.exec_module(module)
         if hasattr(finder, "get_filename"):
@@ -226,11 +236,13 @@ def transpose_directives(
             name_tup = (name,)
             app_name_tup = (app_name, name)
             if app_name_tup in directives_by_app_and_name:
-                # collision
+                # collision, no recover
                 directives_by_app_and_name[app_name_tup] = None
-            if name_tup in directives_by_app_and_name:
                 directives_by_app_and_name[name_tup] = None
                 continue
+            elif name_tup in directives_by_app_and_name:
+                # recoverable
+                directives_by_app_and_name[name_tup] = None
             extracted_help = extractor_help(directive_tuple)
             final_tup = (extracted_help, directive_tuple.func)
             directives_by_app_and_name.setdefault(app_name_tup, final_tup)
@@ -269,10 +281,9 @@ def directive_function_or_help(
         if help_text_preamble:
             echo(help_text_preamble)
         last_app = None
-        for key_tup, [help_text, _] in sorted((item for item in transposed.items() if item[1] is not None), key=lambda item: item[0]):
-            if help_text is None or len(key_tup) == 1:
+        for [app_name, name], [help_text, _] in sorted((item for item in transposed.items() if len(item[0]) == 2 and item[1] is not None), key=lambda item: item[0]):
+            if help_text is None:
                 continue
-            app_name, name = key_tup
             if last_app != app_name:
                 echo(f"\n[bold green]\\[{app_name}][/]")
             echo(f"  [bold blue]{name}[/]:")

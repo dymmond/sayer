@@ -23,9 +23,8 @@ class BaseDirective(ABC):
     __is_custom_directive__: ClassVar[bool] = True
     __display_in_cli__: ClassVar[bool] = False
 
-    @classmethod
     @abstractmethod
-    def run(*args) -> None:
+    def __call__(*args) -> None:
         pass
 
 
@@ -53,8 +52,7 @@ def extractor_directive(module: ModuleType, relative):
             if isroutine(obj):
                 new_found = obj
             elif obj.__name__ == "Directive":
-                new_found = obj.run
-                setattr(new_found, "__display_in_cli__", obj.__display_in_cli__)  # noqa
+                new_found = obj()
             else:
                 continue
             if found is not None:

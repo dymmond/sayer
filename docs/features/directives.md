@@ -135,8 +135,13 @@ directives = find_directives_from_module(
 )
 ```
 
+!!! Warning
+    Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
+    When not using the module collector or `use_files=False`, you might can't do relative imports in the directive files.
+
 !!! Note
     You will need to check for `.pyc` files because site-packages can be zipped.
+
 
 ### `use_files=True` vs `use_files=False`
 

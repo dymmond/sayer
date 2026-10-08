@@ -42,6 +42,7 @@ dependencies = [
     "monkay>=0.4.2",
     "rich>=14.0.0",
     "typing_extensions>=4.13.2",
+    'wcmatch; python_version < "3.12"'
 ]
 
 keywords = [

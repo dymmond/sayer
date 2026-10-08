@@ -23,6 +23,14 @@ class DirectiveTuple(NamedTuple):
     relative: RelativePath
     func: Callable
 
+if sys.version_info < (3, 12):
+    from wcmatch.pathlib import Path as WCPath
+    def _match_path_against_glob(path: Path, glob_pattern: str) -> bool:
+        """Helper for compatibility with python<3.12."""
+        return WCPath(path).full_match(glob_pattern)
+else:
+    def _match_path_against_glob(path: Path, glob_pattern: str) -> bool:
+        return path.full_match(glob_pattern)
 
 def _find_directives_from_path(
     path: os.PathLike,
@@ -93,7 +101,7 @@ def _find_directives_from_path(
         absolute_path_str = str(root / relative)
         if absolute_path_str in directives or absolute_path_str in ignore1 or absolute_path_str in ignore2:
             continue
-        if not any(relative.full_match(pattern) for pattern in patterns):
+        if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
             continue
         if module is None:
             spec = finder.find_spec(name, None)

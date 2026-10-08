@@ -5,6 +5,7 @@
 ### Added
 
 - Add directive collector, to simplify and generalize the logic used by `lilya` and `ravyn`.
+
 ## 0.7.7
 
 ### Fixed

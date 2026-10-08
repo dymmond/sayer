@@ -72,8 +72,8 @@ path = "sayer/__version__.py"
 [tool.hatch.envs.default]
 dependencies = [
     "ty",
-    "ruff>=0.3.0,<5.0.0",
-    "pre-commit>=3.3.1,<4.0.0",
+    "ruff",
+    "pre-commit>=3.3.1,<5.0.0",
     "devtools>=0.12.2",
     "ipython",
     "ptpython",
@@ -85,10 +85,7 @@ dependencies = [
 testing = [
     "anyio[trio]>=4.9.0,<6.0.0",
     "pytest-asyncio>=0.26.0",
-    "autoflake>=2.0.2,<3.0.0",
-    "black==24.1.1,<25.0",
-    "isort>=5.12.0,<6.0.0",
-    "pytest>=7.2.2,<9.0.0",
+    "pytest>=7.2.2,<10.0.0",
     "pytest-cov>=4.0.0,<5.0.0",
     "ipdb",
     "pydantic",
@@ -145,7 +142,7 @@ check_types = "ty check --error-on-warning sayer"
 [tool.hatch.envs.hatch-static-analysis]
 # disables custom ruff rules, required to align with pre-commit
 config-path = "none"
-dependencies = ["ruff==0.12.2"]
+dependencies = ["ruff==0.16.10"]
 
 [tool.isort]
 profile = "black"

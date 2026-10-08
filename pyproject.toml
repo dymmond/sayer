@@ -72,7 +72,7 @@ path = "sayer/__version__.py"
 [tool.hatch.envs.default]
 dependencies = [
     "ty",
-    "ruff",
+    "ruff==0.16.10",
     "pre-commit>=3.3.1,<5.0.0",
     "devtools>=0.12.2",
     "ipython",

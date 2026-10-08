@@ -16,8 +16,8 @@ from tests.testdirectives.definitions import (
 def create_zipfile(tmp_path):
     test_directive_source = Path(__file__).parent / "testdirectives" / "build.zipfile"
     test_directive_target = tmp_path / "zipfile_zipped.zip"
-    with zipfile.PyZipFile(str(test_directive_target), mode="w") as zip:
-        zip.writepy(str(test_directive_source / "valid4"))
+    with zipfile.PyZipFile(str(test_directive_target), mode="w") as zip_file:
+        zip_file.writepy(str(test_directive_source / "valid4"))
     test_directive_target_str = str(test_directive_target)
     sys.path.append(test_directive_target_str)
     try:

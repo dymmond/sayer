@@ -1,10 +1,10 @@
-from itertools import chain
 import importlib
 import importlib.util
 import os
 import pkgutil
 import sys
 from collections.abc import Callable, Collection, Container, Mapping
+from itertools import chain
 from pathlib import Path
 from types import ModuleType
 from typing import NamedTuple, NewType, cast
@@ -282,7 +282,9 @@ def directive_function_or_help(
         if help_text_preamble:
             echo(help_text_preamble)
         last_app = None
-        for [app_name, name], [help_text, _] in sorted((item for item in transposed.items() if len(item[0]) == 2 and item[1] is not None), key=lambda item: item[0]):
+        for [app_name, name], [help_text, _] in sorted(
+            (item for item in transposed.items() if len(item[0]) == 2 and item[1] is not None), key=lambda item: item[0]
+        ):
             if help_text is None:
                 continue
             if last_app != app_name:

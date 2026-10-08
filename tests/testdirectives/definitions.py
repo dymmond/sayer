@@ -7,6 +7,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, ClassVar, TypeVar
 
+import pytest
+
 from sayer.utils.directives import (
     directive_function_or_help,
     find_directives_from_module,
@@ -89,23 +91,17 @@ def find_directive_system(directive: str | None, extractor_app_name: Any = None)
 
 
 def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None):
-    test_directive_path = Path(__file__).parent / "zipped.zip"
-    assert test_directive_path.exists()
-    sys.path.append(str(test_directive_path))
-    try:
-        import valid4
+    import valid4
 
-        directives = find_directives_from_module(
-            valid4,
-            patterns=["**/directives/[!_]*.pyc", "**/directives/*/__init__.pyc"],
-            extractor_directive=extractor_directive,
-        )
-        assert directives
-        transposed = transpose_directives(
-            directives, extractor_help=extractor_help, extractor_app_name=extractor_app_name
-        )
-    finally:
-        sys.path.pop()
+    directives = find_directives_from_module(
+        valid4,
+        patterns=["**/directives/[!_]*.pyc", "**/directives/*/__init__.pyc"],
+        extractor_directive=extractor_directive,
+    )
+    assert directives
+    transposed = transpose_directives(
+        directives, extractor_help=extractor_help, extractor_app_name=extractor_app_name
+    )
     return directive_function_or_help(transposed, directive=directive)
 
 

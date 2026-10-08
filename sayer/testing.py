@@ -116,9 +116,3 @@ class SayerTestClient:
         finally:
             if cwd:
                 os.chdir(prev_dir)
-
-    def isolated_filesystem(self, **kwargs: Any) -> Any:
-        """
-        Proxy to CliRunner.isolated_filesystem(), for filesystem isolation.
-        """
-        return self.runner.isolated_filesystem(**kwargs)

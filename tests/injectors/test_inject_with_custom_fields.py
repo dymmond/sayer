@@ -24,6 +24,7 @@ class NameTest:
 
 
 class TestGroup(SayerGroup):
+    __test__ = False
     def add_command(self, cmd: click.Command, name: str | None = None, **kwargs) -> None:
         if cmd.callback:
             cmd.callback = self.wrap_args(cmd.callback)

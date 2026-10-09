@@ -92,7 +92,7 @@ def _find_directives_from_path(
         if hasattr(finder, "get_filename"):
             full_name_str = finder.get_filename(name)
         else:
-            sanitized_name = name.replace(".", os.sep)
+            sanitized_name = name.removeprefix(prefix).replace(".", os.sep)
             full_name_str = (
                 f"{finder.path}{os.sep}{sanitized_name}{os.sep}__init__.py"
                 if ispkg

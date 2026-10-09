@@ -25,8 +25,8 @@ class DirectiveTuple(NamedTuple):
 
 
 if sys.version_info < (3, 12):
-    from wcmatch import GLOBSTAR
-    from wcmatch.pathlib import Path as WCPath
+    from wcmatch import GLOBSTAR  # type: ignore
+    from wcmatch.pathlib import Path as WCPath  # type: ignore
 
     def _match_path_against_glob(path: Path, glob_pattern: str) -> bool:
         """Helper for compatibility with python<3.12."""

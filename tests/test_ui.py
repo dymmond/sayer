@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -71,7 +72,7 @@ def test_docs_generate_help(runner):
 
 def test_docs_generate_executes_and_writes_files(runner, tmp_path):
     # Use isolated filesystem and custom output directory
-    with runner.isolated_filesystem(temp_dir=str(tmp_path)):
+    with tempfile.TemporaryDirectory(dir=tmp_path):
         out_dir = Path("out_docs")
         result = runner.invoke(app.cli, ["docs", "generate", "--output", str(out_dir)])
 

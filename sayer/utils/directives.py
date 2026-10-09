@@ -26,8 +26,8 @@ class DirectiveTuple(NamedTuple):
 
 if sys.version_info < (3, 13):
     # full match is only available since python 3.13, Path.match (python 3.12) can't resolve `**`
-    from wcmatch import GLOBSTAR  # type: ignore
     from wcmatch.pathlib import Path as WCPath  # type: ignore
+    from wcmatch.wcmatch import GLOBSTAR  # type: ignore
 
     def _match_path_against_glob(path: Path, glob_pattern: str) -> bool:
         """Helper for compatibility with python<3.13."""

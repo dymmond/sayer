@@ -1,6 +1,6 @@
 from tests.testdirectives.definitions import directive, success
 
-app_name = ".ff...foo"
+app_name = "_föooòäo"
 
 
 @directive(display_in_cli=True)

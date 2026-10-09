@@ -4,6 +4,7 @@ import os
 import pkgutil
 import sys
 from collections.abc import Callable, Collection, Container, Mapping
+from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
 from types import ModuleType
@@ -62,13 +63,19 @@ def _find_directives_from_path(
             paths = [
                 p
                 for p, _, _ in os.walk(used_path)
-                if all(not part.startswith("_") and part.isidentifier() for part in Path(p).relative_to(root).parts)
+                if all(
+                    not part.startswith("_") and part.isidentifier()
+                    for part in Path(p).relative_to(root).parts
+                )
             ]
         else:
             paths = [
                 p
                 for p, _, _ in used_path.walk()
-                if all(not part.startswith("_") and part.isidentifier() for part in p.relative_to(root).parts)
+                if all(
+                    not part.startswith("_") and part.isidentifier()
+                    for part in p.relative_to(root).parts
+                )
             ]
         # we doesn't want to flatten the paths to one big module
         iterable = chain.from_iterable(pkgutil.iter_modules([path]) for path in paths)
@@ -106,7 +113,11 @@ def _find_directives_from_path(
             )
         relative = cast("RelativePath", Path(full_name_str).relative_to(root))
         absolute_path_str = str(root / relative)
-        if absolute_path_str in directives or absolute_path_str in ignore1 or absolute_path_str in ignore2:
+        if (
+            absolute_path_str in directives
+            or absolute_path_str in ignore1
+            or absolute_path_str in ignore2
+        ):
             continue
         if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
             continue
@@ -116,7 +127,9 @@ def _find_directives_from_path(
             if spec.loader is not None:
                 spec.loader.exec_module(module)
         fn = extractor_directive(module, relative)
-        directives[absolute_path_str] = None if fn is None else DirectiveTuple(module, root, relative, fn)
+        directives[absolute_path_str] = (
+            None if fn is None else DirectiveTuple(module, root, relative, fn)
+        )
     return directives
 
 
@@ -146,7 +159,11 @@ def find_directives_from_path(
         Dict mapping from file names to DirectiveTuple or `None` (no directive found).
     """
     return _find_directives_from_path(
-        path, patterns=patterns, extractor_directive=extractor_directive, ignore1=ignore, use_files=use_files
+        path,
+        patterns=patterns,
+        extractor_directive=extractor_directive,
+        ignore1=ignore,
+        use_files=use_files,
     )
 
 
@@ -203,6 +220,15 @@ def find_directives_from_module(
     return directives
 
 
+def filter_unsafe_key(key: tuple[str, str] | tuple[str], /) -> bool:
+    """
+    Safety check for `directive_function_or_help`.
+
+    Return False, if key contains unsound characters.
+    """
+    return all(k.isidentifier() for k in key)
+
+
 def transpose_directives(
     directives: dict[str, DirectiveTuple | None],
     *,
@@ -243,7 +269,9 @@ def transpose_directives(
                     else directive_tuple.root.name
                 )
 
-    directives_by_app_and_name: dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None] = {}
+    directives_by_app_and_name: dict[
+        tuple[str, str] | tuple[str], tuple[str | None, Callable] | None
+    ] = {}
     for directive_tuple in directives.values():
         if directive_tuple is not None:
             directive_tuple = DirectiveTuple(*directive_tuple)
@@ -256,6 +284,8 @@ def transpose_directives(
             app_name = extractor_app_name(directive_tuple)
             name_tup = (name,)
             app_name_tup = (app_name, name)
+            if not filter_unsafe_key(app_name_tup):
+                continue
             if app_name_tup in directives_by_app_and_name:
                 # collision, no recover
                 directives_by_app_and_name[app_name_tup] = None
@@ -291,9 +321,10 @@ def directive_function_or_help(
     Raises:
         SysExit(1): For errors (wrong or ambigous provided directive, colliding directives).
     """
+    transposed = {k: v for k, v in transposed.items() if filter_unsafe_key(k)}
     collisions = tuple(k for k, v in transposed.items() if len(k) == 2 and v is None)
     if collisions:
-        error("Following directive have collisions:")
+        error("Following directives have collisions:")
         for collision in collisions:
             echo(f"  [red]{collision[0]}.{collision[1]}[/]")
         sys.exit(1)
@@ -302,7 +333,8 @@ def directive_function_or_help(
             echo(help_text_preamble)
         last_app = None
         for [app_name, name], [help_text, _] in sorted(
-            (item for item in transposed.items() if len(item[0]) == 2 and item[1] is not None), key=lambda item: item[0]
+            (item for item in transposed.items() if len(item[0]) == 2 and item[1] is not None),
+            key=lambda item: item[0],
         ):
             if help_text is None:
                 continue
@@ -315,13 +347,28 @@ def directive_function_or_help(
         return None
     else:
         search_tuple = tuple(directive.rsplit(".", 1))
-        if search_tuple not in transposed:
-            error(f"Specified directive: {directive} not found.")
+        if not filter_unsafe_key(search_tuple):
+            error(f"Specified directive: `{directive}` not valid as directive.")
             sys.exit(1)
+        if search_tuple not in transposed:
+            error(f"Specified directive: `{directive}` not found.")
+            if len(search_tuple) == 2:
+                matches = get_close_matches(
+                    directive, (".".join(k) for k in transposed if len(k) == 2)
+                )
+            else:
+                matches = get_close_matches(directive, (k[0] for k in transposed if len(k) == 1))
+            if matches:
+                echo(f"[red]Did you mean `{matches[0]}`[/]?")
+            sys.exit(1)
+        # collisions only happen if len(search_tuple) == 1
         retrieved = transposed[search_tuple]
         if retrieved is None:
             error(
-                f"Specified directive: {directive} could not be uniquely identified. Please provide also the `app_name`."
+                f"Specified directive: `{directive}` could not be uniquely identified. Please provide also the app_name-part.\n"
+                "Possible directives:"
             )
+            for collision in (k for k in transposed if len(k) == 2 and k[1] == search_tuple[0]):
+                echo(f"  [red]{collision[0]}.{collision[1]}[/]")
             sys.exit(1)
         return retrieved[1]

@@ -157,8 +157,15 @@ directives = find_directives_from_module(
     Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
     Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
 
+!!! Warning
+    Directive names must qualify for identifier (`isidentifier() == True`). This means you are restricted in what you use for `app_name`.
+    For example it isn't allowed to use names starting with numbers.
+
 !!! Note
     You will need to check for `.pyc` files because site-packages can be zipped.
+
+!!! Note
+    You can provide custom application names by specifying `app_name = "foo"` in the module.
 
 ### `use_files=True` vs `use_files=False`
 

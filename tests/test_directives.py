@@ -42,6 +42,19 @@ def test_find_directive_simple(name, prefixed):
     assert result
 
 
+@pytest.mark.parametrize("name", ["shownx", "invalid.shown", "valid_module.sho"])
+def test_find_not_directive_suggestion(name, capsys):
+    prefixed = "." in name
+    with pytest.raises(SystemExit):
+        find_directive(Path(__file__).parent / "testdirectives", name)
+    out, err = capsys.readouterr()
+    assert f"Specified directive: `{name}` not found." in out
+    if prefixed:
+        assert "\nDid you mean `valid_module.shown`?\n" in out
+    else:
+        assert "\nDid you mean `shown`?\n" in out
+
+
 @pytest.mark.parametrize("name", ["class_based_hidden", "class_based_shown", "hidden", "shown"])
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_execute_directive_simple(name, prefixed):
@@ -50,10 +63,14 @@ def test_execute_directive_simple(name, prefixed):
     execute_directive(Path(__file__).parent / "testdirectives", name)
 
 
-def test_collisions_simple():
+def test_collisions_single(capsys):
     # collision
     with pytest.raises(SystemExit):
         execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "directive1")
+    out, err = capsys.readouterr()
+    assert "\nPossible directives:\n" in out
+    assert "\n  collisions1.directive1\n" in out
+    assert "\n  collisions2.directive1\n" in out
     # works
     execute_directive(
         Path(__file__).parent / "testdirectives" / "coll.isions1", "collisions1.directive1"
@@ -61,10 +78,13 @@ def test_collisions_simple():
     execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "")
 
 
-def test_collisions_fully():
+def test_collisions_fully(capsys):
     # collision
     with pytest.raises(SystemExit):
         execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions2", "directive1")
+    out, err = capsys.readouterr()
+    assert "✖ Following directives have collisions:\n" in out
+    assert "\n  foo.directive1\n" in out
     # collision
     with pytest.raises(SystemExit):
         execute_directive(
@@ -143,7 +163,7 @@ def test_find_not_directive_zipapp(prefixed, app_name_func, create_zipfile):
 def test_find_directive_app_name(prefixed):
     name = "app_name"
     if prefixed:
-        name = f".ff...foo.{name}"
+        name = f"_föooòäo.{name}"
     result = find_directive(Path(__file__).parent / "testdirectives", name)
     assert result
 
@@ -152,13 +172,13 @@ def test_find_directive_app_name(prefixed):
 def test_execute_directive_app_name(prefixed):
     name = "app_name"
     if prefixed:
-        name = f".ff...foo.{name}"
+        name = f"_föooòäo.{name}"
     execute_directive(Path(__file__).parent / "testdirectives", name)
 
 
 def test_execute_directive_help(capsys):
     name1 = "app_name"
-    package = "\n[.ff...foo]\n"
+    package = "\n[_föooòäo]\n"
     name2 = f"\n  {name1}"
     package_and_name = f"{package}  {name1}:\n"
     package_and_name_and_help = f"{package}  {name1}:\n    With app name.\n"

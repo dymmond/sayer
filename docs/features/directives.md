@@ -50,8 +50,9 @@ class BaseDirective(ABC):
     __is_custom_directive__: ClassVar[bool] = True
     __display_in_cli__: ClassVar[bool] = False
 
+    @classmethod
     @abstractmethod
-    def __call__(self, *args) -> None:
+    def run(self, *args) -> None:
         pass
 ```
 
@@ -61,8 +62,14 @@ And use it like this:
 class Directive(BaseDirective):
     __display_in_cli__ = True
 
-    def __call__(self): ...
+    @classmethod
+    def run(cls): ...
 ```
+
+!!! Warning
+    Directive names must qualify for identifier (`isidentifier() == True`). This means you are restricted in what you use for `app_name`.
+    For example it isn't allowed to use names starting with numbers.
+
 
 ## Collecting
 
@@ -80,7 +87,7 @@ def extractor_directive(module: ModuleType, relative: Path):
             if isroutine(obj):
                 new_found = obj
             elif obj.__name__ == "Directive":
-                new_found = obj()
+                new_found = obj
             else:
                 continue
             if found is not None:
@@ -120,14 +127,14 @@ from sayer.utils.directives import find_directives_from_module
 
 
 def extractor_directive(module: ModuleType, relative: Path):
-    found: Callable | None = None
+    found: Callable | BaseDirective | None = None
     for attr in dir(module):
         obj = getattr(module, attr)
         if getattr(obj, "__is_custom_directive__", False):
             if isroutine(obj):
                 new_found = obj
             elif obj.__name__ == "Directive":
-                new_found = obj()
+                new_found = obj
             else:
                 continue
             if found is not None:
@@ -156,10 +163,6 @@ directives = find_directives_from_module(
 !!! Warning
     Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
     Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
-
-!!! Warning
-    Directive names must qualify for identifier (`isidentifier() == True`). This means you are restricted in what you use for `app_name`.
-    For example it isn't allowed to use names starting with numbers.
 
 !!! Note
     You will need to check for `.pyc` files because site-packages can be zipped.
@@ -208,9 +211,9 @@ directives = ...
 
 
 def extractor_help(tup: DirectiveTuple) -> str | None:
-    if not getattr(tup.func, "__display_in_cli__", False):
+    if not getattr(tup.directive, "__display_in_cli__", False):
         return None
-    return tup.func.__doc__ or ""
+    return tup.directive.__doc__ or ""
 
 
 transposed = transpose_directives(directives, extractor_help=extractor_help)
@@ -264,7 +267,7 @@ def extractor_directive(module: ModuleType, relative: Path):
             if isroutine(obj):
                 new_found = obj
             elif obj.__name__ == "Directive":
-                new_found = obj.run
+                new_found = obj
             else:
                 continue
             if found is not None:
@@ -311,7 +314,11 @@ async def directive(
     transposed = transpose_directives(directives)
     retrieved = directive_function_or_help(transposed, directive=directive)
     if retrieved is not None:
-        retrieved = retrieved(*directive_args)
+        retrieved = (
+            retrieved.run(*directive_args)
+            if isinstance(retrieved, BaseDirective)
+            else retrieved(*directive_args)
+        )
         if isawaitable(retrieved):
             await retrieved
 ```

@@ -21,8 +21,9 @@ class BaseDirective(ABC):
     __is_custom_directive__: ClassVar[bool] = True
     __display_in_cli__: ClassVar[bool] = False
 
+    @classmethod
     @abstractmethod
-    def __call__(*args) -> None:
+    def run(cls, *args) -> None:
         pass
 
 
@@ -63,9 +64,9 @@ def extractor_directive(module: ModuleType, relative):
 
 
 def extractor_help(tup: Any) -> str | None:
-    if not getattr(tup.func, "__display_in_cli__", False):
+    if not getattr(tup.directive, "__display_in_cli__", False):
         return None
-    return tup.func.__doc__ or ""
+    return tup.directive.__doc__ or ""
 
 
 def find_directive(path: os.PathLike, directive: str | None):
@@ -115,6 +116,10 @@ def execute_directive(
     retrieved = find_directive(path, directive)
     if retrieved is not None:
         kwargs = {} if kwargs is None else kwargs
-        retrieved = retrieved(*args, **kwargs)
+        retrieved = (
+            retrieved.run(*args, **kwargs)
+            if isinstance(retrieved, BaseDirective)
+            else retrieved(*args, **kwargs)
+        )
         assert retrieved is success
     return retrieved

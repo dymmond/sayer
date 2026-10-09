@@ -8,7 +8,7 @@ from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
 from types import ModuleType
-from typing import NamedTuple, NewType, cast
+from typing import Any, NamedTuple, NewType, cast
 
 from rich.padding import Padding
 
@@ -22,7 +22,7 @@ class DirectiveTuple(NamedTuple):
     module: ModuleType
     root: RootPath
     relative: RelativePath
-    func: Callable
+    directive: Any
 
 
 if sys.version_info < (3, 13):
@@ -126,9 +126,11 @@ def _find_directives_from_path(
             module = importlib.util.module_from_spec(spec)
             if spec.loader is not None:
                 spec.loader.exec_module(module)
-        fn = extractor_directive(module, relative)
+        directive_obj = extractor_directive(module, relative)
         directives[absolute_path_str] = (
-            None if fn is None else DirectiveTuple(module, root, relative, fn)
+            None
+            if directive_obj is None
+            else DirectiveTuple(module, root, relative, directive_obj)
         )
     return directives
 
@@ -232,7 +234,9 @@ def filter_unsafe_key(key: tuple[str, str] | tuple[str], /) -> bool:
 def transpose_directives(
     directives: dict[str, DirectiveTuple | None],
     *,
-    extractor_help: Callable[[DirectiveTuple], None | str] = lambda tup: tup.func.__doc__ or "",
+    extractor_help: Callable[[DirectiveTuple], None | str] = lambda tup: (
+        tup.directive.__doc__ or ""
+    ),
     extractor_app_name: Callable[[DirectiveTuple], str] | None = None,
 ) -> dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None]:
     """
@@ -295,19 +299,19 @@ def transpose_directives(
                 # recoverable
                 directives_by_app_and_name[name_tup] = None
             extracted_help = extractor_help(directive_tuple)
-            final_tup = (extracted_help, directive_tuple.func)
+            final_tup = (extracted_help, directive_tuple.directive)
             directives_by_app_and_name.setdefault(app_name_tup, final_tup)
             directives_by_app_and_name.setdefault(name_tup, final_tup)
     return directives_by_app_and_name
 
 
 def directive_function_or_help(
-    transposed: Mapping[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None],
+    transposed: Mapping[tuple[str, str] | tuple[str], tuple[str | None, Any] | None],
     /,
     *,
     directive: str | None,
     help_text_preamble: str = "Available directives:",
-) -> Callable | None:
+) -> Any | None:
     """
     Helper for retrieving the directive, displaying a proper error or help in case of no directive or errornous command.
 

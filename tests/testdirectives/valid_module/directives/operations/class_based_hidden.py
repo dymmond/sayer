@@ -2,5 +2,6 @@ from tests.testdirectives.definitions import BaseDirective, success
 
 
 class Directive(BaseDirective):
-    def __call__(self):
+    @classmethod
+    def run(cls):
         return success

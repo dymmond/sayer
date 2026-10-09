@@ -41,6 +41,7 @@ def _find_directives_from_path(
     ignore1: Container[str],
     ignore2: Container[str] = frozenset(),
     use_files: bool | None,
+    prefix: str = ""
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
     # path maybe not resolvable
@@ -72,7 +73,7 @@ def _find_directives_from_path(
     else:
         # maybe not resolvable, so just use absolute
         used_path = used_path.absolute()
-        iterable = pkgutil.walk_packages([path])
+        iterable = pkgutil.walk_packages([path], prefix=prefix)
         import_pkgs = True
     if root is None:
         root = cast("RootPath", used_path)
@@ -179,6 +180,8 @@ def find_directives_from_module(
     )
     for path in module.__path__:
         directives.update(
+            # here we have a different root as well as a prefix
+            # a file based resolution is also not possible
             _find_directives_from_path(
                 path,
                 root=root,
@@ -187,6 +190,8 @@ def find_directives_from_module(
                 ignore1=ignore,
                 ignore2=directives,
                 use_files=False,
+                # inject the correct prefix
+                prefix=f"{module.__name__}."
             )
         )
     return directives

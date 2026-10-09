@@ -41,7 +41,6 @@ And use it like this:
 @directive(display_in_cli=True)
 def testfunc():
     return success
-
 ```
 
 ### Class based:
@@ -62,8 +61,7 @@ And use it like this:
 class Directive(BaseDirective):
     __display_in_cli__ = True
 
-    def __call__(self):
-        ...
+    def __call__(self): ...
 ```
 
 ## Collecting
@@ -72,6 +70,7 @@ When using the file based collector, you can specify something like
 
 ```python
 from sayer.utils.directives import find_directives_from_path
+
 
 def extractor_directive(module: ModuleType, relative: Path):
     found: Callable | None = None
@@ -85,15 +84,24 @@ def extractor_directive(module: ModuleType, relative: Path):
             else:
                 continue
             if found is not None:
-                raise RuntimeError(f"Detected multiple directives in the same file: `{module.__file__}`.")
+                raise RuntimeError(
+                    f"Detected multiple directives in the same file: `{module.__file__}`."
+                )
             found = new_found
     return found
+
 
 internal_file_paths_to_not_collect = {str(Path("sayer/cli/foo.py").resolve())}
 
 directives = find_directives_from_path(
     path,
-    patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py", "**/directives/operations/[!_]*.pyc", "**/directives/operations/*/__init__.pyc"], extractor_directive=extractor_directive,
+    patterns=[
+        "**/directives/operations/[!_]*.py",
+        "**/directives/operations/*/__init__.py",
+        "**/directives/operations/[!_]*.pyc",
+        "**/directives/operations/*/__init__.pyc",
+    ],
+    extractor_directive=extractor_directive,
     ignore=internal_file_paths_to_not_collect,
     # optionally
     # Walk over modules
@@ -110,6 +118,7 @@ the same for the module based collector (note: the submodules must be reachable 
 ```python
 from sayer.utils.directives import find_directives_from_module
 
+
 def extractor_directive(module: ModuleType, relative: Path):
     found: Callable | None = None
     for attr in dir(module):
@@ -122,16 +131,24 @@ def extractor_directive(module: ModuleType, relative: Path):
             else:
                 continue
             if found is not None:
-                raise RuntimeError(f"Detected multiple directives in the same file: `{module.__file__}`.")
+                raise RuntimeError(
+                    f"Detected multiple directives in the same file: `{module.__file__}`."
+                )
             found = new_found
     return found
+
 
 internal_file_paths_to_not_collect = {str(Path("sayer/cli/foo.py").resolve())}
 # walks always over modules (like use_files=False) for guranteed compatibility if the module module is zipped
 directives = find_directives_from_module(
     module,
     extractor_directive=extractor_directive,
-    patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py", "**/directives/operations/[!_]*.pyc", "**/directives/operations/*/__init__.pyc"],
+    patterns=[
+        "**/directives/operations/[!_]*.py",
+        "**/directives/operations/*/__init__.py",
+        "**/directives/operations/[!_]*.pyc",
+        "**/directives/operations/*/__init__.pyc",
+    ],
     ignore=internal_file_paths_to_not_collect,
 )
 ```
@@ -166,6 +183,7 @@ To get a valid format to fetch directives it must be transposed via `transpose_d
 
 ```python
 from sayer.utils.directives import find_directives_from_module, transpose_directives
+
 directives = ...
 transposed = transpose_directives(directives)
 ```
@@ -173,12 +191,20 @@ transposed = transpose_directives(directives)
 That was it. You might want to remove some directives from the help:
 
 ```python
-from sayer.utils.directives import find_directives_from_module, transpose_directives, DirectiveTuple
+from sayer.utils.directives import (
+    find_directives_from_module,
+    transpose_directives,
+    DirectiveTuple,
+)
+
 directives = ...
+
+
 def extractor_help(tup: DirectiveTuple) -> str | None:
     if not getattr(tup.func, "__display_in_cli__", False):
         return None
     return tup.func.__doc__ or ""
+
 
 transposed = transpose_directives(directives, extractor_help=extractor_help)
 ```
@@ -188,13 +214,18 @@ providing in the module an extra variable `app_name = "foo"`. When `app_name` is
 You can also overwrite the `extractor_app_name`:
 
 ```python
-from sayer.utils.directives import find_directives_from_module, transpose_directives, DirectiveTuple
+from sayer.utils.directives import (
+    find_directives_from_module,
+    transpose_directives,
+    DirectiveTuple,
+)
+
 directives = ...
 
 transposed = transpose_directives(
     directives,
     extractor_help=...,
-    extractor_app_name = lambda tup: tup.root.name,
+    extractor_app_name=lambda tup: tup.root.name,
     # or
     # extractor_app_name = lambda tup: "fixed_name",
 )
@@ -217,6 +248,7 @@ from sayer.core.engine import command
 from sayer.params import Argument
 from sayer.utils.directives import find_directives_from_path, DirectiveTuple
 
+
 def extractor_directive(module: ModuleType, relative: Path):
     found: Callable | None = None
     for attr in dir(module):
@@ -229,19 +261,24 @@ def extractor_directive(module: ModuleType, relative: Path):
             else:
                 continue
             if found is not None:
-                raise RuntimeError(f"Detected multiple directives in the same file: `{module.__file__}`.")
+                raise RuntimeError(
+                    f"Detected multiple directives in the same file: `{module.__file__}`."
+                )
             found = new_found
     return found
 
+
 @command(
-    context_settings={
-        "allow_interspersed_args": False
-    },
+    context_settings={"allow_interspersed_args": False},
 )
 async def directive(
     directive: Annotated[
         str,
-        Argument("", required=False, help="The name of the directive to execute. Leave empty to list directives."),
+        Argument(
+            "",
+            required=False,
+            help="The name of the directive to execute. Leave empty to list directives.",
+        ),
     ],
     directive_args: Annotated[
         list[str],
@@ -256,7 +293,13 @@ async def directive(
 
     directives = find_directives_from_path(
         path,
-        patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py", "**/directives/operations/[!_]*.pyc", "**/directives/operations/*/__init__.pyc"], extractor_directive=extractor_directive,
+        patterns=[
+            "**/directives/operations/[!_]*.py",
+            "**/directives/operations/*/__init__.py",
+            "**/directives/operations/[!_]*.pyc",
+            "**/directives/operations/*/__init__.pyc",
+        ],
+        extractor_directive=extractor_directive,
     )
     transposed = transpose_directives(directives)
     retrieved = directive_function_or_help(transposed, directive=directive)

@@ -1,13 +1,9 @@
 import os
-import sys
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from inspect import isroutine
-from pathlib import Path
 from types import ModuleType
 from typing import Any, ClassVar, TypeVar
-
-import pytest
 
 from sayer.utils.directives import (
     directive_function_or_help,
@@ -46,6 +42,7 @@ def directive(
 
     return wrapper
 
+
 def extractor_directive(module: ModuleType, relative):
     found: Callable | None = None
     for attr in dir(module):
@@ -58,7 +55,9 @@ def extractor_directive(module: ModuleType, relative):
             else:
                 continue
             if found is not None:
-                raise RuntimeError(f"Detected multiple directives in the same file: `{module.__file__}`.")
+                raise RuntimeError(
+                    f"Detected multiple directives in the same file: `{module.__file__}`."
+                )
             found = new_found
     return found
 
@@ -86,7 +85,9 @@ def find_directive_system(directive: str | None, extractor_app_name: Any = None)
         extractor_directive=extractor_directive,
     )
     assert directives
-    transposed = transpose_directives(directives, extractor_help=extractor_help, extractor_app_name=extractor_app_name)
+    transposed = transpose_directives(
+        directives, extractor_help=extractor_help, extractor_app_name=extractor_app_name
+    )
     return directive_function_or_help(transposed, directive=directive)
 
 
@@ -106,7 +107,10 @@ def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None)
 
 
 def execute_directive(
-    path: os.PathLike, directive: str | None, args: Sequence[Any] = (), kwargs: dict[str, Any] | None = None
+    path: os.PathLike,
+    directive: str | None,
+    args: Sequence[Any] = (),
+    kwargs: dict[str, Any] | None = None,
 ):
     retrieved = find_directive(path, directive)
     if retrieved is not None:

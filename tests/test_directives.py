@@ -24,12 +24,16 @@ def create_zipfile(tmp_path):
         yield test_directive_target
     finally:
         sys.path.remove(test_directive_target_str)
-        to_remove = [module_name for module_name in sys.modules if module_name.startswith("valid4")]
+        to_remove = [
+            module_name for module_name in sys.modules if module_name.startswith("valid4")
+        ]
         for module in to_remove:
             del sys.modules[module]
 
 
-@pytest.mark.parametrize("name", ["class_based_hidden", "class_based_shown", "hidden", "shown", "packaged_op"])
+@pytest.mark.parametrize(
+    "name", ["class_based_hidden", "class_based_shown", "hidden", "shown", "packaged_op"]
+)
 @pytest.mark.parametrize("prefixed", [True, False])
 def test_find_directive_simple(name, prefixed):
     if prefixed:
@@ -51,7 +55,9 @@ def test_collisions_simple():
     with pytest.raises(SystemExit):
         execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "directive1")
     # works
-    execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "collisions1.directive1")
+    execute_directive(
+        Path(__file__).parent / "testdirectives" / "coll.isions1", "collisions1.directive1"
+    )
     execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "")
 
 
@@ -61,7 +67,9 @@ def test_collisions_fully():
         execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions2", "directive1")
     # collision
     with pytest.raises(SystemExit):
-        execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions2", "foo.directive1")
+        execute_directive(
+            Path(__file__).parent / "testdirectives" / "coll.isions2", "foo.directive1"
+        )
     # collision
     with pytest.raises(SystemExit):
         execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions2", "")
@@ -71,7 +79,10 @@ def test_collisions_fully():
 @pytest.mark.parametrize("prefixed", [True, False])
 @pytest.mark.parametrize(
     "app_name_func",
-    [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid3", id="fixed")],
+    [
+        pytest.param(lambda tup: tup.root.name, id="root"),
+        pytest.param(lambda tup: "valid3", id="fixed"),
+    ],
 )
 def test_find_directive_system(name, prefixed, app_name_func):
     if prefixed:
@@ -83,7 +94,10 @@ def test_find_directive_system(name, prefixed, app_name_func):
 @pytest.mark.parametrize("prefixed", [True, False])
 @pytest.mark.parametrize(
     "app_name_func",
-    [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid3", id="fixed")],
+    [
+        pytest.param(lambda tup: tup.root.name, id="root"),
+        pytest.param(lambda tup: "valid3", id="fixed"),
+    ],
 )
 def test_find_not_directive_system(prefixed, app_name_func):
     name = "stub3"
@@ -97,7 +111,10 @@ def test_find_not_directive_system(prefixed, app_name_func):
 @pytest.mark.parametrize("prefixed", [True, False])
 @pytest.mark.parametrize(
     "app_name_func",
-    [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid4", id="fixed")],
+    [
+        pytest.param(lambda tup: tup.root.name, id="root"),
+        pytest.param(lambda tup: "valid4", id="fixed"),
+    ],
 )
 def test_find_directive_zipapp(name, prefixed, app_name_func, create_zipfile):
     if prefixed:
@@ -109,7 +126,10 @@ def test_find_directive_zipapp(name, prefixed, app_name_func, create_zipfile):
 @pytest.mark.parametrize("prefixed", [True, False])
 @pytest.mark.parametrize(
     "app_name_func",
-    [pytest.param(lambda tup: tup.root.name, id="root"), pytest.param(lambda tup: "valid4", id="fixed")],
+    [
+        pytest.param(lambda tup: tup.root.name, id="root"),
+        pytest.param(lambda tup: "valid4", id="fixed"),
+    ],
 )
 def test_find_not_directive_zipapp(prefixed, app_name_func, create_zipfile):
     name = "stub4"

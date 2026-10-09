@@ -27,7 +27,8 @@ if sys.version_info < (3, 12):
     from wcmatch.pathlib import Path as WCPath
     def _match_path_against_glob(path: Path, glob_pattern: str) -> bool:
         """Helper for compatibility with python<3.12."""
-        return WCPath(path).full_match(glob_pattern)
+        from wcmatch.glob import GLOBSTAR
+        return WCPath(path).full_match(glob_pattern, flags=GLOBSTAR)
 else:
     def _match_path_against_glob(path: Path, glob_pattern: str) -> bool:
         return path.full_match(glob_pattern)

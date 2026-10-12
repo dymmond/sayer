@@ -8,7 +8,7 @@ from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
 from types import ModuleType
-from typing import Any, NamedTuple, NewType, cast
+from typing import NamedTuple, NewType, cast
 
 from rich.markup import escape
 from rich.padding import Padding
@@ -17,13 +17,14 @@ from sayer.utils.ui import echo, error
 
 RelativePath = NewType("RelativePath", Path)
 RootPath = NewType("RootPath", Path)
+DirectiveType = NewType("DirectiveType", object)
 
 
 class DirectiveTuple(NamedTuple):
     module: ModuleType
     root: RootPath
     relative: RelativePath
-    directive: Any
+    directive: DirectiveType
 
 
 if sys.version_info < (3, 13):
@@ -140,7 +141,7 @@ def find_directives_from_path(
     path: os.PathLike,
     *,
     patterns: Collection[str],
-    extractor_directive: Callable[[ModuleType, RelativePath], Callable | None],
+    extractor_directive: Callable[[ModuleType, RelativePath], DirectiveType | None],
     ignore: Container[str] = frozenset(),
     use_files: bool | None = None,
 ) -> dict[str, DirectiveTuple | None]:
@@ -174,7 +175,7 @@ def find_directives_from_module(
     module: str | ModuleType,
     *,
     patterns: Collection[str],
-    extractor_directive: Callable[[ModuleType, RelativePath], Callable | None],
+    extractor_directive: Callable[[ModuleType, RelativePath], DirectiveType | None],
     ignore: Container[str] = frozenset(),
 ) -> dict[str, DirectiveTuple | None]:
     """
@@ -239,7 +240,7 @@ def transpose_directives(
         tup.directive.__doc__ or ""
     ),
     extractor_app_name: Callable[[DirectiveTuple], str] | None = None,
-) -> dict[tuple[str, str] | tuple[str], tuple[str | None, Callable] | None]:
+) -> dict[tuple[str, str] | tuple[str], tuple[str | None, DirectiveType] | None]:
     """
 
     Transpose directives into dictionaries referenced by name and app_name.
@@ -275,7 +276,7 @@ def transpose_directives(
                 )
 
     directives_by_app_and_name: dict[
-        tuple[str, str] | tuple[str], tuple[str | None, Callable] | None
+        tuple[str, str] | tuple[str], tuple[str | None, DirectiveType] | None
     ] = {}
     for directive_tuple in directives.values():
         if directive_tuple is not None:
@@ -307,12 +308,12 @@ def transpose_directives(
 
 
 def directive_function_or_help(
-    transposed: Mapping[tuple[str, str] | tuple[str], tuple[str | None, Any] | None],
+    transposed: Mapping[tuple[str, str] | tuple[str], tuple[str | None, DirectiveType] | None],
     /,
     *,
     directive: str | None,
     help_text_preamble: str = "Available directives:",
-) -> Any | None:
+) -> DirectiveType | None:
     """
     Helper for retrieving the directive, displaying a proper error or help in case of no directive or errornous command.
 

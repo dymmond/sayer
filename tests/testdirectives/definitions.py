@@ -23,7 +23,7 @@ class BaseDirective(ABC):
 
     @classmethod
     @abstractmethod
-    def run(cls, *args) -> None:
+    def run(cls, *args: Any, **kwargs: Any) -> None:
         pass
 
 

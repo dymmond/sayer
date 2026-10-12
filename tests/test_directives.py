@@ -63,6 +63,16 @@ def test_execute_directive_simple(name, prefixed):
     execute_directive(Path(__file__).parent / "testdirectives", name)
 
 
+@pytest.mark.parametrize(
+    "name", ["[/]", "valid_module.class_based-shown", "valid_module.[/]", "valid_modu.le.shown"]
+)
+def test_invalid(name, capsys):
+    with pytest.raises(SystemExit):
+        execute_directive(Path(__file__).parent / "testdirectives", name)
+    out, err = capsys.readouterr()
+    assert f"✖ Specified directive: `{name}` not valid as directive." in out
+
+
 def test_collisions_single(capsys):
     # collision
     with pytest.raises(SystemExit):

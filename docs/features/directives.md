@@ -52,7 +52,7 @@ class BaseDirective(ABC):
 
     @classmethod
     @abstractmethod
-    def run(self, *args) -> None:
+    def run(cls, *args) -> None:
         pass
 ```
 

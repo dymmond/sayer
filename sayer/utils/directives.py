@@ -10,6 +10,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, NamedTuple, NewType, cast
 
+from rich.markup import escape
 from rich.padding import Padding
 
 from sayer.utils.ui import echo, error
@@ -222,7 +223,7 @@ def find_directives_from_module(
     return directives
 
 
-def filter_unsafe_key(key: tuple[str, str] | tuple[str], /) -> bool:
+def is_safe_key(key: tuple[str, str] | tuple[str], /) -> bool:
     """
     Safety check for `directive_function_or_help`.
 
@@ -288,7 +289,7 @@ def transpose_directives(
             app_name = extractor_app_name(directive_tuple)
             name_tup = (name,)
             app_name_tup = (app_name, name)
-            if not filter_unsafe_key(app_name_tup):
+            if not is_safe_key(app_name_tup):
                 continue
             if app_name_tup in directives_by_app_and_name:
                 # collision, no recover
@@ -325,7 +326,7 @@ def directive_function_or_help(
     Raises:
         SysExit(1): For errors (wrong or ambigous provided directive, colliding directives).
     """
-    transposed = {k: v for k, v in transposed.items() if filter_unsafe_key(k)}
+    transposed = {k: v for k, v in transposed.items() if is_safe_key(k)}
     collisions = tuple(k for k, v in transposed.items() if len(k) == 2 and v is None)
     if collisions:
         error("Following directives have collisions:")
@@ -351,8 +352,8 @@ def directive_function_or_help(
         return None
     else:
         search_tuple = tuple(directive.rsplit(".", 1))
-        if not filter_unsafe_key(search_tuple):
-            error(f"Specified directive: `{directive}` not valid as directive.")
+        if not is_safe_key(search_tuple):
+            error(f"Specified directive: `{escape(directive)}` not valid as directive.")
             sys.exit(1)
         if search_tuple not in transposed:
             error(f"Specified directive: `{directive}` not found.")

@@ -316,7 +316,7 @@ async def directive(
     if retrieved is not None:
         retrieved = (
             retrieved.run(*directive_args)
-            if isinstance(retrieved, BaseDirective)
+            if isinstance(retrieved, type) and issubclass(retrieved, BaseDirective)
             else retrieved(*directive_args)
         )
         if isawaitable(retrieved):

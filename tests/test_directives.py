@@ -200,6 +200,7 @@ def test_execute_directive_help(capsys):
     assert name2 in out
     assert package_and_name in out
     assert package_and_name_and_help in out
+    assert "shown" in out
     # neither class_based_hidden nor hidden should appear
     assert "hidden" not in out
 

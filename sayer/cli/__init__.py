@@ -1,1 +1,1 @@
-from . import new  # noqa: F401
+from . import docs, new  # noqa: F401

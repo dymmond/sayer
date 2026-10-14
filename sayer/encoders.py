@@ -242,7 +242,9 @@ class Encoder:
         """
         if not self.__encode__:
             return value
-        raise NotImplementedError(f"{type(self).__name__} must implement 'encode' if '__encode__' is True.")
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement 'encode' if '__encode__' is True."
+        )
 
 
 class DataclassEncoder(Encoder, EncoderProtocol, MoldingProtocol):
@@ -445,7 +447,7 @@ class EnumEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     """
 
     __encode__: bool = True
-    __type__: type = Enum
+    __type__ = Enum
 
     def serialize(self, obj: Any) -> Any:
         """
@@ -482,7 +484,7 @@ class PurePathEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     strings during molding.
     """
 
-    __type__: type = PurePath
+    __type__ = PurePath
 
     def serialize(self, obj: PurePath) -> str:
         """
@@ -520,7 +522,7 @@ class DateEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     type (`date` or `datetime`) is returned based on the target `structure`.
     """
 
-    __type__: type = date
+    __type__ = date
 
     def serialize(self, obj: date | datetime) -> str:
         """
@@ -562,7 +564,7 @@ class BytesEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     to `bytes` during molding.
     """
 
-    __type__: tuple[type, ...] = (bytes, memoryview)
+    __type__ = (bytes, memoryview)
 
     def serialize(self, obj: bytes | memoryview) -> str:
         """
@@ -609,7 +611,7 @@ class StructureEncoder(Encoder, EncoderProtocol, MoldingProtocol):
     type from the input list or iterable.
     """
 
-    __type__: tuple[type, ...] = (list, set, frozenset, GeneratorType, tuple, deque)
+    __type__ = (list, set, frozenset, GeneratorType, tuple, deque)
 
     def is_type(self, v: Any) -> bool:
         """
@@ -702,7 +704,9 @@ _DEFAULT_ENCODERS: tuple[EncoderProtocol | MoldingProtocol, ...] = (
 # different parts of an application. A `deque` (double-ended queue) is used as
 # the default value to enable efficient `appendleft` operations when registering
 # new encoders (giving them higher priority).
-_ENCODERS: ContextVar[deque[EncoderProtocol | MoldingProtocol] | None] = ContextVar("ENCODERS", default=None)
+_ENCODERS: ContextVar[deque[EncoderProtocol | MoldingProtocol] | None] = ContextVar(
+    "ENCODERS", default=None
+)
 
 
 def register_encoder(

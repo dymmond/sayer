@@ -2,6 +2,10 @@
 
 ## 0.8.1
 
+### Added
+
+- `cleanup_packages` argument for `find_directives_from_path`.
+
 ### Fixed
 
 - Relative imports from directives.

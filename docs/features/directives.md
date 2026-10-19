@@ -70,6 +70,10 @@ class Directive(BaseDirective):
     Directive names must qualify for identifier (`isidentifier() == True`). This means you are restricted in what you use for `app_name`.
     For example it isn't allowed to use names starting with numbers.
 
+!!! Note
+    It is allowed to do relative imports in directives. When using `find_directives_from_path`, you can opt-out from the cleanup of the imported modules by
+    specifying `cleanup_packages=False`.
+
 
 ## Collecting
 
@@ -117,6 +121,8 @@ directives = find_directives_from_path(
     # use_files=True
     # Prefers walking over files, except if path does not exist in the filesystem (default)
     # use_files=None
+    # Keep imported helper modules
+    # cleanup_packages=False
 )
 ```
 

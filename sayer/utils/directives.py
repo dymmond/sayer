@@ -8,7 +8,7 @@ from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
 from types import ModuleType
-from typing import NamedTuple, NewType, cast
+from typing import Any, NamedTuple, NewType, cast
 
 from rich.markup import escape
 from rich.padding import Padding
@@ -41,6 +41,9 @@ else:
         return path.full_match(glob_pattern)
 
 
+_sentinel = cast(Any, object())
+
+
 def _find_directives_from_path(
     path: os.PathLike,
     *,
@@ -54,7 +57,7 @@ def _find_directives_from_path(
     cleanup_packages: bool,
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
-    imports_to_cleanup: set[str] = set()
+    imports_to_cleanup: dict[str, ModuleType] = {}
     # path maybe not resolvable
     used_path = Path(path)
     # if exists, bypass loading modules and glob directly
@@ -101,8 +104,9 @@ def _find_directives_from_path(
                 continue
             spec = finder.find_spec(name, None)
             module = importlib.util.module_from_spec(spec)
+            old_module = sys.modules.get(spec.name, _sentinel)
             sys.modules[spec.name] = module
-            imports_to_cleanup.add(spec.name)
+            imports_to_cleanup.setdefault(spec.name, old_module)
             if spec.loader is not None:
                 spec.loader.exec_module(module)
         if hasattr(finder, "get_filename"):
@@ -136,8 +140,12 @@ def _find_directives_from_path(
             else DirectiveTuple(module, root, relative, directive_obj)
         )
     if cleanup_packages:
-        for cleanup_name in imports_to_cleanup:
-            del sys.modules[cleanup_name]
+        for cleanup_name, original in imports_to_cleanup.items():
+            if original is _sentinel:
+                del sys.modules[cleanup_name]
+            else:
+                sys.modules[cleanup_name] = original
+
     return directives
 
 
@@ -163,9 +171,9 @@ def find_directives_from_path(
         ignore (Optional[Container[str]]):
             Ignore additional full paths in string form for the extraction of directives.
             Can be any container like a not transposed directive dict.
-        use_files (bool | None):
+        use_files (bool | None): Force file based retrieval/module based retrieval of directives. `None` (default) for auto-selection.
         cleanup_packages (bool):
-            Cleanup imported helper modules (packages) after finishing imports. This will prevent lazy-loads but prevent collisions
+            Cleanup imported helper packages after finishing imports. This may will prevent some lazy-loads but prevent collisions
             on colliding virtual paths. By default `True`.
     Returns:
         Dict mapping from file names to DirectiveTuple or `None` (no directive found).

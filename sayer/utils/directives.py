@@ -106,7 +106,8 @@ def _find_directives_from_path(
             module = importlib.util.module_from_spec(spec)
             old_module = sys.modules.get(spec.name, _sentinel)
             sys.modules[spec.name] = module
-            imports_to_cleanup.setdefault(spec.name, old_module)
+            if cleanup_packages:
+                imports_to_cleanup.setdefault(spec.name, old_module)
             if spec.loader is not None:
                 spec.loader.exec_module(module)
         if hasattr(finder, "get_filename"):
@@ -139,7 +140,7 @@ def _find_directives_from_path(
             if directive_obj is None
             else DirectiveTuple(module, root, relative, directive_obj)
         )
-    if cleanup_packages:
+    if imports_to_cleanup:
         for cleanup_name, original in imports_to_cleanup.items():
             if original is _sentinel:
                 del sys.modules[cleanup_name]
@@ -236,6 +237,7 @@ def find_directives_from_module(
                 use_files=False,
                 # inject the correct prefix
                 prefix=f"{module.__name__}.",
+                # no need to do so. Will also provide speed benefit
                 cleanup_packages=False,
             )
         )

@@ -51,8 +51,10 @@ def _find_directives_from_path(
     ignore2: Container[str] = frozenset(),
     use_files: bool | None,
     prefix: str = "",
+    cleanup_packages: bool,
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
+    imports_to_cleanup: set[str] = set()
     # path maybe not resolvable
     used_path = Path(path)
     # if exists, bypass loading modules and glob directly
@@ -100,6 +102,7 @@ def _find_directives_from_path(
             spec = finder.find_spec(name, None)
             module = importlib.util.module_from_spec(spec)
             sys.modules[spec.name] = module
+            imports_to_cleanup.add(spec.name)
             if spec.loader is not None:
                 spec.loader.exec_module(module)
         if hasattr(finder, "get_filename"):
@@ -132,6 +135,9 @@ def _find_directives_from_path(
             if directive_obj is None
             else DirectiveTuple(module, root, relative, directive_obj)
         )
+    if cleanup_packages:
+        for cleanup_name in imports_to_cleanup:
+            del sys.modules[cleanup_name]
     return directives
 
 
@@ -142,6 +148,7 @@ def find_directives_from_path(
     extractor_directive: Callable[[ModuleType, RelativePath], DirectiveType | None],
     ignore: Container[str] = frozenset(),
     use_files: bool | None = None,
+    cleanup_packages: bool = True,
 ) -> dict[str, DirectiveTuple | None]:
     """
     Extract directives from a path (which may exists virtually).
@@ -157,6 +164,9 @@ def find_directives_from_path(
             Ignore additional full paths in string form for the extraction of directives.
             Can be any container like a not transposed directive dict.
         use_files (bool | None):
+        cleanup_packages (bool):
+            Cleanup imported helper modules (packages) after finishing imports. This will prevent lazy-loads but prevent collisions
+            on colliding virtual paths. By default `True`.
     Returns:
         Dict mapping from file names to DirectiveTuple or `None` (no directive found).
     """
@@ -166,6 +176,7 @@ def find_directives_from_path(
         extractor_directive=extractor_directive,
         ignore1=ignore,
         use_files=use_files,
+        cleanup_packages=cleanup_packages,
     )
 
 
@@ -217,6 +228,7 @@ def find_directives_from_module(
                 use_files=False,
                 # inject the correct prefix
                 prefix=f"{module.__name__}.",
+                cleanup_packages=False,
             )
         )
     return directives

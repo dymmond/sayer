@@ -81,7 +81,6 @@ def _find_directives_from_path(
             ]
         # we doesn't want to flatten the paths to one big module
         iterable = chain.from_iterable(pkgutil.iter_modules([path]) for path in paths)
-        import_pkgs = False
     elif use_files:
         # empty
         return directives
@@ -89,13 +88,12 @@ def _find_directives_from_path(
         # maybe not resolvable, so just use absolute
         used_path = used_path.absolute()
         iterable = pkgutil.walk_packages([path], prefix=prefix)
-        import_pkgs = True
     if root is None:
         root = cast("RootPath", used_path)
 
     for finder, name, ispkg in iterable:
         module = None
-        if import_pkgs and ispkg:
+        if ispkg:
             # skip internal modules
             if name.startswith("_"):
                 continue

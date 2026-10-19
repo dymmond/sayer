@@ -1,5 +1,11 @@
 # Release Notes
 
+## 0.8.1
+
+### Fixed
+
+- Relative imports from directives.
+
 ## 0.8.0
 
 ### Added
@@ -99,6 +105,7 @@ without breaking either workflow.
       """Custom shout command"""
       success("HELLO!")
 
+
   app.add_custom_command("shout", shout)
   ```
 
@@ -112,7 +119,7 @@ without breaking either workflow.
       name="reports",
       help="Reporting commands",
       is_custom=True,
-      custom_command_name="Reporting Suite"
+      custom_command_name="Reporting Suite",
   )
   ```
 

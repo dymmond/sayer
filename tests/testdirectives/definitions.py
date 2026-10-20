@@ -72,10 +72,10 @@ def extractor_help(tup: Any) -> str | None:
 def extract_directives_raw(
     path: os.PathLike,
     use_files: bool | None = None,
-    patterns: Collection[str] = [
+    patterns: Collection[str] = (
         "**/directives/operations/[!_]*.py",
         "**/directives/operations/*/__init__.py",
-    ],
+    ),
     cleanup_imports: bool = True,
 ):
     return find_directives_from_path(

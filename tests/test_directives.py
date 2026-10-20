@@ -80,9 +80,18 @@ def test_invalid(name, capsys):
 
 @pytest.mark.parametrize("use_files", [True, None, False])
 def test_path_is_file_fails(use_files):
+    file_path = (
+        Path(__file__).parent
+        / "testdirectives"
+        / "valid_module"
+        / "directives"
+        / "operations"
+        / "shown.py"
+    )
+    assert file_path.is_file()
     assert (
         extract_directives_raw(
-            Path(__file__).parent / "valid_module" / "directives" / "operations" / "shown.py",
+            file_path,
             patterns=["*"],
             use_files=use_files,
         )

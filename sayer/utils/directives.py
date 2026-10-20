@@ -3,7 +3,7 @@ import importlib.util
 import os
 import pkgutil
 import sys
-from collections.abc import Callable, Collection, Container, Mapping
+from collections.abc import Callable, Collection, Container, Generator, Mapping
 from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
@@ -41,6 +41,34 @@ else:
         return path.full_match(glob_pattern)
 
 
+def _generate_file_based_paths(
+    used_path: Path,
+    root: Path,
+    patterns: Collection[str],
+) -> Generator[Path, None, None]:
+    if sys.version_info < (3, 12):
+        path_generator = os.walk(used_path)
+    else:
+        path_generator = used_path.walk()
+
+    # for having order
+    valid_paths: dict[Path, bool] = {}
+    for path, _, _ in path_generator:
+        # required for < 3.12
+        if sys.version_info < (3, 12):
+            path = Path(path)
+        if all(
+            not part.startswith("_") and part.isidentifier()
+            for part in path.relative_to(root).parts
+        ):
+            relative = path.relative_to(root)
+            if any(_match_path_against_glob(relative, pattern) for pattern in patterns):
+                for parent in reversed(relative.parents):
+                    valid_paths.setdefault(parent, True)
+    for path in valid_paths:
+        yield path.absolute()
+
+
 def _find_directives_from_path(
     path: os.PathLike,
     *,
@@ -62,26 +90,11 @@ def _find_directives_from_path(
         used_path = used_path.resolve()
         if root is None:
             root = cast("RootPath", used_path)
-        if sys.version_info < (3, 12):
-            paths = [
-                p
-                for p, _, _ in os.walk(used_path)
-                if all(
-                    not part.startswith("_") and part.isidentifier()
-                    for part in Path(p).relative_to(root).parts
-                )
-            ]
-        else:
-            paths = [
-                p
-                for p, _, _ in used_path.walk()
-                if all(
-                    not part.startswith("_") and part.isidentifier()
-                    for part in p.relative_to(root).parts
-                )
-            ]
         # we doesn't want to flatten the paths to one big module
-        iterable = chain.from_iterable(pkgutil.iter_modules([path]) for path in paths)
+        iterable = chain.from_iterable(
+            pkgutil.iter_modules([path])
+            for path in _generate_file_based_paths(used_path, root, patterns)
+        )
     elif use_files:
         # empty
         return directives

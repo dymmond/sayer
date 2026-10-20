@@ -90,6 +90,37 @@ def test_path_is_file_fails(use_files):
     )
 
 
+@pytest.mark.parametrize("cleanup_imports", [True, False])
+@pytest.mark.parametrize("use_files", [True, None, False])
+def test_cleanup(use_files, cleanup_imports):
+    for k in list(sys.modules.keys()):
+        if "valid_system" in k:
+            del sys.modules[k]
+    sentinel = object()
+    sys.modules["valid_system.directives"] = sentinel
+    try:
+        path = Path(__file__).parent / "testdirectives" / "_modules_for_system_and_cleanup"
+        assert path.is_dir()
+        results = extract_directives_raw(
+            path,
+            use_files=use_files,
+            patterns=["**/directives/[!_]*.py", "**/directives/*/__init__.py"],
+            cleanup_imports=cleanup_imports,
+        )
+        assert results
+        leftovers = [k for k in sys.modules if "valid_system" in k]
+        if not cleanup_imports:
+            assert leftovers
+            assert sys.modules["valid_system.directives"] is not sentinel
+        else:
+            assert leftovers == ["valid_system.directives"]
+            assert sys.modules["valid_system.directives"] is sentinel
+    finally:
+        for k in list(sys.modules.keys()):
+            if "valid_system" in k:
+                del sys.modules[k]
+
+
 def test_collisions_directives(capsys):
     # collision
     with pytest.raises(SystemExit):

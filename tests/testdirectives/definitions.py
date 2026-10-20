@@ -95,7 +95,7 @@ def find_directive(path: os.PathLike, directive: str | None, use_files: bool | N
 
 def find_directive_system(directive: str | None, extractor_app_name: Any = None):
     directives = find_directives_from_module(
-        "tests.testdirectives.valid_system",
+        "tests.testdirectives._modules_for_system_and_cleanup.valid_system",
         patterns=["**/directives/[!_]*.py", "**/directives/*/__init__.py"],
         extractor_directive=extractor_directive,
     )

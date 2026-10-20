@@ -46,6 +46,7 @@ def _generate_file_based_mod_infos(
     root: Path,
     patterns: Collection[str],
 ) -> Generator[pkgutil.ModuleInfo, None, None]:
+    """Helper to extract ModuleInfo from files."""
     if sys.version_info < (3, 12):
         path_generator = os.walk(used_path)
     else:
@@ -79,6 +80,7 @@ def _generate_file_based_mod_infos(
 
 
 def _save_prefixes(originals: dict[str, ModuleType], prefix: str) -> None:
+    """Save original ModuleTypes for restoring."""
     prefix_dot = f"{prefix}."
     for k in list(sys.modules.keys()):
         if k == prefix or k.startswith(prefix_dot):
@@ -88,13 +90,14 @@ def _save_prefixes(originals: dict[str, ModuleType], prefix: str) -> None:
 
 
 def _restore_modules(
-    originals: dict[str, ModuleType], prefixes: set[str], amount_common_parts: int
+    originals: dict[str, ModuleType], prefixes: set[str], amount_prefix_parts_plus_one: int
 ) -> None:
+    """Undo changes below prefixes."""
     for k in list(sys.modules.keys()):
         splitted = k.split(".")
-        if len(splitted) < amount_common_parts:
+        if len(splitted) < amount_prefix_parts_plus_one:
             continue
-        if ".".join(splitted[:3]) not in prefixes:
+        if ".".join(splitted[:amount_prefix_parts_plus_one]) not in prefixes:
             continue
         if k in originals:
             sys.modules[k] = originals[k]
@@ -114,6 +117,7 @@ def _find_directives_from_path(
     global_prefix: str = "",
     cleanup_imports: bool,
 ) -> dict[str, DirectiveTuple | None]:
+    """Helper to extract directives."""
     directives: dict[str, DirectiveTuple | None] = {}
     # path maybe not resolvable
     used_path = Path(path)
@@ -139,7 +143,7 @@ def _find_directives_from_path(
 
     original_modules: dict[str, ModuleType] = {}
     restore_prefixes: set[str] = set()
-    amount_common_parts: int | None = None
+    amount_prefix_parts_plus_one: int | None = None
     try:
         for finder, name, ispkg in iterable:
             module = None
@@ -149,14 +153,23 @@ def _find_directives_from_path(
             spec = finder.find_spec(name, None)
             full_name_str = spec.origin
             relative = cast("RelativePath", Path(full_name_str).relative_to(root))
-            if amount_common_parts is None:
-                # we need to substract one, because we are already listing the content of the directory
-                amount_common_parts = len(relative.parts) - 1
+            count_parts: int | None = None
+            if amount_prefix_parts_plus_one is None:
+                amount_prefix_parts_plus_one = len(relative.parts)
+                if ispkg:
+                    # packages have an injected /__init__.py
+                    amount_prefix_parts_plus_one -= 1
+                count_parts = amount_prefix_parts_plus_one
             if ispkg:
                 module = importlib.util.module_from_spec(spec)
+                if count_parts is None:
+                    count_parts = len(relative.parts)
+                    if ispkg:
+                        # packages have an injected /__init__.py
+                        count_parts -= 1
                 if (
                     cleanup_imports
-                    and len(relative.parts) == amount_common_parts
+                    and count_parts == amount_prefix_parts_plus_one
                     and name not in restore_prefixes
                 ):
                     restore_prefixes.add(name)
@@ -184,8 +197,8 @@ def _find_directives_from_path(
                 else DirectiveTuple(module, root, relative, directive_obj)
             )
     finally:
-        if cleanup_imports and amount_common_parts is not None:
-            _restore_modules(original_modules, restore_prefixes, amount_common_parts)
+        if cleanup_imports and amount_prefix_parts_plus_one is not None:
+            _restore_modules(original_modules, restore_prefixes, amount_prefix_parts_plus_one)
     return directives
 
 

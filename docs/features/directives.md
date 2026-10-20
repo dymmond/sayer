@@ -73,12 +73,12 @@ class Directive(BaseDirective):
     For example it isn't allowed to use names starting with numbers.
 
 !!! Note
-    It is since sayer version `0.08.1` allowed to do relative imports in directives till at least to one level under the root
+    It is since sayer version `0.8.1` allowed to do relative imports in directives till at least to one level under the root
     except for `find_directives_from_module` which has no restrictions concerning relative imports.
 
 !!! Note
     You can provide custom application names by specifying `app_name = "foo"` in the module where the directive is specified.
-    It must fullfill the criterias of an python identifier however.
+    It must fulfill the criteria of a Python identifier, however.
 
 ## Collecting
 

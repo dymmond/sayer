@@ -53,20 +53,26 @@ def _generate_file_based_paths(
 
     # for having order
     valid_paths: dict[Path, bool] = {}
-    for path, _, _ in path_generator:
+    for directory, _, files in path_generator:
         # required for < 3.12
         if sys.version_info < (3, 12):
-            path = Path(path)
+            directory = Path(directory)
+        relative_path_dir = directory.relative_to(root)
+        files = (relative_path_dir / f for f in files)
         if all(
-            not part.startswith("_") and part.isidentifier()
-            for part in path.relative_to(root).parts
+            not part.startswith("_") and part.isidentifier() for part in relative_path_dir.parts
         ):
-            relative = path.relative_to(root)
-            if any(_match_path_against_glob(relative, pattern) for pattern in patterns):
-                for parent in reversed(relative.parents):
-                    valid_paths.setdefault(parent, True)
+            for relpath in chain([relative_path_dir], files):
+                if any(_match_path_against_glob(relpath, pattern) for pattern in patterns):
+                    for parent in reversed(relative_path_dir.parents):
+                        valid_paths.setdefault(parent, False)
+                    valid_paths.setdefault(relative_path_dir, True)
+                    break
     for path in valid_paths:
-        yield path.absolute()
+        combined = root / path
+        if combined == root:
+            continue
+        yield combined
 
 
 def _find_directives_from_path(

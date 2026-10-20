@@ -54,9 +54,6 @@ def _find_directives_from_path(
     cleanup_imports: bool,
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
-    original_modules: dict[str, ModuleType] = {}
-    if cleanup_imports:
-        original_modules.update(sys.modules)
     # path maybe not resolvable
     used_path = Path(path)
     # if exists, bypass loading modules and glob directly
@@ -95,50 +92,55 @@ def _find_directives_from_path(
     if root is None:
         root = cast("RootPath", used_path)
 
-    for finder, name, ispkg in iterable:
-        module = None
-        if ispkg:
-            # skip internal modules
-            if name.startswith("_"):
-                continue
-            spec = finder.find_spec(name, None)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = module
-            if spec.loader is not None:
-                spec.loader.exec_module(module)
-        if hasattr(finder, "get_filename"):
-            full_name_str = finder.get_filename(name)
-        else:
-            sanitized_name = name.removeprefix(prefix).replace(".", os.sep)
-            full_name_str = (
-                f"{finder.path}{os.sep}{sanitized_name}{os.sep}__init__.py"
-                if ispkg
-                else f"{finder.path}{os.sep}{sanitized_name}.py"
-            )
-        relative = cast("RelativePath", Path(full_name_str).relative_to(root))
-        absolute_path_str = str(root / relative)
-        if (
-            absolute_path_str in directives
-            or absolute_path_str in ignore1
-            or absolute_path_str in ignore2
-        ):
-            continue
-        if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
-            continue
-        if module is None:
-            spec = finder.find_spec(name, None)
-            module = importlib.util.module_from_spec(spec)
-            if spec.loader is not None:
-                spec.loader.exec_module(module)
-        directive_obj = extractor_directive(module, relative)
-        directives[absolute_path_str] = (
-            None
-            if directive_obj is None
-            else DirectiveTuple(module, root, relative, directive_obj)
-        )
+    original_modules: dict[str, ModuleType] = {}
     if cleanup_imports:
-        sys.modules.clear()
-        sys.modules.update(original_modules)
+        original_modules.update(sys.modules)
+    try:
+        for finder, name, ispkg in iterable:
+            module = None
+            if ispkg:
+                # skip internal modules
+                if name.startswith("_"):
+                    continue
+                spec = finder.find_spec(name, None)
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = module
+                if spec.loader is not None:
+                    spec.loader.exec_module(module)
+            if hasattr(finder, "get_filename"):
+                full_name_str = finder.get_filename(name)
+            else:
+                sanitized_name = name.removeprefix(prefix).replace(".", os.sep)
+                full_name_str = (
+                    f"{finder.path}{os.sep}{sanitized_name}{os.sep}__init__.py"
+                    if ispkg
+                    else f"{finder.path}{os.sep}{sanitized_name}.py"
+                )
+            relative = cast("RelativePath", Path(full_name_str).relative_to(root))
+            absolute_path_str = str(root / relative)
+            if (
+                absolute_path_str in directives
+                or absolute_path_str in ignore1
+                or absolute_path_str in ignore2
+            ):
+                continue
+            if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
+                continue
+            if module is None:
+                spec = finder.find_spec(name, None)
+                module = importlib.util.module_from_spec(spec)
+                if spec.loader is not None:
+                    spec.loader.exec_module(module)
+            directive_obj = extractor_directive(module, relative)
+            directives[absolute_path_str] = (
+                None
+                if directive_obj is None
+                else DirectiveTuple(module, root, relative, directive_obj)
+            )
+    finally:
+        if cleanup_imports:
+            sys.modules.clear()
+            sys.modules.update(original_modules)
     return directives
 
 

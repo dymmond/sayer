@@ -6,6 +6,7 @@ import pytest
 
 from tests.testdirectives.definitions import (
     execute_directive,
+    extract_directives_raw,
     find_directive,
     find_directive_system,
     find_directive_zipapp,
@@ -25,7 +26,7 @@ def create_zipfile(tmp_path):
     finally:
         sys.path.remove(test_directive_target_str)
         to_remove = [
-            module_name for module_name in sys.modules if module_name.startswith("valid4")
+            module_name for module_name in sys.modules if module_name.startswith("valid_zipapp")
         ]
         for module in to_remove:
             del sys.modules[module]
@@ -35,10 +36,13 @@ def create_zipfile(tmp_path):
     "name", ["class_based_hidden", "class_based_shown", "hidden", "shown", "packaged_op"]
 )
 @pytest.mark.parametrize("prefixed", [True, False])
-def test_find_directive_simple(name, prefixed):
+@pytest.mark.parametrize("use_files", [True, None])
+def test_find_directive_classic(name, prefixed, use_files):
     if prefixed:
         name = f"valid_module.{name}"
-    result = find_directive(Path(__file__).parent / "testdirectives", name)
+    result = find_directive(
+        Path(__file__).parent / "testdirectives", directive=name, use_files=use_files
+    )
     assert result
 
 
@@ -57,10 +61,11 @@ def test_find_not_directive_suggestion(name, capsys):
 
 @pytest.mark.parametrize("name", ["class_based_hidden", "class_based_shown", "hidden", "shown"])
 @pytest.mark.parametrize("prefixed", [True, False])
-def test_execute_directive_simple(name, prefixed):
+@pytest.mark.parametrize("use_files", [True, None])
+def test_execute_directive_classic(name, prefixed, use_files):
     if prefixed:
         name = f"valid_module.{name}"
-    execute_directive(Path(__file__).parent / "testdirectives", name)
+    execute_directive(Path(__file__).parent / "testdirectives", name, use_files=use_files)
 
 
 @pytest.mark.parametrize(
@@ -71,6 +76,18 @@ def test_invalid(name, capsys):
         execute_directive(Path(__file__).parent / "testdirectives", name)
     out, err = capsys.readouterr()
     assert f"✖ Specified directive: `{name}` not valid as directive." in out
+
+
+@pytest.mark.parametrize("use_files", [True, None, False])
+def test_path_is_file_fails(use_files):
+    assert (
+        extract_directives_raw(
+            Path(__file__).parent / "valid_module" / "directives" / "operations" / "shown.py",
+            patterns=["*"],
+            use_files=use_files,
+        )
+        == {}
+    )
 
 
 def test_collisions_directives(capsys):
@@ -183,7 +200,7 @@ def test_find_directive_zipapp(name, prefixed, app_name_func, create_zipfile):
 def test_find_not_directive_zipapp(prefixed, app_name_func, create_zipfile):
     name = "stub4"
     if prefixed:
-        name = f"valid4.{name}"
+        name = f"valid_zipapp.{name}"
     with pytest.raises(SystemExit):
         find_directive_zipapp(name, app_name_func)
 
@@ -226,12 +243,18 @@ def test_execute_directive_help(capsys):
 
 
 @pytest.mark.parametrize("prefixed", [True, False])
-def test_find_directive_invalid_path(prefixed):
+@pytest.mark.parametrize("use_files", [None, True])
+def test_find_directive_invalid_path(prefixed, use_files):
+    # test cleanup
+    assert "valid_beyond_invalid_module" not in sys.modules
     name = "shown2"
     if prefixed:
-        name = f"valid.{name}"
-    result = find_directive(Path(__file__).parent / "testdirectives" / "invalid_modul.e", name)
+        name = f"valid_beyond_invalid_module.{name}"
+    result = find_directive(
+        Path(__file__).parent / "testdirectives" / "invalid_modul.e", name, use_files=use_files
+    )
     assert result
+    assert "valid_beyond_invalid_module" not in sys.modules
 
 
 @pytest.mark.parametrize("prefixed", [True, False])

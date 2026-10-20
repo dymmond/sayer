@@ -41,11 +41,11 @@ else:
         return path.full_match(glob_pattern)
 
 
-def _generate_file_based_paths(
+def _generate_file_based_mod_infos(
     used_path: Path,
     root: Path,
     patterns: Collection[str],
-) -> Generator[Path, None, None]:
+) -> Generator[pkgutil.ModuleInfo, None, None]:
     if sys.version_info < (3, 12):
         path_generator = os.walk(used_path)
     else:
@@ -72,7 +72,34 @@ def _generate_file_based_paths(
         combined = root / path
         if combined == root:
             continue
-        yield combined
+        # we doesn't want to flatten the paths to one big module, so just use one combined
+        for mod_info in pkgutil.iter_modules([combined], prefix=f"{'.'.join(path.parts)}."):
+            if not mod_info.ispkg or path / mod_info.name.rsplit(".", 1)[-1] in valid_paths:
+                yield mod_info
+
+
+def _save_prefixes(originals: dict[str, ModuleType], prefix: str) -> None:
+    prefix_dot = f"{prefix}."
+    for k in list(sys.modules.keys()):
+        if k == prefix or k.startswith(prefix_dot):
+            in_originals = k in originals
+            if not in_originals:
+                originals[k] = sys.modules.pop(k)
+
+
+def _restore_modules(
+    originals: dict[str, ModuleType], prefixes: set[str], amount_common_parts: int
+) -> None:
+    for k in list(sys.modules.keys()):
+        splitted = k.split(".")
+        if len(splitted) < amount_common_parts:
+            continue
+        if ".".join(splitted[:3]) not in prefixes:
+            continue
+        if k in originals:
+            sys.modules[k] = originals[k]
+        else:
+            sys.modules.pop(k, None)
 
 
 def _find_directives_from_path(
@@ -84,7 +111,7 @@ def _find_directives_from_path(
     ignore1: Container[str],
     ignore2: Container[str] = frozenset(),
     use_files: bool | None,
-    prefix: str = "",
+    global_prefix: str = "",
     cleanup_imports: bool,
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
@@ -94,48 +121,49 @@ def _find_directives_from_path(
     if use_files is not False and used_path.exists():
         # to prevent duplicates, resolve
         used_path = used_path.resolve()
+        # files and co are invalid targets, links are resolved now
+        if not used_path.is_dir():
+            return directives
         if root is None:
             root = cast("RootPath", used_path)
-        # we doesn't want to flatten the paths to one big module
-        iterable = chain.from_iterable(
-            pkgutil.iter_modules([path])
-            for path in _generate_file_based_paths(used_path, root, patterns)
-        )
+        iterable = _generate_file_based_mod_infos(used_path, root, patterns)
     elif use_files:
         # empty
         return directives
     else:
         # maybe not resolvable, so just use absolute
         used_path = used_path.absolute()
-        iterable = pkgutil.walk_packages([path], prefix=prefix)
+        iterable = pkgutil.walk_packages([path], prefix=global_prefix)
     if root is None:
         root = cast("RootPath", used_path)
 
     original_modules: dict[str, ModuleType] = {}
-    if cleanup_imports:
-        original_modules.update(sys.modules)
+    restore_prefixes: set[str] = set()
+    amount_common_parts: int | None = None
     try:
         for finder, name, ispkg in iterable:
             module = None
+            # skip internal modules
+            if name.rsplit(".", 1)[-1].startswith("_"):
+                continue
+            spec = finder.find_spec(name, None)
+            full_name_str = spec.origin
+            relative = cast("RelativePath", Path(full_name_str).relative_to(root))
+            if amount_common_parts is None:
+                # we need to substract one, because we are already listing the content of the directory
+                amount_common_parts = len(relative.parts) - 1
             if ispkg:
-                # skip internal modules
-                if name.startswith("_"):
-                    continue
-                spec = finder.find_spec(name, None)
                 module = importlib.util.module_from_spec(spec)
-                sys.modules[spec.name] = module
+                if (
+                    cleanup_imports
+                    and len(relative.parts) == amount_common_parts
+                    and name not in restore_prefixes
+                ):
+                    restore_prefixes.add(name)
+                    _save_prefixes(original_modules, name)
+                sys.modules[name] = module
                 if spec.loader is not None:
                     spec.loader.exec_module(module)
-            if hasattr(finder, "get_filename"):
-                full_name_str = finder.get_filename(name)
-            else:
-                sanitized_name = name.removeprefix(prefix).replace(".", os.sep)
-                full_name_str = (
-                    f"{finder.path}{os.sep}{sanitized_name}{os.sep}__init__.py"
-                    if ispkg
-                    else f"{finder.path}{os.sep}{sanitized_name}.py"
-                )
-            relative = cast("RelativePath", Path(full_name_str).relative_to(root))
             absolute_path_str = str(root / relative)
             if (
                 absolute_path_str in directives
@@ -146,7 +174,6 @@ def _find_directives_from_path(
             if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
                 continue
             if module is None:
-                spec = finder.find_spec(name, None)
                 module = importlib.util.module_from_spec(spec)
                 if spec.loader is not None:
                     spec.loader.exec_module(module)
@@ -157,9 +184,8 @@ def _find_directives_from_path(
                 else DirectiveTuple(module, root, relative, directive_obj)
             )
     finally:
-        if cleanup_imports:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+        if cleanup_imports and amount_common_parts is not None:
+            _restore_modules(original_modules, restore_prefixes, amount_common_parts)
     return directives
 
 
@@ -249,8 +275,8 @@ def find_directives_from_module(
                 ignore2=directives,
                 use_files=False,
                 # inject the correct prefix
-                prefix=f"{module.__name__}.",
-                # no need to do so. Will also provide speed benefit
+                global_prefix=f"{module.__name__}.",
+                # no need to do so (we can't have collisions). Will also provide some speed benefit
                 cleanup_imports=False,
             )
         )

@@ -286,10 +286,10 @@ def test_execute_directive_help(capsys):
 @pytest.mark.parametrize("use_files", [None, True])
 def test_find_directive_invalid_path(prefixed, use_files):
     # test cleanup
-    assert "valid_beyond_invalid_module" not in sys.modules
+    assert "valid_below_invalid_module" not in sys.modules
     name = "shown2"
     if prefixed:
-        name = f"valid_beyond_invalid_module.{name}"
+        name = f"valid_below_invalid_module.{name}"
     result = find_directive(
         Path(__file__).parent / "testdirectives" / "invalid_modul.e", name, use_files=use_files
     )

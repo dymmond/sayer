@@ -38,6 +38,7 @@ def directive(
 And use it like this:
 
 ```python
+# app_name = "foo_function"
 @directive(display_in_cli=True)
 def testfunc():
     return success
@@ -56,9 +57,10 @@ class BaseDirective(ABC):
         pass
 ```
 
-And use it like this:
+And use it like this in the directive:
 
 ```python
+# app_name = "foo"
 class Directive(BaseDirective):
     __display_in_cli__ = True
 
@@ -71,9 +73,12 @@ class Directive(BaseDirective):
     For example it isn't allowed to use names starting with numbers.
 
 !!! Note
-    It is allowed to do relative imports in directives. When using `find_directives_from_path`, you can opt-out from the cleanup of the imported modules by
-    specifying `cleanup_packages=False`.
+    It is since sayer version `0.08.1` allowed to do relative imports in directives till at least to one level under the root
+    except for `find_directives_from_module` which has no restrictions concerning relative imports.
 
+!!! Note
+    You can provide custom application names by specifying `app_name = "foo"` in the module where the directive is specified.
+    It must fullfill the criterias of an python identifier however.
 
 ## Collecting
 
@@ -168,13 +173,12 @@ directives = find_directives_from_module(
 
 !!! Warning
     Every path part beyond the root must be a valid python identifier and not be prefixed with `_` (private).
-    Relative imports may fail with file-based collection (`use_files=True`, or the default when the path exists).
 
 !!! Note
     You will need to check for `.pyc` files because site-packages can be zipped.
 
 !!! Note
-    You can provide custom application names by specifying `app_name = "foo"` in the module.
+    When using `find_directives_from_path`, you can opt-out from the cleanup of the imported modules by specifying `cleanup_packages=False`.
 
 ### `use_files=True` vs `use_files=False`
 

@@ -294,7 +294,7 @@ def test_find_directive_invalid_path(prefixed, use_files):
         Path(__file__).parent / "testdirectives" / "invalid_modul.e", name, use_files=use_files
     )
     assert result
-    assert "valid_beyond_invalid_module" not in sys.modules
+    assert "valid_below_invalid_module" not in sys.modules
 
 
 @pytest.mark.parametrize("prefixed", [True, False])

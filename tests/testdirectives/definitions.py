@@ -81,7 +81,7 @@ def find_directive(path: os.PathLike, directive: str | None):
 
 def find_directive_system(directive: str | None, extractor_app_name: Any = None):
     directives = find_directives_from_module(
-        "tests.testdirectives.valid3",
+        "tests.testdirectives.valid_system",
         patterns=["**/directives/[!_]*.py", "**/directives/*/__init__.py"],
         extractor_directive=extractor_directive,
     )
@@ -93,10 +93,10 @@ def find_directive_system(directive: str | None, extractor_app_name: Any = None)
 
 
 def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None):
-    import valid4
+    import valid_zipapp
 
     directives = find_directives_from_module(
-        valid4,
+        valid_zipapp,
         patterns=["**/directives/[!_]*.pyc", "**/directives/*/__init__.pyc"],
         extractor_directive=extractor_directive,
     )

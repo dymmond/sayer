@@ -17,7 +17,7 @@ def create_zipfile(tmp_path):
     test_directive_source = Path(__file__).parent / "testdirectives" / "build.zipfile"
     test_directive_target = tmp_path / "zipfile_zipped.zip"
     with zipfile.PyZipFile(str(test_directive_target), mode="w") as zip_file:
-        zip_file.writepy(str(test_directive_source / "valid4"))
+        zip_file.writepy(str(test_directive_source / "valid_zipapp"))
     test_directive_target_str = str(test_directive_target)
     sys.path.append(test_directive_target_str)
     try:
@@ -73,36 +73,55 @@ def test_invalid(name, capsys):
     assert f"✖ Specified directive: `{name}` not valid as directive." in out
 
 
-def test_collisions_single(capsys):
+def test_collisions_directives(capsys):
     # collision
     with pytest.raises(SystemExit):
-        execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "directive1")
+        execute_directive(
+            Path(__file__).parent / "testdirectives" / "coll.isions_conflicting_directives",
+            "directive1",
+        )
     out, err = capsys.readouterr()
     assert "\nPossible directives:\n" in out
     assert "\n  collisions1.directive1\n" in out
     assert "\n  collisions2.directive1\n" in out
     # works
     execute_directive(
-        Path(__file__).parent / "testdirectives" / "coll.isions1", "collisions1.directive1"
+        Path(__file__).parent / "testdirectives" / "coll.isions_conflicting_directives",
+        "collisions1.directive1",
     )
-    execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions1", "")
+    execute_directive(
+        Path(__file__).parent / "testdirectives" / "coll.isions_conflicting_directives", ""
+    )
 
 
-def test_collisions_fully(capsys):
+def test_collisions_app_names_and_directives(capsys):
     # collision
     with pytest.raises(SystemExit):
-        execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions2", "directive1")
+        execute_directive(
+            Path(__file__).parent
+            / "testdirectives"
+            / "coll.isions_conflicting_app_names_and_directives",
+            "directive1",
+        )
     out, err = capsys.readouterr()
     assert "✖ Following directives have collisions:\n" in out
     assert "\n  foo.directive1\n" in out
     # collision
     with pytest.raises(SystemExit):
         execute_directive(
-            Path(__file__).parent / "testdirectives" / "coll.isions2", "foo.directive1"
+            Path(__file__).parent
+            / "testdirectives"
+            / "coll.isions_conflicting_app_names_and_directives",
+            "foo.directive1",
         )
     # collision
     with pytest.raises(SystemExit):
-        execute_directive(Path(__file__).parent / "testdirectives" / "coll.isions2", "")
+        execute_directive(
+            Path(__file__).parent
+            / "testdirectives"
+            / "coll.isions_conflicting_app_names_and_directives",
+            "",
+        )
 
 
 @pytest.mark.parametrize("name", ["hidden3", "shown3", "packaged_op3"])
@@ -111,12 +130,12 @@ def test_collisions_fully(capsys):
     "app_name_func",
     [
         pytest.param(lambda tup: tup.root.name, id="root"),
-        pytest.param(lambda tup: "valid3", id="fixed"),
+        pytest.param(lambda tup: "valid_system", id="fixed"),
     ],
 )
 def test_find_directive_system(name, prefixed, app_name_func):
     if prefixed:
-        name = f"valid3.{name}"
+        name = f"valid_system.{name}"
     result = find_directive_system(name, app_name_func)
     assert result
 
@@ -126,13 +145,13 @@ def test_find_directive_system(name, prefixed, app_name_func):
     "app_name_func",
     [
         pytest.param(lambda tup: tup.root.name, id="root"),
-        pytest.param(lambda tup: "valid3", id="fixed"),
+        pytest.param(lambda tup: "valid_system", id="fixed"),
     ],
 )
 def test_find_not_directive_system(prefixed, app_name_func):
     name = "stub3"
     if prefixed:
-        name = f"valid3.{name}"
+        name = f"valid_system.{name}"
     with pytest.raises(SystemExit):
         find_directive_system(name, app_name_func)
 
@@ -143,12 +162,12 @@ def test_find_not_directive_system(prefixed, app_name_func):
     "app_name_func",
     [
         pytest.param(lambda tup: tup.root.name, id="root"),
-        pytest.param(lambda tup: "valid4", id="fixed"),
+        pytest.param(lambda tup: "valid_zipapp", id="fixed"),
     ],
 )
 def test_find_directive_zipapp(name, prefixed, app_name_func, create_zipfile):
     if prefixed:
-        name = f"valid4.{name}"
+        name = f"valid_zipapp.{name}"
     result = find_directive_zipapp(name, app_name_func)
     assert result
 
@@ -158,7 +177,7 @@ def test_find_directive_zipapp(name, prefixed, app_name_func, create_zipfile):
     "app_name_func",
     [
         pytest.param(lambda tup: tup.root.name, id="root"),
-        pytest.param(lambda tup: "valid4", id="fixed"),
+        pytest.param(lambda tup: "valid_zipapp", id="fixed"),
     ],
 )
 def test_find_not_directive_zipapp(prefixed, app_name_func, create_zipfile):

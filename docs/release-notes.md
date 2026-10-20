@@ -4,7 +4,7 @@
 
 ### Added
 
-- `cleanup_packages` argument for `find_directives_from_path`.
+- `cleanup_imports` argument for `find_directives_from_path`.
 
 ### Fixed
 

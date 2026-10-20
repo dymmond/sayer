@@ -127,7 +127,7 @@ directives = find_directives_from_path(
     # Prefers walking over files, except if path does not exist in the filesystem (default)
     # use_files=None
     # Keep imported helper modules
-    # cleanup_packages=False
+    # cleanup_imports=False
 )
 ```
 
@@ -178,7 +178,7 @@ directives = find_directives_from_module(
     You will need to check for `.pyc` files because site-packages can be zipped.
 
 !!! Note
-    When using `find_directives_from_path`, you can opt-out from the cleanup of the imported modules by specifying `cleanup_packages=False`.
+    When using `find_directives_from_path`, you can opt-out from the cleanup of the imported modules by specifying `cleanup_imports=False`.
 
 ### `use_files=True` vs `use_files=False`
 

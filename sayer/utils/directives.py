@@ -8,7 +8,7 @@ from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
 from types import ModuleType
-from typing import Any, NamedTuple, NewType, cast
+from typing import NamedTuple, NewType, cast
 
 from rich.markup import escape
 from rich.padding import Padding
@@ -41,9 +41,6 @@ else:
         return path.full_match(glob_pattern)
 
 
-_sentinel = cast(Any, object())
-
-
 def _find_directives_from_path(
     path: os.PathLike,
     *,
@@ -54,10 +51,12 @@ def _find_directives_from_path(
     ignore2: Container[str] = frozenset(),
     use_files: bool | None,
     prefix: str = "",
-    cleanup_packages: bool,
+    cleanup_imports: bool,
 ) -> dict[str, DirectiveTuple | None]:
     directives: dict[str, DirectiveTuple | None] = {}
-    imports_to_cleanup: dict[str, ModuleType] = {}
+    original_modules: dict[str, ModuleType] = {}
+    if cleanup_imports:
+        original_modules.update(sys.modules)
     # path maybe not resolvable
     used_path = Path(path)
     # if exists, bypass loading modules and glob directly
@@ -104,10 +103,7 @@ def _find_directives_from_path(
                 continue
             spec = finder.find_spec(name, None)
             module = importlib.util.module_from_spec(spec)
-            old_module = sys.modules.get(spec.name, _sentinel)
             sys.modules[spec.name] = module
-            if cleanup_packages:
-                imports_to_cleanup.setdefault(spec.name, old_module)
             if spec.loader is not None:
                 spec.loader.exec_module(module)
         if hasattr(finder, "get_filename"):
@@ -140,13 +136,9 @@ def _find_directives_from_path(
             if directive_obj is None
             else DirectiveTuple(module, root, relative, directive_obj)
         )
-    if imports_to_cleanup:
-        for cleanup_name, original in imports_to_cleanup.items():
-            if original is _sentinel:
-                del sys.modules[cleanup_name]
-            else:
-                sys.modules[cleanup_name] = original
-
+    if cleanup_imports:
+        sys.modules.clear()
+        sys.modules.update(original_modules)
     return directives
 
 
@@ -157,7 +149,7 @@ def find_directives_from_path(
     extractor_directive: Callable[[ModuleType, RelativePath], DirectiveType | None],
     ignore: Container[str] = frozenset(),
     use_files: bool | None = None,
-    cleanup_packages: bool = True,
+    cleanup_imports: bool = True,
 ) -> dict[str, DirectiveTuple | None]:
     """
     Extract directives from a path (which may exists virtually).
@@ -173,7 +165,7 @@ def find_directives_from_path(
             Ignore additional full paths in string form for the extraction of directives.
             Can be any container like a not transposed directive dict.
         use_files (bool | None): Force file based retrieval/module based retrieval of directives. `None` (default) for auto-selection.
-        cleanup_packages (bool):
+        cleanup_imports (bool):
             Cleanup imported helper packages after finishing imports. This may will prevent some lazy-loads but prevent collisions
             on colliding virtual paths. By default `True`.
     Returns:
@@ -185,7 +177,7 @@ def find_directives_from_path(
         extractor_directive=extractor_directive,
         ignore1=ignore,
         use_files=use_files,
-        cleanup_packages=cleanup_packages,
+        cleanup_imports=cleanup_imports,
     )
 
 
@@ -238,7 +230,7 @@ def find_directives_from_module(
                 # inject the correct prefix
                 prefix=f"{module.__name__}.",
                 # no need to do so. Will also provide speed benefit
-                cleanup_packages=False,
+                cleanup_imports=False,
             )
         )
     return directives

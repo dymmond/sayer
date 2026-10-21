@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from inspect import isroutine
 from types import ModuleType
 from typing import Any, ClassVar, TypeVar
@@ -69,19 +69,33 @@ def extractor_help(tup: Any) -> str | None:
     return tup.directive.__doc__ or ""
 
 
-def find_directive(path: os.PathLike, directive: str | None):
-    directives = find_directives_from_path(
+def extract_directives_raw(
+    path: os.PathLike,
+    use_files: bool | None = None,
+    patterns: Collection[str] = (
+        "**/directives/operations/[!_]*.py",
+        "**/directives/operations/*/__init__.py",
+    ),
+    cleanup_imports: bool = True,
+):
+    return find_directives_from_path(
         path,
-        patterns=["**/directives/operations/[!_]*.py", "**/directives/operations/*/__init__.py"],
+        patterns=patterns,
         extractor_directive=extractor_directive,
+        use_files=use_files,
+        cleanup_imports=cleanup_imports,
     )
+
+
+def find_directive(path: os.PathLike, directive: str | None, use_files: bool | None = None):
+    directives = extract_directives_raw(path, use_files=use_files)
     transposed = transpose_directives(directives, extractor_help=extractor_help)
     return directive_function_or_help(transposed, directive=directive)
 
 
 def find_directive_system(directive: str | None, extractor_app_name: Any = None):
     directives = find_directives_from_module(
-        "tests.testdirectives.valid3",
+        "tests.testdirectives._modules_for_system_and_cleanup.valid_system",
         patterns=["**/directives/[!_]*.py", "**/directives/*/__init__.py"],
         extractor_directive=extractor_directive,
     )
@@ -93,10 +107,10 @@ def find_directive_system(directive: str | None, extractor_app_name: Any = None)
 
 
 def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None):
-    import valid4
+    import valid_zipapp
 
     directives = find_directives_from_module(
-        valid4,
+        valid_zipapp,
         patterns=["**/directives/[!_]*.pyc", "**/directives/*/__init__.pyc"],
         extractor_directive=extractor_directive,
     )
@@ -110,10 +124,11 @@ def find_directive_zipapp(directive: str | None, extractor_app_name: Any = None)
 def execute_directive(
     path: os.PathLike,
     directive: str | None,
+    use_files: bool | None = None,
     args: Sequence[Any] = (),
     kwargs: dict[str, Any] | None = None,
 ):
-    retrieved = find_directive(path, directive)
+    retrieved = find_directive(path, directive, use_files=use_files)
     if retrieved is not None:
         kwargs = {} if kwargs is None else kwargs
         retrieved = (

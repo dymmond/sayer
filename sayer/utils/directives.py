@@ -3,7 +3,7 @@ import importlib.util
 import os
 import pkgutil
 import sys
-from collections.abc import Callable, Collection, Container, Mapping
+from collections.abc import Callable, Collection, Container, Generator, Mapping
 from difflib import get_close_matches
 from itertools import chain
 from pathlib import Path
@@ -41,6 +41,70 @@ else:
         return path.full_match(glob_pattern)
 
 
+def _generate_file_based_mod_infos(
+    used_path: Path,
+    root: Path,
+    patterns: Collection[str],
+) -> Generator[pkgutil.ModuleInfo, None, None]:
+    """Helper to extract ModuleInfo from files."""
+    if sys.version_info < (3, 12):
+        path_generator = os.walk(used_path)
+    else:
+        path_generator = used_path.walk()
+
+    # for having order
+    valid_paths: dict[Path, bool] = {}
+    for directory, _, files in path_generator:
+        # required for < 3.12
+        if sys.version_info < (3, 12):
+            directory = Path(directory)
+        relative_path_dir = directory.relative_to(root)
+        files = (relative_path_dir / f for f in files)
+        if all(
+            not part.startswith("_") and part.isidentifier() for part in relative_path_dir.parts
+        ):
+            for relpath in chain([relative_path_dir], files):
+                if any(_match_path_against_glob(relpath, pattern) for pattern in patterns):
+                    for parent in reversed(relative_path_dir.parents):
+                        valid_paths.setdefault(parent, False)
+                    valid_paths.setdefault(relative_path_dir, True)
+                    break
+    for path in valid_paths:
+        combined = root / path
+        if combined == root:
+            continue
+        # we doesn't want to flatten the paths to one big module, so just use one combined
+        for mod_info in pkgutil.iter_modules([combined], prefix=f"{'.'.join(path.parts)}."):
+            if not mod_info.ispkg or path / mod_info.name.rsplit(".", 1)[-1] in valid_paths:
+                yield mod_info
+
+
+def _save_prefixes(originals: dict[str, ModuleType], prefix: str) -> None:
+    """Save original ModuleTypes for restoring."""
+    prefix_dot = f"{prefix}."
+    for k in list(sys.modules.keys()):
+        if k == prefix or k.startswith(prefix_dot):
+            in_originals = k in originals
+            if not in_originals:
+                originals[k] = sys.modules.pop(k)
+
+
+def _restore_modules(
+    originals: dict[str, ModuleType], prefixes: set[str], amount_prefix_parts_plus_one: int
+) -> None:
+    """Undo changes below prefixes."""
+    for k in list(sys.modules.keys()):
+        splitted = k.split(".")
+        if len(splitted) < amount_prefix_parts_plus_one:
+            continue
+        if ".".join(splitted[:amount_prefix_parts_plus_one]) not in prefixes:
+            continue
+        if k in originals:
+            sys.modules[k] = originals[k]
+        else:
+            sys.modules.pop(k, None)
+
+
 def _find_directives_from_path(
     path: os.PathLike,
     *,
@@ -50,8 +114,10 @@ def _find_directives_from_path(
     ignore1: Container[str],
     ignore2: Container[str] = frozenset(),
     use_files: bool | None,
-    prefix: str = "",
+    global_prefix: str = "",
+    cleanup_imports: bool,
 ) -> dict[str, DirectiveTuple | None]:
+    """Helper to extract directives."""
     directives: dict[str, DirectiveTuple | None] = {}
     # path maybe not resolvable
     used_path = Path(path)
@@ -59,81 +125,80 @@ def _find_directives_from_path(
     if use_files is not False and used_path.exists():
         # to prevent duplicates, resolve
         used_path = used_path.resolve()
+        # files and co are invalid targets, links are resolved now
+        if not used_path.is_dir():
+            return directives
         if root is None:
             root = cast("RootPath", used_path)
-        if sys.version_info < (3, 12):
-            paths = [
-                p
-                for p, _, _ in os.walk(used_path)
-                if all(
-                    not part.startswith("_") and part.isidentifier()
-                    for part in Path(p).relative_to(root).parts
-                )
-            ]
-        else:
-            paths = [
-                p
-                for p, _, _ in used_path.walk()
-                if all(
-                    not part.startswith("_") and part.isidentifier()
-                    for part in p.relative_to(root).parts
-                )
-            ]
-        # we doesn't want to flatten the paths to one big module
-        iterable = chain.from_iterable(pkgutil.iter_modules([path]) for path in paths)
-        import_pkgs = False
+        iterable = _generate_file_based_mod_infos(used_path, root, patterns)
     elif use_files:
         # empty
         return directives
     else:
         # maybe not resolvable, so just use absolute
         used_path = used_path.absolute()
-        iterable = pkgutil.walk_packages([path], prefix=prefix)
-        import_pkgs = True
+        iterable = pkgutil.walk_packages([path], prefix=global_prefix)
     if root is None:
         root = cast("RootPath", used_path)
 
-    for finder, name, ispkg in iterable:
-        module = None
-        if import_pkgs and ispkg:
+    original_modules: dict[str, ModuleType] = {}
+    restore_prefixes: set[str] = set()
+    amount_prefix_parts_plus_one: int | None = None
+    try:
+        for finder, name, ispkg in iterable:
+            module = None
             # skip internal modules
-            if name.startswith("_"):
+            if name.rsplit(".", 1)[-1].startswith("_"):
                 continue
             spec = finder.find_spec(name, None)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = module
-            if spec.loader is not None:
-                spec.loader.exec_module(module)
-        if hasattr(finder, "get_filename"):
-            full_name_str = finder.get_filename(name)
-        else:
-            sanitized_name = name.removeprefix(prefix).replace(".", os.sep)
-            full_name_str = (
-                f"{finder.path}{os.sep}{sanitized_name}{os.sep}__init__.py"
-                if ispkg
-                else f"{finder.path}{os.sep}{sanitized_name}.py"
+            full_name_str = spec.origin
+            relative = cast("RelativePath", Path(full_name_str).relative_to(root))
+            count_parts: int | None = None
+            if amount_prefix_parts_plus_one is None:
+                amount_prefix_parts_plus_one = len(relative.parts)
+                if ispkg:
+                    # packages have an injected /__init__.py
+                    amount_prefix_parts_plus_one -= 1
+                count_parts = amount_prefix_parts_plus_one
+            if ispkg:
+                module = importlib.util.module_from_spec(spec)
+                if count_parts is None:
+                    count_parts = len(relative.parts)
+                    if ispkg:
+                        # packages have an injected /__init__.py
+                        count_parts -= 1
+                if (
+                    cleanup_imports
+                    and count_parts == amount_prefix_parts_plus_one
+                    and name not in restore_prefixes
+                ):
+                    restore_prefixes.add(name)
+                    _save_prefixes(original_modules, name)
+                sys.modules[name] = module
+                if spec.loader is not None:
+                    spec.loader.exec_module(module)
+            absolute_path_str = str(root / relative)
+            if (
+                absolute_path_str in directives
+                or absolute_path_str in ignore1
+                or absolute_path_str in ignore2
+            ):
+                continue
+            if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
+                continue
+            if module is None:
+                module = importlib.util.module_from_spec(spec)
+                if spec.loader is not None:
+                    spec.loader.exec_module(module)
+            directive_obj = extractor_directive(module, relative)
+            directives[absolute_path_str] = (
+                None
+                if directive_obj is None
+                else DirectiveTuple(module, root, relative, directive_obj)
             )
-        relative = cast("RelativePath", Path(full_name_str).relative_to(root))
-        absolute_path_str = str(root / relative)
-        if (
-            absolute_path_str in directives
-            or absolute_path_str in ignore1
-            or absolute_path_str in ignore2
-        ):
-            continue
-        if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
-            continue
-        if module is None:
-            spec = finder.find_spec(name, None)
-            module = importlib.util.module_from_spec(spec)
-            if spec.loader is not None:
-                spec.loader.exec_module(module)
-        directive_obj = extractor_directive(module, relative)
-        directives[absolute_path_str] = (
-            None
-            if directive_obj is None
-            else DirectiveTuple(module, root, relative, directive_obj)
-        )
+    finally:
+        if cleanup_imports and amount_prefix_parts_plus_one is not None:
+            _restore_modules(original_modules, restore_prefixes, amount_prefix_parts_plus_one)
     return directives
 
 
@@ -144,6 +209,7 @@ def find_directives_from_path(
     extractor_directive: Callable[[ModuleType, RelativePath], DirectiveType | None],
     ignore: Container[str] = frozenset(),
     use_files: bool | None = None,
+    cleanup_imports: bool = True,
 ) -> dict[str, DirectiveTuple | None]:
     """
     Extract directives from a path (which may exists virtually).
@@ -158,7 +224,10 @@ def find_directives_from_path(
         ignore (Optional[Container[str]]):
             Ignore additional full paths in string form for the extraction of directives.
             Can be any container like a not transposed directive dict.
-        use_files (bool | None):
+        use_files (bool | None): Force file based retrieval/module based retrieval of directives. `None` (default) for auto-selection.
+        cleanup_imports (bool):
+            Cleanup imported helper packages after finishing imports. This may will prevent some lazy-loads but prevent collisions
+            on colliding virtual paths. By default `True`.
     Returns:
         Dict mapping from file names to DirectiveTuple or `None` (no directive found).
     """
@@ -168,6 +237,7 @@ def find_directives_from_path(
         extractor_directive=extractor_directive,
         ignore1=ignore,
         use_files=use_files,
+        cleanup_imports=cleanup_imports,
     )
 
 
@@ -218,7 +288,9 @@ def find_directives_from_module(
                 ignore2=directives,
                 use_files=False,
                 # inject the correct prefix
-                prefix=f"{module.__name__}.",
+                global_prefix=f"{module.__name__}.",
+                # no need to do so (we can't have collisions). Will also provide some speed benefit
+                cleanup_imports=False,
             )
         )
     return directives

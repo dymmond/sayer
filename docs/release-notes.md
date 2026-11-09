@@ -1,5 +1,13 @@
 # Release Notes
 
+## 0.8.2
+
+### Changed
+
+- Ignoring directives works now on packages. This allows ignoring the main code path (which doesn't allow a cleanup) while cleaning up unrelated.
+- Reuse already existing imports and try to prevent re-imports when the origin matches.
+- Save imported non-package modules when using `find_directives_from_module`.
+
 ## 0.8.1
 
 ### Added

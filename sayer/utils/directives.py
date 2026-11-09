@@ -3,6 +3,7 @@ import importlib.util
 import os
 import pkgutil
 import sys
+import types
 from collections.abc import Callable, Collection, Container, Generator, Mapping
 from difflib import get_close_matches
 from itertools import chain
@@ -116,6 +117,7 @@ def _find_directives_from_path(
     use_files: bool | None,
     global_prefix: str = "",
     cleanup_imports: bool,
+    save_non_package_modules: bool,
 ) -> dict[str, DirectiveTuple | None]:
     """Helper to extract directives."""
     directives: dict[str, DirectiveTuple | None] = {}
@@ -160,7 +162,22 @@ def _find_directives_from_path(
                     # packages have an injected /__init__.py
                     amount_prefix_parts_plus_one -= 1
                 count_parts = amount_prefix_parts_plus_one
-            if ispkg:
+            absolute_path_str = str(root / relative)
+            # no import happens
+            if (
+                absolute_path_str in directives
+                or absolute_path_str in ignore1
+                or absolute_path_str in ignore2
+            ):
+                continue
+            if (
+                name in sys.modules
+                and isinstance((found_module := sys.modules[name]), types.ModuleType)
+                and found_module.__spec__ is not None
+                and found_module.__spec__.origin is spec.origin
+            ):
+                module = found_module
+            elif ispkg:
                 module = importlib.util.module_from_spec(spec)
                 if count_parts is None:
                     count_parts = len(relative.parts)
@@ -177,19 +194,23 @@ def _find_directives_from_path(
                 sys.modules[name] = module
                 if spec.loader is not None:
                     spec.loader.exec_module(module)
-            absolute_path_str = str(root / relative)
-            if (
-                absolute_path_str in directives
-                or absolute_path_str in ignore1
-                or absolute_path_str in ignore2
-            ):
-                continue
+            # check if it should be scanned for directives
             if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
                 continue
+            # if neither already imported and same origin nor a package
             if module is None:
                 module = importlib.util.module_from_spec(spec)
+                # save only when the module based directive scan is active
+                if save_non_package_modules:
+                    sys.modules[name] = module
                 if spec.loader is not None:
-                    spec.loader.exec_module(module)
+                    try:
+                        spec.loader.exec_module(module)
+                    except BaseException:
+                        # cleanup partial module
+                        if save_non_package_modules:
+                            del sys.modules[name]
+                        raise
             directive_obj = extractor_directive(module, relative)
             directives[absolute_path_str] = (
                 None
@@ -238,6 +259,7 @@ def find_directives_from_path(
         ignore1=ignore,
         use_files=use_files,
         cleanup_imports=cleanup_imports,
+        save_non_package_modules=False,
     )
 
 
@@ -291,6 +313,8 @@ def find_directives_from_module(
                 global_prefix=f"{module.__name__}.",
                 # no need to do so (we can't have collisions). Will also provide some speed benefit
                 cleanup_imports=False,
+                # we can save the leaves to prevent double imports
+                save_non_package_modules=True,
             )
         )
     return directives

@@ -40,7 +40,7 @@ def new(name: Annotated[str, Argument(help="The name given for the new cli proje
     base = Path(name)
     if base.exists():
         error(f"Directory '{name}' already exists.")
-        return
+        raise SystemExit(1)
 
     for rel, content in TEMPLATE.items():
         path = base / rel

@@ -192,8 +192,13 @@ def _find_directives_from_path(
                     restore_prefixes.add(name)
                     _save_prefixes(original_modules, name)
                 sys.modules[name] = module
-                if spec.loader is not None:
-                    spec.loader.exec_module(module)
+                if (loader := getattr(spec, "loader", None)) is not None:
+                    try:
+                        loader.exec_module(module)
+                    except BaseException:
+                        # cleanup partial module
+                        del sys.modules[name]
+                        raise
             # check if it should be scanned for directives
             if not any(_match_path_against_glob(relative, pattern) for pattern in patterns):
                 continue
@@ -203,9 +208,9 @@ def _find_directives_from_path(
                 # save only when the module based directive scan is active
                 if save_non_package_modules:
                     sys.modules[name] = module
-                if spec.loader is not None:
+                if (loader := getattr(spec, "loader", None)) is not None:
                     try:
-                        spec.loader.exec_module(module)
+                        loader.exec_module(module)
                     except BaseException:
                         # cleanup partial module
                         if save_non_package_modules:

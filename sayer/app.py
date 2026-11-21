@@ -173,7 +173,9 @@ class Sayer:
                         )
                         is_json_param_default = isinstance(param_info.default, JsonParam)
 
-                        if (is_json_param_annotated or is_json_param_default) and isinstance(parameter_value, str):
+                        if (is_json_param_annotated or is_json_param_default) and isinstance(
+                            parameter_value, str
+                        ):
                             parameter_value = json.loads(parameter_value)
                         bound_arguments[param_name] = parameter_value
                 callback_handler(**bound_arguments)
@@ -203,17 +205,22 @@ class Sayer:
         wrapped_function = target_function
         # Check if click.Context is injected, to pass to build_click_parameter
         context_param_injected = any(
-            type_hints.get(p.name, p.annotation) is click.Context for p in function_signature.parameters.values()
+            type_hints.get(p.name, p.annotation) is click.Context
+            for p in function_signature.parameters.values()
         )
 
         # Decorate in reverse order so the parameters nest correctly as per Click's design
         for param_obj in reversed(function_signature.parameters.values()):
             annotation = type_hints.get(param_obj.name, param_obj.annotation)
             # Skip Context or State injections as they are handled by Click/Sayer directly
-            if annotation is click.Context or (isinstance(annotation, type) and issubclass(annotation, State)):
+            if annotation is click.Context or (
+                isinstance(annotation, type) and issubclass(annotation, State)
+            ):
                 continue
 
-            raw_type_annotation = annotation if annotation is not _EMPTY_PARAMETER_SENTINEL else str
+            raw_type_annotation = (
+                annotation if annotation is not _EMPTY_PARAMETER_SENTINEL else str
+            )
             # Extract the actual parameter type, unwrapping from Annotated if present
             actual_param_type = (
                 get_args(raw_type_annotation)[0]
@@ -231,13 +238,15 @@ class Sayer:
                         parameter_help_text = metadata_item
 
             # Fallback to default-based metadata if not explicitly provided via Annotated
-            if parameter_metadata is None and isinstance(param_obj.default, (Option, Argument, Env, Param, JsonParam)):
+            if parameter_metadata is None and isinstance(
+                param_obj.default, (Option, Argument, Env, Param, JsonParam)
+            ):
                 parameter_metadata = param_obj.default
 
             is_overriden_type = False
 
-            if getattr(parameter_metadata, "type", None) is not None:
-                actual_param_type = parameter_metadata.type
+            if (parameter_metadata_type := getattr(parameter_metadata, "type", None)) is not None:
+                actual_param_type = parameter_metadata_type
                 is_overriden_type = True
 
             wrapped_function = build_click_parameter(
@@ -298,13 +307,15 @@ class Sayer:
                     # If a required option has an implicit default (Ellipsis or _empty),
                     # normalize it to None to ensure Click's MissingParameter logic triggers reliably.
                     if param_config.required and (
-                        param_config.default is ... or param_config.default is _EMPTY_PARAMETER_SENTINEL
+                        param_config.default is ...
+                        or param_config.default is _EMPTY_PARAMETER_SENTINEL
                     ):
                         param_config.default = None
                     # If an optional option has an implicit default, normalize it to None
                     # so it correctly resolves to Python's None if not provided.
                     elif (not param_config.required) and (
-                        param_config.default is ... or param_config.default is _EMPTY_PARAMETER_SENTINEL
+                        param_config.default is ...
+                        or param_config.default is _EMPTY_PARAMETER_SENTINEL
                     ):
                         param_config.default = None
 
@@ -410,7 +421,9 @@ class Sayer:
         # Call the underlying Click group's run method
         return self._group(prog_name=self._group.name, args=args)
 
-    def add_command(self, cmd: click.Command | Any, name: str | None = None, is_custom: bool = False) -> None:
+    def add_command(
+        self, cmd: click.Command | Any, name: str | None = None, is_custom: bool = False
+    ) -> None:
         """
         Add a Click Command (or a whole Sayer sub-app) to this Sayer application.
 
@@ -430,7 +443,9 @@ class Sayer:
             is_custom_cmd = is_custom or getattr(cmd, "__is_custom__", False)
             name = name or cmd.name
             if name in self._registered_commands:
-                warning(f"Group '{name}' seems to be already registered. Its advised to rename to a unique group name.")
+                warning(
+                    f"Group '{name}' seems to be already registered. Its advised to rename to a unique group name."
+                )
 
             self._group.add_command(cmd, name=name, is_custom=is_custom_cmd)
             self._registered_commands.add(name)

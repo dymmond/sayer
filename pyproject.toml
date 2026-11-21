@@ -72,7 +72,7 @@ path = "sayer/__version__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
-    "ty",
+    "ty>=0.0.105",
     "ruff==0.16.10",
     "pre-commit>=3.3.1,<5.0.0",
     "devtools>=0.12.2",
@@ -93,7 +93,7 @@ testing = [
     "attrs",
     "msgspec",
     "pytest-codspeed>=4.3.0",
-    "ty",
+    "ty>=0.0.105",
 ]
 docs = [
     "zensical>=0.0.23,<0.1.0",
@@ -156,12 +156,12 @@ error-on-warning = true
 [tool.ty.rules]
 unused-type-ignore-comment = "ignore"
 possibly-missing-attribute = "ignore"
-unresolved-attribute = "ignore"
-call-top-callable = "ignore"
-call-non-callable = "ignore"
+missing-attribute = "ignore"
+call-to-function-with-unknown-signature = "ignore"
+not-callable = "ignore"
 invalid-type-form = "ignore"
 invalid-parameter-default = "ignore"
-invalid-method-override = "ignore"
+incompatible-method-override = "ignore"
 invalid-assignment = "ignore"
 invalid-argument-type = "ignore"
 conflicting-declarations = "ignore"

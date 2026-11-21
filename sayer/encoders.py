@@ -26,7 +26,7 @@ class EncoderProtocol(Protocol):
        (`serialize`).
     """
 
-    def is_type(self, value: Any) -> bool:
+    def is_type(self, value: Any, /) -> bool:
         """
         Determines if this encoder can handle the provided Python `value` for
         serialization.
@@ -40,7 +40,7 @@ class EncoderProtocol(Protocol):
         """
         ...
 
-    def serialize(self, value: Any) -> Any:
+    def serialize(self, value: Any, /) -> Any:
         """
         Converts the given Python `value` into a basic, JSON-compatible type.
 
@@ -72,7 +72,7 @@ class MoldingProtocol(Protocol):
     3. Performing the actual decoding or molding process (`encode`).
     """
 
-    def is_type(self, value: Any) -> bool:
+    def is_type(self, value: Any, /) -> bool:
         """
         Determines if this molder can handle the provided Python `value`.
 
@@ -88,7 +88,7 @@ class MoldingProtocol(Protocol):
         """
         ...
 
-    def is_type_structure(self, value: Any) -> bool:
+    def is_type_structure(self, value: Any, /) -> bool:
         """
         Checks if this molder is responsible for decoding into the given type
         annotation or class structure.
@@ -106,7 +106,7 @@ class MoldingProtocol(Protocol):
         """
         ...
 
-    def encode(self, structure: Any, value: Any) -> Any:
+    def encode(self, structure: Any, value: Any, /) -> Any:
         """
         Decodes or molds the `value` (which is typically from a JSON-like source)
         into an instance of the specified `structure` type.
@@ -150,7 +150,7 @@ class Encoder:
     # as-is, implying no special decoding is necessary or possible for this type.
     __encode__: bool = True
 
-    def is_type(self, value: Any) -> bool:
+    def is_type(self, value: Any, /) -> bool:
         """
         Checks if the provided `value` is an instance of the type(s) defined
         in the `__type__` attribute of this encoder.
@@ -170,7 +170,7 @@ class Encoder:
             return False
         return isinstance(value, self.__type__)
 
-    def is_type_structure(self, value: Any) -> bool:
+    def is_type_structure(self, value: Any, /) -> bool:
         """
         Determines if the given `value` (representing a type annotation or a class)
         matches the type(s) that this molder handles for decoding.
@@ -198,7 +198,7 @@ class Encoder:
         except TypeError:
             return False
 
-    def serialize(self, value: Any) -> Any:
+    def serialize(self, value: Any, /) -> Any:
         """
         Abstract method: Serializes a Python `value` into a JSON-compatible format.
 
@@ -218,7 +218,7 @@ class Encoder:
         """
         raise NotImplementedError(f"{type(self).__name__} must implement 'serialize'.")
 
-    def encode(self, structure: Any, value: Any) -> Any:
+    def encode(self, structure: Any, value: Any, /) -> Any:
         """
         Abstract method: Decodes or molds a JSON-compatible `value` back into
         an instance of the specified `structure` type.

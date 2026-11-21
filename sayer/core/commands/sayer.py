@@ -58,7 +58,7 @@ class SayerCommand(BaseSayerCommand):
 
                 if len(args) > len(ordered_params):
                     raise TypeError(
-                        f"{original.__name__}() takes {len(ordered_params)} positional "
+                        f"{original.__name__}() takes {len(ordered_params)} positional "  # type: ignore
                         f"argument(s) but {len(args)} were given"
                     )
 
@@ -73,7 +73,9 @@ class SayerCommand(BaseSayerCommand):
             # Filter out silent params
             param_map = {p.name: p for p in self.params}
             filtered_kwargs = {
-                k: v for k, v in kwargs.items() if k not in param_map or getattr(param_map[k], "expose_value", True)
+                k: v
+                for k, v in kwargs.items()
+                if k not in param_map or getattr(param_map[k], "expose_value", True)
             }
 
             # If we're inside an asyncio event loop and the underlying function is async,

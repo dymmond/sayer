@@ -192,11 +192,15 @@ def command(
         # Get type hints for the function parameters, resolving any `Annotated` types.
         type_hints = get_type_hints(function_to_decorate, include_extras=True)
         # Extract help text for the command from various sources.
-        command_help_text = _extract_command_help_text(function_signature, function_to_decorate, attrs)
+        command_help_text = _extract_command_help_text(
+            function_signature, function_to_decorate, attrs
+        )
         # Resolve before and after middleware hooks.
         before_execution_hooks, after_execution_hooks = resolve_middleware(middleware)
         # Check if `click.Context` is explicitly injected into the function's parameters.
-        is_context_param_injected = any(p.annotation is click.Context for p in function_signature.parameters.values())
+        is_context_param_injected = any(
+            p.annotation is click.Context for p in function_signature.parameters.values()
+        )
         # Checks if should be a custom group to added
 
         click_cmd_kwargs = {
@@ -251,12 +255,16 @@ def command(
                 # Skip `click.Context` and `State` parameters as they are handled separately.
                 if param_sig.annotation is click.Context:
                     continue
-                if isinstance(param_sig.annotation, type) and issubclass(param_sig.annotation, State):
+                if isinstance(param_sig.annotation, type) and issubclass(
+                    param_sig.annotation, State
+                ):
                     continue
 
                 param_metadata_for_factory = None
                 # Resolve the raw type, handling `Annotated` parameters.
-                raw_annotation_for_factory = param_sig.annotation if param_sig.annotation is not inspect._empty else str
+                raw_annotation_for_factory = (
+                    param_sig.annotation if param_sig.annotation is not inspect._empty else str
+                )
                 if get_origin(raw_annotation_for_factory) is Annotated:
                     # Look for metadata (Option, Env) within Annotated arguments.
                     for meta_item in get_args(raw_annotation_for_factory)[1:]:
@@ -264,7 +272,9 @@ def command(
                             param_metadata_for_factory = meta_item
                             break
                 # If no metadata found in Annotated, check if the default value is metadata.
-                if param_metadata_for_factory is None and isinstance(param_sig.default, (Option, Env)):
+                if param_metadata_for_factory is None and isinstance(
+                    param_sig.default, (Option, Env)
+                ):
                     param_metadata_for_factory = param_sig.default
 
                 # If metadata with a `default_factory` is found and no value was provided
@@ -283,12 +293,16 @@ def command(
                     bound_arguments[param_sig.name] = ctx
                     continue
                 # Inject `sayer.State` instances if requested.
-                if isinstance(param_sig.annotation, type) and issubclass(param_sig.annotation, State):
+                if isinstance(param_sig.annotation, type) and issubclass(
+                    param_sig.annotation, State
+                ):
                     bound_arguments[param_sig.name] = ctx._sayer_state[param_sig.annotation]  # type: ignore
                     continue
 
                 # Determine the target type for conversion, handling `Annotated` and default `str`.
-                raw_type_for_conversion = param_sig.annotation if param_sig.annotation is not inspect._empty else str
+                raw_type_for_conversion = (
+                    param_sig.annotation if param_sig.annotation is not inspect._empty else str
+                )
                 target_type_for_conversion = (
                     get_args(raw_type_for_conversion)[0]
                     if get_origin(raw_type_for_conversion) is Annotated
@@ -298,7 +312,9 @@ def command(
 
                 # Special handling for explicit `JsonParam` or `Annotated` with `JsonParam`.
                 is_json_param_by_default = isinstance(param_sig.default, JsonParam)
-                is_json_param_by_annotation = get_origin(param_sig.annotation) is Annotated and any(
+                is_json_param_by_annotation = get_origin(
+                    param_sig.annotation
+                ) is Annotated and any(
                     isinstance(meta, JsonParam) for meta in get_args(param_sig.annotation)[1:]
                 )
                 if is_json_param_by_default or is_json_param_by_annotation:
@@ -308,14 +324,22 @@ def command(
                             json_data = json.loads(parameter_value)
                         except json.JSONDecodeError as e:
                             # Raise a Click `BadParameter` error on JSON decoding failure.
-                            raise click.BadParameter(f"Invalid JSON for '{param_sig.name}': {e}") from e
+                            raise click.BadParameter(
+                                f"Invalid JSON for '{param_sig.name}': {e}"
+                            ) from e
                         parameter_value = apply_structure(target_type_for_conversion, json_data)
 
                 # Convert non-list/Sequence types using the `convert_cli_value_to_type` helper.
                 if get_origin(raw_type_for_conversion) in (list, Sequence):
-                    inner = get_args(raw_type_for_conversion)[0] if get_args(raw_type_for_conversion) else Any
+                    inner = (
+                        get_args(raw_type_for_conversion)[0]
+                        if get_args(raw_type_for_conversion)
+                        else Any
+                    )
                     parameter_value = [
-                        convert_cli_value_to_type(item, inner, function_to_decorate, param_sig.name)
+                        convert_cli_value_to_type(
+                            item, inner, function_to_decorate, param_sig.name
+                        )
                         for item in (parameter_value or [])
                     ]
                 else:
@@ -384,7 +408,8 @@ def command(
         for param_inspect_obj in function_signature.parameters.values():
             # Skip `click.Context` and `sayer.State` parameters as they are handled internally.
             if param_inspect_obj.annotation is click.Context or (
-                isinstance(param_inspect_obj.annotation, type) and issubclass(param_inspect_obj.annotation, State)
+                isinstance(param_inspect_obj.annotation, type)
+                and issubclass(param_inspect_obj.annotation, State)
             ):
                 continue
 
@@ -396,7 +421,11 @@ def command(
             # Determine the raw annotation and the primary parameter type.
             raw_annotation_for_param = type_hints.get(
                 param_inspect_obj.name,
-                (param_inspect_obj.annotation if param_inspect_obj.annotation is not inspect._empty else str),
+                (
+                    param_inspect_obj.annotation
+                    if param_inspect_obj.annotation is not inspect._empty
+                    else str
+                ),
             )
             param_base_type = (
                 get_args(raw_annotation_for_param)[0]
@@ -422,8 +451,10 @@ def command(
 
             # Extract the type and override it
             is_overriden_type = False
-            if getattr(param_metadata_for_build, "type", None) is not None:
-                param_base_type = param_metadata_for_build.type
+            if (
+                param_metadata_for_build_type := getattr(param_metadata_for_build, "type", None)
+            ) is not None:
+                param_base_type = param_metadata_for_build_type
                 is_overriden_type = True
 
             # Build and apply the Click parameter decorator.
@@ -498,9 +529,13 @@ def group(
         # Set the group for different sections
         if is_custom:
             new_group_instance.__is_custom__ = is_custom
-            new_group_instance._custom_command_config.title = custom_command_name or name.capitalize()  # noqa
+            new_group_instance._custom_command_config.title = (
+                custom_command_name or name.capitalize()
+            )  # noqa
 
-        def _group_command_method_override(func_to_bind: F | None = None, **opts: Any) -> click.Command:  #
+        def _group_command_method_override(
+            func_to_bind: F | None = None, **opts: Any
+        ) -> click.Command:  #
             """
             Internal helper that replaces `click.Group.command` to integrate
             `sayer`'s command decorator.
@@ -557,7 +592,9 @@ def get_groups() -> dict[str, click.Group]:
     return GROUPS
 
 
-def bind_command_to_group(group_instance: click.Group, function_to_bind: F, *args: Any, **attrs: Any) -> click.Command:
+def bind_command_to_group(
+    group_instance: click.Group, function_to_bind: F, *args: Any, **attrs: Any
+) -> click.Command:
     """
     Binds a function to a specific Click group using `sayer`'s command decorator.
 

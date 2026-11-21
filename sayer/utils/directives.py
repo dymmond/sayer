@@ -153,6 +153,9 @@ def _find_directives_from_path(
             if name.rsplit(".", 1)[-1].startswith("_"):
                 continue
             spec = finder.find_spec(name, None)
+            # ignore invalid
+            if spec is None or spec.origin is None:
+                continue
             full_name_str = spec.origin
             relative = cast("RelativePath", Path(full_name_str).relative_to(root))
             count_parts: int | None = None
@@ -298,7 +301,7 @@ def find_directives_from_module(
         "RootPath",
         (
             Path(module.__spec__.origin).parent
-            if module.__spec__.origin
+            if module.__spec__ and module.__spec__.origin
             else Path(module.__name__.replace(".", os.sep))
         ).absolute(),
     )
@@ -363,7 +366,7 @@ def transpose_directives(
             if app_name := getattr(directive_tuple.module, "app_name", None):
                 return app_name
             # is an __init__
-            if Path(directive_tuple.module.__spec__.origin).stem == "__init__":
+            if Path(directive_tuple.module.__spec__.origin).stem == "__init__":  # type: ignore
                 return (
                     directive_tuple.relative.parts[0]
                     if len(directive_tuple.relative.parts) > 2

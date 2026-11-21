@@ -6,6 +6,7 @@
 
 - Cleanup partial packages (error during import).
 - Fix ty linting.
+- Make the encoder interface positional only as intended.
 
 ## 0.8.2
 

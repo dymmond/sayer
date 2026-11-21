@@ -5,6 +5,7 @@
 ### Fixed
 
 - Cleanup partial packages (error during import).
+- Directives search skips unsound or missing ModuleSpecs.
 - Fix ty linting.
 - Make the encoder interface positional only as intended.
 
